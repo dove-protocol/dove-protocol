@@ -3,14 +3,17 @@ pragma solidity ^0.8.15;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
-import "../interfaces/ILayerZeroReceiver.sol";
-import "../interfaces/ILayerZeroEndpoint.sol";
+
+import "../hyperlane/HyperlaneClient.sol";
+import "../hyperlane/TypeCasts.sol";
+
 import "./interfaces/IStargateRouter.sol";
-import {Voucher} from "./Voucher.sol";
+
 import "../MessageType.sol";
 
-contract AMM is ReentrancyGuard, ILayerZeroReceiver {
-    ILayerZeroEndpoint public lzEndpoint;
+import {Voucher} from "./Voucher.sol";
+
+contract AMM is ReentrancyGuard, HyperlaneClient {
     IStargateRouter public stargateRouter;
     address public L1Target;
 
@@ -34,22 +37,23 @@ contract AMM is ReentrancyGuard, ILayerZeroReceiver {
     uint256 public fees0;
     uint256 public fees1;
 
+    uint32 public destDomain;
     uint16 public destChainId;
-
-    bytes32 public trustedRemoteHash;
 
     constructor(
         address _token0,
         address _L1Token0,
         address _token1,
         address _L1Token1,
-        address _lzEndpoint,
+        address _gasMaster,
+        address _mailbox,
         address _stargateRouter,
         address _L1Target,
-        uint16 _destChainId
-    ) {
+        uint16 _destChainId,
+        uint32 _destDomain
+    ) HyperlaneClient(_gasMaster, _mailbox, address(0)) {
         destChainId = _destChainId;
-        lzEndpoint = ILayerZeroEndpoint(_lzEndpoint);
+        destDomain = _destDomain;
         stargateRouter = IStargateRouter(_stargateRouter);
         L1Target = _L1Target;
 
@@ -63,8 +67,6 @@ contract AMM is ReentrancyGuard, ILayerZeroReceiver {
             new Voucher(string.concat("v", token0.name()), string.concat("v", token0.symbol()), token0.decimals());
         voucher1 =
             new Voucher(string.concat("v", token1.name()), string.concat("v", token1.symbol()), token1.decimals());
-
-        trustedRemoteHash = keccak256(abi.encodePacked(_L1Target, address(this)));
     }
 
     /// @notice Swaps token 0/1 for token 1/0.
@@ -107,7 +109,8 @@ contract AMM is ReentrancyGuard, ILayerZeroReceiver {
         payable
     {
         // swap token0
-        bytes memory payload = abi.encode(voucher0.totalSupply(), balance0);
+        uint32 localDomain = mailbox.localDomain();
+        bytes memory payload = abi.encode(voucher0.totalSupply(), balance0, localDomain);
         token0.approve(address(stargateRouter), balance0 + fees0);
         stargateRouter.swap{value: msg.value / 2}(
             destChainId,
@@ -123,7 +126,7 @@ contract AMM is ReentrancyGuard, ILayerZeroReceiver {
         fees0 = 0;
         balance0 = 0;
         // swap token1
-        payload = abi.encode(voucher1.totalSupply(), balance1);
+        payload = abi.encode(voucher1.totalSupply(), balance1, localDomain);
         token1.approve(address(stargateRouter), balance1 + fees1);
         stargateRouter.swap{value: msg.value / 2}(
             destChainId,
@@ -146,34 +149,23 @@ contract AMM is ReentrancyGuard, ILayerZeroReceiver {
     function burnVouchers(uint256 amount0, uint256 amount1) external payable nonReentrant {
         uint256 fee = amount0 > 0 && amount1 > 0 ? msg.value / 2 : msg.value;
         // tell L1 that vouchers been burned
-        bytes memory remoteAndLocalAddresses = abi.encodePacked(L1Target, address(this));
         if (amount0 > 0) {
             voucher0.burn(msg.sender, amount0);
             bytes memory payload = abi.encode(MessageType.BURN_VOUCHER, L1Token0, msg.sender, amount0);
-            lzEndpoint.send{value: fee}(
-                destChainId, // destination LayerZero chainId
-                remoteAndLocalAddresses, // send to this address on the destination
-                payload, // bytes payload
-                payable(msg.sender), // refund address
-                address(0x0), // future parameter
-                bytes("") // adapterParams (see "Advanced Features")
-            );
+            bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
+            hyperlaneGasMaster.payGasFor{value: fee}(id, destDomain);
         }
         if (amount1 > 0) {
             voucher1.burn(msg.sender, amount1);
             bytes memory payload = abi.encode(MessageType.BURN_VOUCHER, L1Token1, msg.sender, amount1);
-            lzEndpoint.send{value: fee}(
-                destChainId, remoteAndLocalAddresses, payload, payable(msg.sender), address(0x0), bytes("")
-            );
+            bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
+            hyperlaneGasMaster.payGasFor{value: fee}(id, destDomain);
         }
     }
 
-    function lzReceive(uint16 _srcChainId, bytes calldata _srcAddress, uint64 _nonce, bytes calldata _payload)
-        external
-        override
-    {
-        require(msg.sender == address(lzEndpoint), "LZENDPOINT ONLY");
-        require(keccak256(_srcAddress) == trustedRemoteHash, "NOT TRUSTED");
-        (reserve0, reserve1) = abi.decode(_payload, (uint256, uint256));
+    function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyInbox {
+        require(origin == destDomain, "WRONG ORIGIN");
+        require(TypeCasts.addressToBytes32(L1Target) == sender, "NOT DOVE");
+        (reserve0, reserve1) = abi.decode(payload, (uint256, uint256));
     }
 }
