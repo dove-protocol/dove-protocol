@@ -21,6 +21,8 @@ jobs:
         run: forge test
         env:
           FOUNDRY_PROFILE: ci
+          ETH_MAINNET_RPC_URL: ${{ secrets.ETH_MAINNET_RPC_URL }}
+          POLYGON_MAINNET_RPC_URL: ${{ secrets.POLYGON_MAINNET_RPC_URL }}
 
   snapshot:
     runs-on: ubuntu-latest
@@ -40,6 +42,9 @@ jobs:
 
       - name: Check gas snapshots
         run: forge snapshot --check
+        env:
+          ETH_MAINNET_RPC_URL: ${{ secrets.ETH_MAINNET_RPC_URL }}
+          POLYGON_MAINNET_RPC_URL: ${{ secrets.POLYGON_MAINNET_RPC_URL }}
 
   slither:
     runs-on: ubuntu-latest
@@ -64,8 +69,8 @@ jobs:
         uses: crytic/slither-action@main
         id: slither
         with:
-          target: '.'
-          slither-args: '--exclude solc-version,pragma,unused-state --exclude-dependencies'
+          target: "."
+          slither-args: "--exclude solc-version,pragma,unused-state --exclude-dependencies"
 
   scripts:
     strategy:
