@@ -1,0 +1,3 @@
+DoveTest:testPersistentStatesSwitchingForks() (gas: 16225)
+DoveTest:testSyncingToL1() (gas: 1217796)
+DoveTest:testSyncingToL2() (gas: 97303)
