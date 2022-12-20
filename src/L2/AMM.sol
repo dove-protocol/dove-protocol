@@ -23,12 +23,12 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
     address public L1Target;
 
     ///@notice The bridged token0.
-    ERC20 public token0;
+    address public token0;
     address public L1Token0;
     Voucher public voucher0;
 
     ///@notice The bridged token1.
-    ERC20 public token1;
+    address public token1;
     address public L1Token1;
     Voucher public voucher1;
 
@@ -40,17 +40,25 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
     /// @notice total accumumated fees (LPs+protocol).
     uint256 public fees0;
     uint256 public fees1;
-    // index0 and index1 are used to accumulate fees, this is split out from normal trades to keep the swap "clean"
-    // this further allows LP holders to easily claim fees for tokens they have/staked
-    uint256 public index0;
-    uint256 public index1;
 
     uint8 internal immutable decimals0;
     uint8 internal immutable decimals1;
     uint32 internal immutable destDomain;
     uint16 internal immutable destChainId;
-    uint256 internal balance0;
-    uint256 internal balance1;
+    uint256 internal ref0;
+    uint256 internal ref1;
+    // amount of vouchers minted since last L12 sync
+    uint256 internal voucher0Delta;
+    uint256 internal voucher1Delta;
+
+    uint256 constant FEE = 10000;
+
+    bool constant stable = true;
+    address fees;
+
+    function setFees(address f) external {
+        fees = f;
+    }
 
     /*###############################################################
                             EVENTS
@@ -85,19 +93,21 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
         stargateRouter = IStargateRouter(_stargateRouter);
         L1Target = _L1Target;
 
-        token0 = ERC20(_token0);
+        token0 = _token0;
         L1Token0 = _L1Token0;
-        token1 = ERC20(_token1);
+        token1 = _token1;
         L1Token1 = _L1Token1;
 
-        decimals0 = 10 ** ERC20(_token0).decimals();
-        decimals1 = 10 ** ERC20(_token1).decimals();
+        decimals0 = uint8(10 ** ERC20(_token0).decimals());
+        decimals1 = uint8(10 ** ERC20(_token1).decimals());
 
+        ERC20 token0_ = ERC20(_token0);
+        ERC20 token1_ = ERC20(_token1);
         /// @dev Assume one AMM per L2.
         voucher0 =
-            new Voucher(string.concat("v", token0.name()), string.concat("v", token0.symbol()), token0.decimals());
+            new Voucher(string.concat("v", token0_.name()), string.concat("v", token0_.symbol()), token0_.decimals());
         voucher1 =
-            new Voucher(string.concat("v", token1.name()), string.concat("v", token1.symbol()), token1.decimals());
+            new Voucher(string.concat("v", token1_.name()), string.concat("v", token1_.symbol()), token1_.decimals());
     }
 
     /*###############################################################
@@ -111,15 +121,25 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
     }
 
     function balance0() public view returns (uint256) {
-        return balance0 + ERC20(token0).balanceOf(address(this)) - voucher0.totalSupply();
+        return ref0 + ERC20(token0).balanceOf(address(this)) - voucher0Delta;
     }
 
     function balance1() public view returns (uint256) {
-        return balance1 + ERC20(token1).balanceOf(address(this)) - voucher1.totalSupply();
+        return ref1 + ERC20(token1).balanceOf(address(this)) - voucher1Delta;
+    }
+
+    // Accrue fees on token0
+    function _update0(uint256 amount) internal {
+        ERC20(token0).transfer(fees, amount);
+    }
+
+    // Accrue fees on token1
+    function _update1(uint256 amount) internal {
+        ERC20(token1).transfer(fees, amount);
     }
 
     // update reserves and, on the first call per block, price accumulators
-    function _update(uint256 balance0, uint256 balance1, uint256 _reserve0, uint256 _reserve1) internal {
+    function _update(uint256 _balance0, uint256 _balance1, uint256 _reserve0, uint256 _reserve1) internal {
         uint256 blockTimestamp = block.timestamp;
         uint256 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
         if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
@@ -127,8 +147,8 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
             reserve1CumulativeLast += _reserve1 * timeElapsed;
         }
 
-        reserve0 = balance0;
-        reserve1 = balance1;
+        reserve0 = _balance0;
+        reserve1 = _balance1;
         blockTimestampLast = blockTimestamp;
         emit Sync(reserve0, reserve1);
     }
@@ -153,37 +173,8 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
         }
     }
 
-    /// @notice Swaps token 0/1 for token 1/0.
-    /// @param amount0In The amount of token 0 to swap.
-    /// @param amount1In The amount of token 1 to swap.
-    /// @return amountOut The amount of the token we swap out.
-    function swap(uint256 amount0In, uint256 amount1In) external nonReentrant returns (uint256 amountOut) {
-        require(amount0In > 0 || amount1In > 0, "Amounts are 0");
-        (ERC20 tokenIn, Voucher voucherOut, uint256 amountIn, uint256 reserveIn, uint256 reserveOut) = amount0In > 0
-            ? (token0, voucher1, amount0In, reserve0, reserve1)
-            : (token1, voucher0, amount1In, reserve1, reserve0);
-        tokenIn.transferFrom(msg.sender, address(this), amountIn);
-        uint256 fees = amountIn / 100; // 1%
-        amountIn -= fees;
-        amountOut = (amountIn * reserveOut) / (reserveIn + amountIn);
-
-        // update reserves
-        if (amount0In > 0) {
-            fees0 += fees;
-            balance0 += amountIn;
-            reserve0 += amount0In;
-            reserve1 -= amountOut;
-        } else {
-            fees1 += fees;
-            reserve0 -= amountOut;
-            reserve1 += amount1In;
-            balance1 += amountIn;
-        }
-        voucherOut.mint(msg.sender, amountOut);
-    }
-
     // this low-level function should be called from a contract which performs important safety checks
-    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external lock {
+    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external nonReentrant {
         //require(!BaseV1Factory(factory).isPaused());
         require(amount0Out > 0 || amount1Out > 0, "IOA"); // BaseV1: INSUFFICIENT_OUTPUT_AMOUNT
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
@@ -195,9 +186,17 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
             // scope for _token{0,1}, avoids stack too deep errors
             (address _token0, address _token1) = (token0, token1);
             require(to != _token0 && to != _token1, "IT"); // BaseV1: INVALID_TO
-            if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out); // optimistically transfer tokens
-            if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out); // optimistically transfer tokens
-            if (data.length > 0) IBaseV1Callee(to).hook(msg.sender, amount0Out, amount1Out, data); // callback, used for flash loans
+            // optimistically mints vouchers
+            if (amount0Out > 0) {
+                voucher0.mint(to, amount0Out);
+                voucher0Delta += amount0Out;
+            }
+            // optimistically mints vouchers
+            if (amount1Out > 0) {
+                voucher1.mint(to, amount1Out);
+                voucher1Delta += amount1Out;
+            }
+            //if (data.length > 0) IBaseV1Callee(to).hook(msg.sender, amount0Out, amount1Out, data);
             _balance0 = balance0();
             _balance1 = balance1();
         }
@@ -207,8 +206,8 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
         {
             // scope for reserve{0,1}Adjusted, avoids stack too deep errors
             (address _token0, address _token1) = (token0, token1);
-            if (amount0In > 0) _update0(amount0In / 10000); // accrue fees for token0 and move them out of pool
-            if (amount1In > 0) _update1(amount1In / 10000); // accrue fees for token1 and move them out of pool
+            if (amount0In > 0) _update0(amount0In / FEE); // accrue fees for token0 and move them out of pool
+            if (amount1In > 0) _update1(amount1In / FEE); // accrue fees for token1 and move them out of pool
             _balance0 = balance0(); // since we removed tokens, we need to reconfirm balances, can also simply use previous balance - amountIn/ 10000, but doing balanceOf again as safety check
             _balance1 = balance1();
             // The curve, either x3y+y3x for stable pools, or x*y for volatile pools
@@ -220,20 +219,15 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
     }
 
     // force balances to match reserves
-    function skim(address to) external lock {
-        (address _token0, address _token1) = (token0, token1);
-        _safeTransfer(_token0, to, ???);
-        _safeTransfer(_token1, to, ???);
-    }
+    // function skim(address to) external nonReentrant {
+    //     (address _token0, address _token1) = (token0, token1);
+    //     _safeTransfer(_token0, to, ???);
+    //     _safeTransfer(_token1, to, ???);
+    // }
 
     // force reserves to match balances
-    function sync() external lock {
-        _update(
-            balance0(),
-            balance1(),
-            reserve0,
-            reserve1
-        );
+    function sync() external nonReentrant {
+        _update(balance0(), balance1(), reserve0, reserve1);
     }
 
     function _f(uint256 x0, uint256 y) internal pure returns (uint256) {
@@ -270,7 +264,7 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
 
     function getAmountOut(uint256 amountIn, address tokenIn) external view returns (uint256) {
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
-        amountIn -= amountIn / 10000; // remove fee from amount received
+        amountIn -= amountIn / FEE; // remove fee from amount received
         return _getAmountOut(amountIn, tokenIn, _reserve0, _reserve1);
     }
 
@@ -311,44 +305,44 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
     /// @param dstPoolId0 The id of the dst pool for token0.
     /// @param srcPoolId1 The id of the src pool for token1.
     /// @param dstPoolId1 The id of the dst pool for token1.
-    function syncToL1(uint256 srcPoolId0, uint256 dstPoolId0, uint256 srcPoolId1, uint256 dstPoolId1)
-        external
-        payable
-    {
-        // swap token0
-        uint32 localDomain = mailbox.localDomain();
-        bytes memory payload = abi.encode(voucher0.totalSupply(), balance0, localDomain);
-        token0.approve(address(stargateRouter), balance0 + fees0);
-        stargateRouter.swap{value: msg.value / 2}(
-            destChainId,
-            srcPoolId0,
-            dstPoolId0,
-            payable(msg.sender),
-            balance0 + fees0,
-            0,
-            IStargateRouter.lzTxObj(10 ** 6, 0, "0x"),
-            abi.encodePacked(L1Target),
-            payload
-        );
-        fees0 = 0;
-        balance0 = 0;
-        // swap token1
-        payload = abi.encode(voucher1.totalSupply(), balance1, localDomain);
-        token1.approve(address(stargateRouter), balance1 + fees1);
-        stargateRouter.swap{value: msg.value / 2}(
-            destChainId,
-            srcPoolId1,
-            dstPoolId1,
-            payable(msg.sender),
-            balance1 + fees1,
-            0,
-            IStargateRouter.lzTxObj(10 ** 6, 0, "0x"),
-            abi.encodePacked(L1Target),
-            payload
-        );
-        fees1 = 0;
-        balance1 = 0;
-    }
+    // function syncToL1(uint256 srcPoolId0, uint256 dstPoolId0, uint256 srcPoolId1, uint256 dstPoolId1)
+    //     external
+    //     payable
+    // {
+    //     // swap token0
+    //     uint32 localDomain = mailbox.localDomain();
+    //     bytes memory payload = abi.encode(voucher0.totalSupply(), balance0, localDomain);
+    //     token0.approve(address(stargateRouter), balance0 + fees0);
+    //     stargateRouter.swap{value: msg.value / 2}(
+    //         destChainId,
+    //         srcPoolId0,
+    //         dstPoolId0,
+    //         payable(msg.sender),
+    //         balance0 + fees0,
+    //         0,
+    //         IStargateRouter.lzTxObj(10 ** 6, 0, "0x"),
+    //         abi.encodePacked(L1Target),
+    //         payload
+    //     );
+    //     fees0 = 0;
+    //     balance0 = 0;
+    //     // swap token1
+    //     payload = abi.encode(voucher1.totalSupply(), balance1, localDomain);
+    //     token1.approve(address(stargateRouter), balance1 + fees1);
+    //     stargateRouter.swap{value: msg.value / 2}(
+    //         destChainId,
+    //         srcPoolId1,
+    //         dstPoolId1,
+    //         payable(msg.sender),
+    //         balance1 + fees1,
+    //         0,
+    //         IStargateRouter.lzTxObj(10 ** 6, 0, "0x"),
+    //         abi.encodePacked(L1Target),
+    //         payload
+    //     );
+    //     fees1 = 0;
+    //     balance1 = 0;
+    // }
 
     /// @notice Allows user to burn his L2 vouchers to get the L1 tokens.
     /// @param amount0 The amount of voucher0 to burn.
@@ -374,7 +368,9 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
         require(origin == destDomain, "WRONG ORIGIN");
         require(TypeCasts.addressToBytes32(L1Target) == sender, "NOT DOVE");
         (reserve0, reserve1) = abi.decode(payload, (uint256, uint256));
-        balance0 = reserve0;
-        balance1 = reserve1;
+        ref0 = reserve0;
+        ref1 = reserve1;
+        voucher0Delta = 0;
+        voucher1Delta = 0;
     }
 }

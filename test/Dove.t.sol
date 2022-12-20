@@ -144,8 +144,8 @@ contract DoveTest is Test, Helper {
         this.syncToL2();
 
         vm.selectFork(L2_FORK_ID);
-        uint256 out1 = amm.swap(10 ** 10, 0);
-        uint256 out2 = amm.swap(0, 10 ** 10);
+        //uint256 out1 = amm.swap(10 ** 10, 0);
+        //uint256 out2 = amm.swap(0, 10 ** 10);
         uint256 voucher0Balance = amm.voucher0().balanceOf(address(this));
         uint256 voucher1Balance = amm.voucher1().balanceOf(address(this));
 
@@ -180,7 +180,7 @@ contract DoveTest is Test, Helper {
         vm.selectFork(L2_FORK_ID);
 
         vm.recordLogs();
-        amm.syncToL1{value: 400 ether}(1, 1, 3, 3);
+        //amm.syncToL1{value: 400 ether}(1, 1, 3, 3);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         bytes memory payload1 = abi.decode(logs[8].data, (bytes));
