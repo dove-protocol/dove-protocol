@@ -25,9 +25,6 @@ contract AMMTest is Test {
     address fees = address(0xfee);
 
     function setUp() external {
-        token0L1 = new ERC20Mock("USDC", "USDC", 6); // USDC
-        token1L1 = new ERC20Mock("DAI", "DAI", 18); // DAI
-
         token0L2 = new ERC20Mock("USDC", "USDC", 6); // USDC
         token1L2 = new ERC20Mock("DAI", "DAI", 18); // DAI
 
@@ -37,7 +34,7 @@ contract AMMTest is Test {
             address(token1L2),
             address(token1L1),
             address(0),
-            address(0),
+            address(this),
             address(0),
             address(this),
             0,
@@ -48,8 +45,8 @@ contract AMMTest is Test {
         token0L2.approve(address(amm), type(uint256).max);
         token1L2.approve(address(amm), type(uint256).max);
 
-        token0L2.mint(address(this), 1000 * 10 ** 6);
-        token1L2.mint(address(this), 1000 * 10 ** 18);
+        token0L2.mint(address(this), 10 ** 11);
+        token1L2.mint(address(this), 10 ** 23);
 
         amm.handle(0, TypeCasts.addressToBytes32(address(this)), abi.encode(reserve0, reserve1));
     }
@@ -58,9 +55,8 @@ contract AMMTest is Test {
         uint256 amount0In = 5000 * 10 ** 6;
         uint256 amount1Out = amm.getAmountOut(amount0In, address(token0L2));
 
+        token0L2.transfer(address(amm), amount0In);
         amm.swap(0, amount1Out, address(0xBEEF), "");
-        console2.log("Beef got amount1Out = ", token1L2.balanceOf(address(0xBEEF)));
-        console2.log("0xFE has token0 fees = ", token0L2.balanceOf(fees));
     }
 
     receive() external payable {}

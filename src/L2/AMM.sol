@@ -41,8 +41,8 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
     uint256 public fees0;
     uint256 public fees1;
 
-    uint8 internal immutable decimals0;
-    uint8 internal immutable decimals1;
+    uint64 internal immutable decimals0;
+    uint64 internal immutable decimals1;
     uint32 internal immutable destDomain;
     uint16 internal immutable destChainId;
     uint256 internal ref0;
@@ -98,11 +98,12 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
         token1 = _token1;
         L1Token1 = _L1Token1;
 
-        decimals0 = uint8(10 ** ERC20(_token0).decimals());
-        decimals1 = uint8(10 ** ERC20(_token1).decimals());
-
         ERC20 token0_ = ERC20(_token0);
         ERC20 token1_ = ERC20(_token1);
+
+        decimals0 = uint64(10 ** token0_.decimals());
+        decimals1 = uint64(10 ** token1_.decimals());
+
         /// @dev Assume one AMM per L2.
         voucher0 =
             new Voucher(string.concat("v", token0_.name()), string.concat("v", token0_.symbol()), token0_.decimals());
