@@ -59,5 +59,19 @@ contract AMMTest is Test {
         amm.swap(0, amount1Out, address(0xBEEF), "");
     }
 
+    function testTwoSwapsThenSyncThenSwap() external {
+        uint256 amount0In = 5000 * 10 ** 6;
+
+        // first swap
+        uint256 amount1Out = amm.getAmountOut(amount0In, address(token0L2));
+        token0L2.transfer(address(amm), amount0In);
+        amm.swap(0, amount1Out, address(0xBEEF), "");
+
+        // second swap
+        amount1Out = amm.getAmountOut(amount0In, address(token0L2));
+        token0L2.transfer(address(amm), amount0In);
+        amm.swap(0, amount1Out, address(0xFEEB), "");
+    }
+
     receive() external payable {}
 }
