@@ -16,7 +16,6 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
     /*###############################################################
                             CONSTANTS
     ###############################################################*/
-    uint256 immutable MINIMUM_HF = 9 * 10 ** 8; // 0.9
 
     /*###############################################################
                             STRUCTS
@@ -210,32 +209,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
         reserve1 = newreserve1;
         marked0[srcDomain] = earmarked0;
         marked1[srcDomain] = earmarked1;
-        require(healthFactor() >= MINIMUM_HF, "SYNC:BELOW MINIMUM HF");
     }
 
     /*###############################################################
                             VIEW FUNCTIONS
     ###############################################################*/
-
-    function healthFactor() public view returns (uint256) {
-        uint256 r0 = reserve0;
-        uint256 r1 = reserve1;
-        uint256 ts = totalSupply;
-        uint256 decimals0 = ERC20(token0).decimals();
-        uint256 decimals1 = ERC20(token1).decimals();
-        if (decimals0 == 6 && decimals1 == 6) {
-            r0 = r0 * 10 ** 12;
-            r1 = r1 * 10 ** 12;
-            ts = ts * 10 ** 12;
-        } else if (decimals0 == 6 && decimals1 == 18) {
-            r0 = r0 * 10 ** 12;
-            ts = ts * 10 ** 6;
-        } else if (decimals0 == 18 && decimals1 == 6) {
-            r1 = r1 * 10 ** 12;
-            ts = ts * 10 ** 6;
-        }
-        return FixedPointMathLib.divWadUp(
-            FixedPointMathLib.sqrt(FixedPointMathLib.mulWadUp(reserve0, reserve1)), totalSupply
-        );
-    }
 }
