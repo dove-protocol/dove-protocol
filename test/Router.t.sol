@@ -42,8 +42,8 @@ contract RouterTest is Test {
         token0L2.approve(address(pair), type(uint256).max);
         token1L2.approve(address(pair), type(uint256).max);
 
-        token0L2.mint(address(this), 1000 * 10**6);
-        token1L2.mint(address(this), 1000 * 10**18);
+        token0L2.mint(address(this), 10**11);
+        token1L2.mint(address(this), 10**23);
 
         pair.handle(0, TypeCasts.addressToBytes32(address(this)), abi.encode(reserve0, reserve1));
     }

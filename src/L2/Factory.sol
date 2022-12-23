@@ -48,8 +48,10 @@ contract Factory is IFactory {
     ) external returns (address pair) {
         require(tokenA != tokenB, "Factory: IDENTICAL_ADDRESSES");
         // sort tokens
-        (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-        (address L1Token0, address L1Token1) = L1TokenA < L1TokenB ? (L1TokenA, L1TokenB) : (L1TokenB, L1TokenA);
+        // (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
+        // (address L1Token0, address L1Token1) = L1TokenA < L1TokenB ? (L1TokenA, L1TokenB) : (L1TokenB, L1TokenA);
+        (address token0, address token1) = (tokenA, tokenB);
+        (address L1Token0, address L1Token1) = (L1TokenA, L1TokenB);
 
         require(token0 != address(0), "Factory: ZERO_ADDRESS");
         require(L1Token0 != address(0), "Factory: ZERO_ADDRESS_ORIGIN");
