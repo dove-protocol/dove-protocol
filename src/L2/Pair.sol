@@ -44,8 +44,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     uint256 public fees0;
     uint256 public fees1;
 
-    uint8 internal immutable decimals0;
-    uint8 internal immutable decimals1;
+    uint64 internal immutable decimals0;
+    uint64 internal immutable decimals1;
     uint32 internal immutable destDomain;
     uint16 internal immutable destChainId;
     uint256 internal ref0;
@@ -98,11 +98,12 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         token1 = _token1;
         L1Token1 = _L1Token1;
 
-        decimals0 = uint8(10**ERC20(_token0).decimals());
-        decimals1 = uint8(10**ERC20(_token1).decimals());
-
         ERC20 token0_ = ERC20(_token0);
         ERC20 token1_ = ERC20(_token1);
+
+        decimals0 = uint64(10**token0_.decimals());
+        decimals1 = uint64(10**token1_.decimals());
+
         /// @dev Assume one AMM per L2.
         voucher0 = new Voucher(
             string.concat("v", token0_.name()),
@@ -120,6 +121,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                             AMM LOGIC
     ###############################################################*/
 
+    // TODO ; use balance0() instrad of reserrve0???
     function getReserves()
         public
         view
@@ -134,6 +136,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         _blockTimestampLast = blockTimestampLast;
     }
 
+    // TODO : rename to reserve0???
     function balance0() public view returns (uint256) {
         return ref0 + ERC20(token0).balanceOf(address(this)) - voucher0Delta;
     }
@@ -338,44 +341,58 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     /// @param dstPoolId0 The id of the dst pool for token0.
     /// @param srcPoolId1 The id of the src pool for token1.
     /// @param dstPoolId1 The id of the dst pool for token1.
-    // function syncToL1(uint256 srcPoolId0, uint256 dstPoolId0, uint256 srcPoolId1, uint256 dstPoolId1)
-    //     external
-    //     payable
-    // {
-    //     // swap token0
-    //     uint32 localDomain = mailbox.localDomain();
-    //     bytes memory payload = abi.encode(voucher0.totalSupply(), balance0, localDomain);
-    //     token0.approve(address(stargateRouter), balance0 + fees0);
-    //     stargateRouter.swap{value: msg.value / 2}(
-    //         destChainId,
-    //         srcPoolId0,
-    //         dstPoolId0,
-    //         payable(msg.sender),
-    //         balance0 + fees0,
-    //         0,
-    //         IStargateRouter.lzTxObj(10 ** 6, 0, "0x"),
-    //         abi.encodePacked(L1Target),
-    //         payload
-    //     );
-    //     fees0 = 0;
-    //     balance0 = 0;
-    //     // swap token1
-    //     payload = abi.encode(voucher1.totalSupply(), balance1, localDomain);
-    //     token1.approve(address(stargateRouter), balance1 + fees1);
-    //     stargateRouter.swap{value: msg.value / 2}(
-    //         destChainId,
-    //         srcPoolId1,
-    //         dstPoolId1,
-    //         payable(msg.sender),
-    //         balance1 + fees1,
-    //         0,
-    //         IStargateRouter.lzTxObj(10 ** 6, 0, "0x"),
-    //         abi.encodePacked(L1Target),
-    //         payload
-    //     );
-    //     fees1 = 0;
-    //     balance1 = 0;
-    // }
+    function syncToL1(
+        uint256 srcPoolId0,
+        uint256 dstPoolId0,
+        uint256 srcPoolId1,
+        uint256 dstPoolId1
+    ) external payable {
+        // // swap token0
+        // uint32 localDomain = mailbox.localDomain();
+        // bytes memory payload = abi.encode(voucher0.totalSupply(), balance0, localDomain);
+        // token0.approve(address(stargateRouter), balance0 + fees0);
+        // stargateRouter.swap{value: msg.value / 2}(
+        //     destChainId,
+        //     srcPoolId0,
+        //     dstPoolId0,
+        //     payable(msg.sender),
+        //     balance0 + fees0,
+        //     0,
+        //     IStargateRouter.lzTxObj(10 ** 6, 0, "0x"),
+        //     abi.encodePacked(L1Target),
+        //     payload
+        // );
+        // fees0 = 0;
+        // balance0 = 0;
+        // // swap token1
+        // payload = abi.encode(voucher1.totalSupply(), balance1, localDomain);
+        // token1.approve(address(stargateRouter), balance1 + fees1);
+        // stargateRouter.swap{value: msg.value / 2}(
+        //     destChainId,
+        //     srcPoolId1,
+        //     dstPoolId1,
+        //     payable(msg.sender),
+        //     balance1 + fees1,
+        //     0,
+        //     IStargateRouter.lzTxObj(10 ** 6, 0, "0x"),
+        //     abi.encodePacked(L1Target),
+        //     payload
+        // );
+        // fees1 = 0;
+        // balance1 = 0;
+        ERC20 _token0 = ERC20(token0);
+        ERC20 _token1 = ERC20(token1);
+        uint256 _balance0 = _token0.balanceOf(address(this));
+        uint256 _balance1 = _token1.balanceOf(address(this));
+        _token0.transfer(msg.sender, _balance0);
+        _token1.transfer(msg.sender, _balance1);
+        reserve0 = ref0 + _balance0 - voucher0Delta;
+        reserve1 = ref1 + _balance1 - voucher1Delta;
+        ref0 = reserve0;
+        ref1 = reserve1;
+        voucher0Delta = 0;
+        voucher1Delta = 0;
+    }
 
     /// @notice Allows user to burn his L2 vouchers to get the L1 tokens.
     /// @param amount0 The amount of voucher0 to burn.
