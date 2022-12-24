@@ -4,14 +4,14 @@ pragma solidity ^0.8.15;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 
+import {Voucher} from "./Voucher.sol";
+import {FeesAccumulator} from "./FeesAccumulator.sol";
+import "./interfaces/IStargateRouter.sol";
+
 import "../hyperlane/HyperlaneClient.sol";
 import "../hyperlane/TypeCasts.sol";
 
-import "./interfaces/IStargateRouter.sol";
-
 import "../MessageType.sol";
-
-import {Voucher} from "./Voucher.sol";
 
 /// The AMM logic is taken from https://github.com/transmissions11/solidly/blob/master/contracts/BaseV1-core.sol
 
@@ -37,9 +37,8 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
     uint256 public blockTimestampLast;
     uint256 public reserve0CumulativeLast;
     uint256 public reserve1CumulativeLast;
-    /// @notice total accumumated fees (LPs+protocol).
-    uint256 public fees0;
-    uint256 public fees1;
+
+    FeesAccumulator public feesAccumulator;
 
     uint64 internal immutable decimals0;
     uint64 internal immutable decimals1;
@@ -109,6 +108,7 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
             new Voucher(string.concat("v", token0_.name()), string.concat("v", token0_.symbol()), token0_.decimals());
         voucher1 =
             new Voucher(string.concat("v", token1_.name()), string.concat("v", token1_.symbol()), token1_.decimals());
+        feesAccumulator = new FeesAccumulator(_token0, _token1);
     }
 
     /*###############################################################
@@ -133,12 +133,12 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
 
     // Accrue fees on token0
     function _update0(uint256 amount) internal {
-        ERC20(token0).transfer(fees, amount);
+        ERC20(token0).transfer(address(feesAccumulator), amount);
     }
 
     // Accrue fees on token1
     function _update1(uint256 amount) internal {
-        ERC20(token1).transfer(fees, amount);
+        ERC20(token1).transfer(address(feesAccumulator), amount);
     }
 
     // update reserves and, on the first call per block, price accumulators
@@ -312,45 +312,42 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
         external
         payable
     {
-        // // swap token0
-        // uint32 localDomain = mailbox.localDomain();
-        // bytes memory payload = abi.encode(voucher0.totalSupply(), balance0, localDomain);
-        // token0.approve(address(stargateRouter), balance0 + fees0);
-        // stargateRouter.swap{value: msg.value / 2}(
-        //     destChainId,
-        //     srcPoolId0,
-        //     dstPoolId0,
-        //     payable(msg.sender),
-        //     balance0 + fees0,
-        //     0,
-        //     IStargateRouter.lzTxObj(10 ** 6, 0, "0x"),
-        //     abi.encodePacked(L1Target),
-        //     payload
-        // );
-        // fees0 = 0;
-        // balance0 = 0;
-        // // swap token1
-        // payload = abi.encode(voucher1.totalSupply(), balance1, localDomain);
-        // token1.approve(address(stargateRouter), balance1 + fees1);
-        // stargateRouter.swap{value: msg.value / 2}(
-        //     destChainId,
-        //     srcPoolId1,
-        //     dstPoolId1,
-        //     payable(msg.sender),
-        //     balance1 + fees1,
-        //     0,
-        //     IStargateRouter.lzTxObj(10 ** 6, 0, "0x"),
-        //     abi.encodePacked(L1Target),
-        //     payload
-        // );
-        // fees1 = 0;
-        // balance1 = 0;
         ERC20 _token0 = ERC20(token0);
         ERC20 _token1 = ERC20(token1);
+        // balance before getting accumulated fees
         uint256 _balance0 = _token0.balanceOf(address(this));
         uint256 _balance1 = _token1.balanceOf(address(this));
-        _token0.transfer(msg.sender, _balance0);
-        _token1.transfer(msg.sender, _balance1);
+        (uint256 fees0, uint256 fees1) = feesAccumulator.take();
+
+        // swap token0
+        uint32 localDomain = mailbox.localDomain();
+        bytes memory payload = abi.encode(voucher0Delta, _balance0, localDomain);
+        _token0.approve(address(stargateRouter), _balance0 + fees0);
+        stargateRouter.swap{value: msg.value / 2}(
+            destChainId,
+            srcPoolId0,
+            dstPoolId0,
+            payable(msg.sender),
+            _balance0 + fees0,
+            _balance0,
+            IStargateRouter.lzTxObj(400000, 0, "0x"),
+            abi.encodePacked(L1Target),
+            payload
+        );
+        // swap token1
+        payload = abi.encode(voucher1Delta, _balance1, localDomain);
+        _token1.approve(address(stargateRouter), _balance1 + fees1);
+        stargateRouter.swap{value: msg.value / 2}(
+            destChainId,
+            srcPoolId1,
+            dstPoolId1,
+            payable(msg.sender),
+            _balance1 + fees1,
+            _balance1,
+            IStargateRouter.lzTxObj(400000, 0, "0x"),
+            abi.encodePacked(L1Target),
+            payload
+        );
         reserve0 = ref0 + _balance0 - voucher0Delta;
         reserve1 = ref1 + _balance1 - voucher1Delta;
         ref0 = reserve0;
