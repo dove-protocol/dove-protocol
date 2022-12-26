@@ -119,10 +119,14 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
                             SYNCING LOGIC
     ###############################################################*/
 
-    function sgReceive(uint16 _srcChainId, bytes, uint256, /*_nonce*/ address _token, uint256 _bridgedAmount, bytes)
-        external
-        override
-    {
+    function sgReceive(
+        uint16 _srcChainId,
+        bytes _srcAddress,
+        uint256, /*_nonce*/
+        address _token,
+        uint256 _bridgedAmount,
+        bytes
+    ) external override {
         require(msg.sender == stargateRouter, "NOT STARGATE");
         require(keccak256(_srcAddress) == keccak256(sgTrustedBridge[_srcChainId]), "NOT TRUSTED");
         if (_token == token0) {
@@ -146,7 +150,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
                 _syncFromL2(origin, balance, partialSync.bridgedAmount, earmarkedDelta, partialSync.earmarkedAmount);
             }
             // reset
-            delete partialSyncs[_srcChainId];
+            delete partialSyncs[origin];
         }
     }
 
