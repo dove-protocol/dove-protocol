@@ -4,6 +4,7 @@ pragma solidity ^0.8.15;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {Owned} from "solmate/auth/Owned.sol";
+import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 import "../hyperlane/TypeCasts.sol";
 
@@ -16,7 +17,6 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
     /*###############################################################
                             CONSTANTS
     ###############################################################*/
-    uint256 immutable MINIMUM_HF = 9 * 10 ** 8; // 0.9
 
     /*###############################################################
                             STRUCTS
@@ -24,8 +24,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
 
     struct PartialSync {
         address token;
-        uint256 bridgedAmount;
-        uint256 earmarkedAmount;
+        uint256 balance; // L2 balance
+        uint256 earmarkedAmount; // tokens to earmark
     }
 
     /*###############################################################
@@ -39,6 +39,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
 
     uint256 public reserve0;
     uint256 public reserve1;
+
+    FeesDistributor public feesDistributor;
+
     /// @notice earmarked tokens
     mapping(uint32 => uint256) public marked0;
     mapping(uint32 => uint256) public marked1;
@@ -47,6 +50,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
 
     mapping(uint32 => bytes32) public trustedRemoteLookup;
     mapping(uint16 => bytes) public sgTrustedBridge;
+
+    mapping(uint16 => uint256) internal lastBridged0;
+    mapping(uint16 => uint256) internal lastBridged1;
 
     function addTrustedRemote(uint32 origin, bytes32 sender) external onlyOwner {
         trustedRemoteLookup[origin] = sender;
@@ -67,6 +73,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
         token0 = _token0;
         token1 = _token1;
         stargateRouter = _sgRouter;
+
+        feesDistributor = new FeesDistributor(_token0, _token1);
     }
 
     /*###############################################################
@@ -111,47 +119,31 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
                             SYNCING LOGIC
     ###############################################################*/
 
-    /// @notice Callback used by Stargate when doing a cross-chain swap.
-    /// @param _srcChainId The chainId of the remote chain.
-    /// @param _srcAddress The address of the remote chain.
-    /// @param _token The token contract on the local chain.
-    /// @param _bridgedAmount The quantity of local _token tokens.
-    /// @param _payload Extra payload.
-    function sgReceive(
-        uint16 _srcChainId,
-        bytes memory _srcAddress,
-        uint256, /*_nonce*/
-        address _token,
-        uint256 _bridgedAmount,
-        bytes memory _payload
-    ) external override {
+    function sgReceive(uint16 _srcChainId, bytes, uint256, /*_nonce*/ address _token, uint256 _bridgedAmount, bytes)
+        external
+        override
+    {
         require(msg.sender == stargateRouter, "NOT STARGATE");
         require(keccak256(_srcAddress) == keccak256(sgTrustedBridge[_srcChainId]), "NOT TRUSTED");
-        (uint256 earmarkedAmount, uint256 exactBridgedAmount, uint32 srcDomain) =
-            abi.decode(_payload, (uint256, uint256, uint32));
+        if (_token == token0) {
+            lastBridged0[_srcChainId] = _bridgedAmount;
+        } else if (_token == token1) {
+            lastBridged1[_srcChainId] = _bridgedAmount;
+        }
+    }
+
+    function syncFromL2(uint32 origin, address token, uint256 earmarkedDelta, uint256 balance) internal {
         // check if already partial sync
         // @note Maybe enforce check that second partial sync is "pair" of first one
-        PartialSync memory partialSync = partialSyncs[srcDomain];
+        PartialSync memory partialSync = partialSyncs[origin];
         if (partialSync.token == address(0)) {
-            partialSyncs[srcDomain] = PartialSync(_token, exactBridgedAmount, earmarkedAmount);
+            partialSyncs[origin] = PartialSync(token, balance, earmarkedDelta);
         } else {
             // can proceed with full sync
             if (partialSync.token == token0) {
-                _syncFromL2(
-                    srcDomain,
-                    partialSync.bridgedAmount,
-                    exactBridgedAmount,
-                    partialSync.earmarkedAmount,
-                    earmarkedAmount
-                );
+                _syncFromL2(origin, partialSync.bridgedAmount, balance, partialSync.earmarkedAmount, earmarkedDelta);
             } else {
-                _syncFromL2(
-                    srcDomain,
-                    exactBridgedAmount,
-                    partialSync.bridgedAmount,
-                    earmarkedAmount,
-                    partialSync.earmarkedAmount
-                );
+                _syncFromL2(origin, balance, partialSync.bridgedAmount, earmarkedDelta, partialSync.earmarkedAmount);
             }
             // reset
             delete partialSyncs[_srcChainId];
@@ -166,6 +158,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
             // token address should be either L1 address of token0 or token1
             (, address token, address user, uint256 amount) = abi.decode(payload, (uint256, address, address, uint256));
             _completeVoucherBurn(origin, token, user, amount);
+        } else if (messageType == MessageType.SYNC_TO_L1) {
+            (, address token, uint256 earmarkedDelta, uint256 balance) =
+                abi.decode(payload, (uint256, address, uint256, uint256));
         }
     }
 
@@ -201,41 +196,29 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
     /// @notice These tokens are simply added back to the reserves.
     /// @dev    This should be an authenticated call, only callable by the operator.
     /// @dev    The sync should be followed by a sync on the L2.
-    function _syncFromL2(uint32 srcDomain, uint256 bridged0, uint256 bridged1, uint256 earmarked0, uint256 earmarked1)
-        internal
-    {
-        uint256 newreserve0 = reserve0 + bridged0 - (earmarked0 - marked0[srcDomain]);
-        uint256 newreserve1 = reserve1 + bridged1 - (earmarked1 - marked1[srcDomain]);
-        reserve0 = newreserve0;
-        reserve1 = newreserve1;
-        marked0[srcDomain] = earmarked0;
-        marked1[srcDomain] = earmarked1;
-        require(healthFactor() >= MINIMUM_HF, "SYNC:BELOW MINIMUM HF");
+    function _syncFromL2(
+        uint32 srcDomain,
+        uint256 balance0,
+        uint256 balance1,
+        uint256 earmarkedDelta0,
+        uint256 earmarkedDelta1
+    ) internal {
+        uint256 newReserve0 = reserve0 + balance0 - earmarkedDelta0;
+        uint256 newReserve1 = reserve1 + balance1 - earmarkedDelta1;
+        // check soemwhere if it respects the curve
+        reserve0 = newReserve0;
+        reserve1 = newReserve1;
+        marked0[srcDomain] += earmarkedDelta0;
+        marked1[srcDomain] += earmarkedDelta1;
+        // send out fees
+        // optimistically, bridged > balance
+        uint256 fees0 = lastBridged0 - balance0;
+        uint256 fees1 = lastBridged1 - balance1;
+        SafeTransferLib.safeTransfer(token0, address(feesDistributor), fees0);
+        SafeTransferLib.safeTransfer(token1, address(feesDistributor), fees1);
     }
 
     /*###############################################################
                             VIEW FUNCTIONS
     ###############################################################*/
-
-    function healthFactor() public view returns (uint256) {
-        uint256 r0 = reserve0;
-        uint256 r1 = reserve1;
-        uint256 ts = totalSupply;
-        uint256 decimals0 = ERC20(token0).decimals();
-        uint256 decimals1 = ERC20(token1).decimals();
-        if (decimals0 == 6 && decimals1 == 6) {
-            r0 = r0 * 10 ** 12;
-            r1 = r1 * 10 ** 12;
-            ts = ts * 10 ** 12;
-        } else if (decimals0 == 6 && decimals1 == 18) {
-            r0 = r0 * 10 ** 12;
-            ts = ts * 10 ** 6;
-        } else if (decimals0 == 18 && decimals1 == 6) {
-            r1 = r1 * 10 ** 12;
-            ts = ts * 10 ** 6;
-        }
-        return FixedPointMathLib.divWadUp(
-            FixedPointMathLib.sqrt(FixedPointMathLib.mulWadUp(reserve0, reserve1)), totalSupply
-        );
-    }
 }
