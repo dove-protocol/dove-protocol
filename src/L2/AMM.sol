@@ -308,10 +308,14 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
     /// @param dstPoolId0 The id of the dst pool for token0.
     /// @param srcPoolId1 The id of the src pool for token1.
     /// @param dstPoolId1 The id of the dst pool for token1.
-    function syncToL1(uint256 srcPoolId0, uint256 dstPoolId0, uint256 srcPoolId1, uint256 dstPoolId1)
-        external
-        payable
-    {
+    function syncToL1(
+        uint256 srcPoolId0,
+        uint256 dstPoolId0,
+        uint256 srcPoolId1,
+        uint256 dstPoolId1,
+        uint256 sgFee,
+        uint256 hyperlaneFee
+    ) external payable {
         ERC20 _token0 = ERC20(token0);
         ERC20 _token1 = ERC20(token1);
         // balance before getting accumulated fees
@@ -320,34 +324,39 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
         (uint256 fees0, uint256 fees1) = feesAccumulator.take();
 
         // swap token0
-        uint32 localDomain = mailbox.localDomain();
-        bytes memory payload = abi.encode(voucher0Delta, _balance0, localDomain);
+        bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, L1Token0, voucher0Delta, _balance0);
         _token0.approve(address(stargateRouter), _balance0 + fees0);
-        stargateRouter.swap{value: msg.value / 2}(
+        stargateRouter.swap{value: sgFee}(
             destChainId,
             srcPoolId0,
             dstPoolId0,
             payable(msg.sender),
             _balance0 + fees0,
             _balance0,
-            IStargateRouter.lzTxObj(400000, 0, "0x"),
+            IStargateRouter.lzTxObj(200000, 0, "0x"),
             abi.encodePacked(L1Target),
-            payload
+            ""
         );
+        bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
+        hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
+
         // swap token1
-        payload = abi.encode(voucher1Delta, _balance1, localDomain);
+        payload = abi.encode(MessageType.SYNC_TO_L1, L1Token1, voucher1Delta, _balance1);
         _token1.approve(address(stargateRouter), _balance1 + fees1);
-        stargateRouter.swap{value: msg.value / 2}(
+        stargateRouter.swap{value: sgFee}(
             destChainId,
             srcPoolId1,
             dstPoolId1,
             payable(msg.sender),
             _balance1 + fees1,
             _balance1,
-            IStargateRouter.lzTxObj(400000, 0, "0x"),
+            IStargateRouter.lzTxObj(200000, 0, "0x"),
             abi.encodePacked(L1Target),
-            payload
+            ""
         );
+        id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
+        hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
+
         reserve0 = ref0 + _balance0 - voucher0Delta;
         reserve1 = ref1 + _balance1 - voucher1Delta;
         ref0 = reserve0;
