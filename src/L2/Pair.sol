@@ -4,23 +4,26 @@ pragma solidity ^0.8.15;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 
-import {Voucher} from "./Voucher.sol";
-import {FeesAccumulator} from "./FeesAccumulator.sol";
-import "./interfaces/IStargateRouter.sol";
-
 import "../hyperlane/HyperlaneClient.sol";
 import "../hyperlane/TypeCasts.sol";
 
+import "./interfaces/IStargateRouter.sol";
+
 import "../MessageType.sol";
+
+import {Voucher} from "./Voucher.sol";
+import {Factory} from "./Factory.sol";
 
 /// The AMM logic is taken from https://github.com/transmissions11/solidly/blob/master/contracts/BaseV1-core.sol
 
-contract AMM is ReentrancyGuard, HyperlaneClient {
+contract Pair is ReentrancyGuard, HyperlaneClient {
     /*###############################################################
                             STORAGE
     ###############################################################*/
     IStargateRouter public stargateRouter;
     address public L1Target;
+
+    address public factory;
 
     ///@notice The bridged token0.
     address public token0;
@@ -37,8 +40,9 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
     uint256 public blockTimestampLast;
     uint256 public reserve0CumulativeLast;
     uint256 public reserve1CumulativeLast;
-
-    FeesAccumulator public feesAccumulator;
+    /// @notice total accumumated fees (LPs+protocol).
+    uint256 public fees0;
+    uint256 public fees1;
 
     uint64 internal immutable decimals0;
     uint64 internal immutable decimals1;
@@ -53,11 +57,6 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
     uint256 constant FEE = 10000;
 
     bool constant stable = true;
-    address fees;
-
-    function setFees(address f) external {
-        fees = f;
-    }
 
     /*###############################################################
                             EVENTS
@@ -87,6 +86,8 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
         uint16 _destChainId,
         uint32 _destDomain
     ) HyperlaneClient(_gasMaster, _mailbox, address(0)) {
+        factory = msg.sender;
+
         destChainId = _destChainId;
         destDomain = _destDomain;
         stargateRouter = IStargateRouter(_stargateRouter);
@@ -100,15 +101,20 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
         ERC20 token0_ = ERC20(_token0);
         ERC20 token1_ = ERC20(_token1);
 
-        decimals0 = uint64(10 ** token0_.decimals());
-        decimals1 = uint64(10 ** token1_.decimals());
+        decimals0 = uint64(10**token0_.decimals());
+        decimals1 = uint64(10**token1_.decimals());
 
         /// @dev Assume one AMM per L2.
-        voucher0 =
-            new Voucher(string.concat("v", token0_.name()), string.concat("v", token0_.symbol()), token0_.decimals());
-        voucher1 =
-            new Voucher(string.concat("v", token1_.name()), string.concat("v", token1_.symbol()), token1_.decimals());
-        feesAccumulator = new FeesAccumulator(_token0, _token1);
+        voucher0 = new Voucher(
+            string.concat("v", token0_.name()),
+            string.concat("v", token0_.symbol()),
+            token0_.decimals()
+        );
+        voucher1 = new Voucher(
+            string.concat("v", token1_.name()),
+            string.concat("v", token1_.symbol()),
+            token1_.decimals()
+        );
     }
 
     /*###############################################################
@@ -116,7 +122,15 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
     ###############################################################*/
 
     // TODO ; use balance0() instrad of reserrve0???
-    function getReserves() public view returns (uint256 _reserve0, uint256 _reserve1, uint256 _blockTimestampLast) {
+    function getReserves()
+        public
+        view
+        returns (
+            uint256 _reserve0,
+            uint256 _reserve1,
+            uint256 _blockTimestampLast
+        )
+    {
         _reserve0 = reserve0;
         _reserve1 = reserve1;
         _blockTimestampLast = blockTimestampLast;
@@ -133,16 +147,21 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
 
     // Accrue fees on token0
     function _update0(uint256 amount) internal {
-        ERC20(token0).transfer(address(feesAccumulator), amount);
+        ERC20(token0).transfer(Factory(factory).feeTo(), amount);
     }
 
     // Accrue fees on token1
     function _update1(uint256 amount) internal {
-        ERC20(token1).transfer(address(feesAccumulator), amount);
+        ERC20(token1).transfer(Factory(factory).feeTo(), amount);
     }
 
     // update reserves and, on the first call per block, price accumulators
-    function _update(uint256 _balance0, uint256 _balance1, uint256 _reserve0, uint256 _reserve1) internal {
+    function _update(
+        uint256 _balance0,
+        uint256 _balance1,
+        uint256 _reserve0,
+        uint256 _reserve1
+    ) internal {
         uint256 blockTimestamp = block.timestamp;
         uint256 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
         if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
@@ -160,7 +179,11 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
     function currentCumulativePrices()
         public
         view
-        returns (uint256 reserve0Cumulative, uint256 reserve1Cumulative, uint256 blockTimestamp)
+        returns (
+            uint256 reserve0Cumulative,
+            uint256 reserve1Cumulative,
+            uint256 blockTimestamp
+        )
     {
         blockTimestamp = block.timestamp;
         reserve0Cumulative = reserve0CumulativeLast;
@@ -177,7 +200,12 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
     }
 
     // this low-level function should be called from a contract which performs important safety checks
-    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external nonReentrant {
+    function swap(
+        uint256 amount0Out,
+        uint256 amount1Out,
+        address to,
+        bytes calldata data
+    ) external nonReentrant {
         //require(!BaseV1Factory(factory).isPaused());
         require(amount0Out > 0 || amount1Out > 0, "IOA"); // BaseV1: INSUFFICIENT_OUTPUT_AMOUNT
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
@@ -234,22 +262,26 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
     }
 
     function _f(uint256 x0, uint256 y) internal pure returns (uint256) {
-        return x0 * (y * y / 1e18 * y / 1e18) / 1e18 + (x0 * x0 / 1e18 * x0 / 1e18) * y / 1e18;
+        return (x0 * ((((y * y) / 1e18) * y) / 1e18)) / 1e18 + (((((x0 * x0) / 1e18) * x0) / 1e18) * y) / 1e18;
     }
 
     function _d(uint256 x0, uint256 y) internal pure returns (uint256) {
-        return 3 * x0 * (y * y / 1e18) / 1e18 + (x0 * x0 / 1e18 * x0 / 1e18);
+        return (3 * x0 * ((y * y) / 1e18)) / 1e18 + ((((x0 * x0) / 1e18) * x0) / 1e18);
     }
 
-    function _get_y(uint256 x0, uint256 xy, uint256 y) internal pure returns (uint256) {
+    function _get_y(
+        uint256 x0,
+        uint256 xy,
+        uint256 y
+    ) internal pure returns (uint256) {
         for (uint256 i = 0; i < 255; i++) {
             uint256 y_prev = y;
             uint256 k = _f(x0, y);
             if (k < xy) {
-                uint256 dy = (xy - k) * 1e18 / _d(x0, y);
+                uint256 dy = ((xy - k) * 1e18) / _d(x0, y);
                 y = y + dy;
             } else {
-                uint256 dy = (k - xy) * 1e18 / _d(x0, y);
+                uint256 dy = ((k - xy) * 1e18) / _d(x0, y);
                 y = y - dy;
             }
             if (y > y_prev) {
@@ -271,32 +303,33 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
         return _getAmountOut(amountIn, tokenIn, _reserve0, _reserve1);
     }
 
-    function _getAmountOut(uint256 amountIn, address tokenIn, uint256 _reserve0, uint256 _reserve1)
-        internal
-        view
-        returns (uint256)
-    {
+    function _getAmountOut(
+        uint256 amountIn,
+        address tokenIn,
+        uint256 _reserve0,
+        uint256 _reserve1
+    ) internal view returns (uint256) {
         if (stable) {
             uint256 xy = _k(_reserve0, _reserve1);
-            _reserve0 = _reserve0 * 1e18 / decimals0;
-            _reserve1 = _reserve1 * 1e18 / decimals1;
+            _reserve0 = (_reserve0 * 1e18) / decimals0;
+            _reserve1 = (_reserve1 * 1e18) / decimals1;
             (uint256 reserveA, uint256 reserveB) = tokenIn == token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
-            amountIn = tokenIn == token0 ? amountIn * 1e18 / decimals0 : amountIn * 1e18 / decimals1;
+            amountIn = tokenIn == token0 ? (amountIn * 1e18) / decimals0 : (amountIn * 1e18) / decimals1;
             uint256 y = reserveB - _get_y(amountIn + reserveA, xy, reserveB);
-            return y * (tokenIn == token0 ? decimals1 : decimals0) / 1e18;
+            return (y * (tokenIn == token0 ? decimals1 : decimals0)) / 1e18;
         } else {
             (uint256 reserveA, uint256 reserveB) = tokenIn == token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
-            return amountIn * reserveB / (reserveA + amountIn);
+            return (amountIn * reserveB) / (reserveA + amountIn);
         }
     }
 
     function _k(uint256 x, uint256 y) internal view returns (uint256) {
         if (stable) {
-            uint256 _x = x * 1e18 / decimals0;
-            uint256 _y = y * 1e18 / decimals1;
+            uint256 _x = (x * 1e18) / decimals0;
+            uint256 _y = (y * 1e18) / decimals1;
             uint256 _a = (_x * _y) / 1e18;
             uint256 _b = ((_x * _x) / 1e18 + (_y * _y) / 1e18);
-            return _a * _b / 1e18; // x3y+y3x >= k
+            return (_a * _b) / 1e18; // x3y+y3x >= k
         } else {
             return x * y; // xy >= k
         }
@@ -312,51 +345,47 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
         uint256 srcPoolId0,
         uint256 dstPoolId0,
         uint256 srcPoolId1,
-        uint256 dstPoolId1,
-        uint256 sgFee,
-        uint256 hyperlaneFee
+        uint256 dstPoolId1
     ) external payable {
+        // // swap token0
+        // uint32 localDomain = mailbox.localDomain();
+        // bytes memory payload = abi.encode(voucher0.totalSupply(), balance0, localDomain);
+        // token0.approve(address(stargateRouter), balance0 + fees0);
+        // stargateRouter.swap{value: msg.value / 2}(
+        //     destChainId,
+        //     srcPoolId0,
+        //     dstPoolId0,
+        //     payable(msg.sender),
+        //     balance0 + fees0,
+        //     0,
+        //     IStargateRouter.lzTxObj(10 ** 6, 0, "0x"),
+        //     abi.encodePacked(L1Target),
+        //     payload
+        // );
+        // fees0 = 0;
+        // balance0 = 0;
+        // // swap token1
+        // payload = abi.encode(voucher1.totalSupply(), balance1, localDomain);
+        // token1.approve(address(stargateRouter), balance1 + fees1);
+        // stargateRouter.swap{value: msg.value / 2}(
+        //     destChainId,
+        //     srcPoolId1,
+        //     dstPoolId1,
+        //     payable(msg.sender),
+        //     balance1 + fees1,
+        //     0,
+        //     IStargateRouter.lzTxObj(10 ** 6, 0, "0x"),
+        //     abi.encodePacked(L1Target),
+        //     payload
+        // );
+        // fees1 = 0;
+        // balance1 = 0;
         ERC20 _token0 = ERC20(token0);
         ERC20 _token1 = ERC20(token1);
-        // balance before getting accumulated fees
         uint256 _balance0 = _token0.balanceOf(address(this));
         uint256 _balance1 = _token1.balanceOf(address(this));
-        (uint256 fees0, uint256 fees1) = feesAccumulator.take();
-
-        // swap token0
-        bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, L1Token0, voucher0Delta, _balance0);
-        _token0.approve(address(stargateRouter), _balance0 + fees0);
-        stargateRouter.swap{value: sgFee}(
-            destChainId,
-            srcPoolId0,
-            dstPoolId0,
-            payable(msg.sender),
-            _balance0 + fees0,
-            _balance0,
-            IStargateRouter.lzTxObj(200000, 0, "0x"),
-            abi.encodePacked(L1Target),
-            ""
-        );
-        bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-        hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
-
-        // swap token1
-        payload = abi.encode(MessageType.SYNC_TO_L1, L1Token1, voucher1Delta, _balance1);
-        _token1.approve(address(stargateRouter), _balance1 + fees1);
-        stargateRouter.swap{value: sgFee}(
-            destChainId,
-            srcPoolId1,
-            dstPoolId1,
-            payable(msg.sender),
-            _balance1 + fees1,
-            _balance1,
-            IStargateRouter.lzTxObj(200000, 0, "0x"),
-            abi.encodePacked(L1Target),
-            ""
-        );
-        id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-        hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
-
+        _token0.transfer(msg.sender, _balance0);
+        _token1.transfer(msg.sender, _balance1);
         reserve0 = ref0 + _balance0 - voucher0Delta;
         reserve1 = ref1 + _balance1 - voucher1Delta;
         ref0 = reserve0;
@@ -385,7 +414,11 @@ contract AMM is ReentrancyGuard, HyperlaneClient {
         }
     }
 
-    function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyInbox {
+    function handle(
+        uint32 origin,
+        bytes32 sender,
+        bytes calldata payload
+    ) external onlyInbox {
         require(origin == destDomain, "WRONG ORIGIN");
         require(TypeCasts.addressToBytes32(L1Target) == sender, "NOT DOVE");
         (reserve0, reserve1) = abi.decode(payload, (uint256, uint256));
