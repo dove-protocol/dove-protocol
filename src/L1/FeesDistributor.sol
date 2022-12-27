@@ -15,9 +15,9 @@ contract FeesDistributor {
         token1 = _token1;
     }
 
-    function claimFeesFor(address recipient, uint256 amount0, uint256 amount1) external {
+    function claimFeesFor(address recipient, uint256 fees0, uint256 fees1) external {
         require(msg.sender == owner);
-        if (amount0 > 0) SafeTransferLib.safeTransfer(_token0, recipient, fees0);
-        if (amount1 > 0) SafeTransferLib.safeTransfer(_token1, recipient, fees1);
+        if (fees0 > 0) SafeTransferLib.safeTransfer(ERC20(token0), recipient, fees0);
+        if (fees1 > 0) SafeTransferLib.safeTransfer(ERC20(token1), recipient, fees1);
     }
 }
