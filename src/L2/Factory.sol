@@ -5,9 +5,6 @@ import "./Pair.sol";
 import "./interfaces/IFactory.sol";
 
 contract Factory is IFactory {
-    address public feeTo;
-    address public feeToSetter;
-
     mapping(address => mapping(address => address)) public getPair;
     address[] public allPairs;
 
@@ -19,7 +16,6 @@ contract Factory is IFactory {
     uint32 public destDomain;
 
     constructor(
-        address _feeToSetter,
         address _gasMaster,
         address _mailbox,
         address _stargateRouter,
@@ -27,7 +23,6 @@ contract Factory is IFactory {
         uint16 _destChainId,
         uint32 _destDomain
     ) public {
-        feeToSetter = _feeToSetter;
         gasMaster = _gasMaster;
         mailbox = _mailbox;
         stargateRouter = _stargateRouter;
@@ -40,12 +35,10 @@ contract Factory is IFactory {
         return allPairs.length;
     }
 
-    function createPair(
-        address tokenA,
-        address tokenB,
-        address L1TokenA,
-        address L1TokenB
-    ) external returns (address pair) {
+    function createPair(address tokenA, address tokenB, address L1TokenA, address L1TokenB)
+        external
+        returns (address pair)
+    {
         require(tokenA != tokenB, "Factory: IDENTICAL_ADDRESSES");
         // sort tokens
         // (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
@@ -82,15 +75,5 @@ contract Factory is IFactory {
         getPair[token1][token0] = pair; // populate mapping in the reverse direction
         allPairs.push(pair);
         emit PairCreated(token0, token1, pair, allPairs.length);
-    }
-
-    function setFeeTo(address _feeTo) external {
-        require(msg.sender == feeToSetter, "UniswapV2: FORBIDDEN");
-        feeTo = _feeTo;
-    }
-
-    function setFeeToSetter(address _feeToSetter) external {
-        require(msg.sender == feeToSetter, "UniswapV2: FORBIDDEN");
-        feeToSetter = _feeToSetter;
     }
 }
