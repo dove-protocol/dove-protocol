@@ -28,8 +28,8 @@ contract DoveTest is Test, Helper {
     MailboxMock mailboxL1;
     ILayerZeroEndpoint lzEndpointL1;
 
-    ERC20Mock token0L1;
-    ERC20Mock token1L1;
+    ERC20Mock L1Token0;
+    ERC20Mock L1Token1;
 
     L1Factory factoryL1;
     L1Router routerL1;
@@ -44,8 +44,8 @@ contract DoveTest is Test, Helper {
     L2Factory factoryL2;
     L2Router routerL2;
     Pair pair;
-    ERC20Mock token0L2;
-    ERC20Mock token1L2;
+    ERC20Mock L2Token0;
+    ERC20Mock L2Token1;
 
     // Misc
 
@@ -56,7 +56,7 @@ contract DoveTest is Test, Helper {
     uint32 constant L1_DOMAIN = 0x657468;
     uint32 constant L2_DOMAIN = 0x706f6c79;
 
-    address ammAddress;
+    address pairAddress;
 
     string RPC_ETH_MAINNET = vm.envString("ETH_MAINNET_RPC_URL");
     string RPC_POLYGON_MAINNET = vm.envString("POLYGON_MAINNET_RPC_URL");
@@ -72,29 +72,29 @@ contract DoveTest is Test, Helper {
         mailboxL1 = new MailboxMock(L1_DOMAIN);
         lzEndpointL1 = ILayerZeroEndpoint(0x66A71Dcef29A0fFBDBE3c6a460a3B5BC225Cd675);
 
-        token0L1 = ERC20Mock(0x6B175474E89094C44Da98b954EedeAC495271d0F); // DAI
-        token1L1 = ERC20Mock(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48); // USDC
+        L1Token0 = ERC20Mock(0x6B175474E89094C44Da98b954EedeAC495271d0F); // DAI
+        L1Token1 = ERC20Mock(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48); // USDC
 
         // deploy factory
         factoryL1 = new L1Factory(address(gasMasterL1), address(mailboxL1), L1SGRouter);
         // deploy router
         routerL1 = new L1Router(address(factoryL1));
         // deploy dove
-        dove = Dove(factoryL1.createPair(address(token0L1), address(token1L1)));
+        dove = Dove(factoryL1.createPair(address(L1Token0), address(L1Token1)));
 
         // mint tokens
-        Helper.mintDAIL1(address(token0L1), address(this), 10 ** 18);
-        Helper.mintUSDCL1(address(token1L1), address(this), 10 ** 30);
+        Helper.mintDAIL1(address(L1Token0), address(this), 10 ** 18);
+        Helper.mintUSDCL1(address(L1Token1), address(this), 10 ** 30);
         // provide liquidity
-        token0L1.approve(address(dove), type(uint256).max);
-        token1L1.approve(address(dove), type(uint256).max);
-        token0L1.approve(address(routerL1), type(uint256).max);
-        token1L1.approve(address(routerL1), type(uint256).max);
+        L1Token0.approve(address(dove), type(uint256).max);
+        L1Token1.approve(address(dove), type(uint256).max);
+        L1Token0.approve(address(routerL1), type(uint256).max);
+        L1Token1.approve(address(routerL1), type(uint256).max);
 
-        (uint256 toAdd0, uint256 toAdd1,) = routerL1.quoteAddLiquidity(address(token0L1), address(token1L1), 10 ** 12, 10 ** 24);
+        (uint256 toAdd0, uint256 toAdd1,) = routerL1.quoteAddLiquidity(address(L1Token0), address(L1Token1), 10 ** 12, 10 ** 24);
         routerL1.addLiquidity(
-            address(token0L1),
-            address(token1L1),
+            address(L1Token0),
+            address(L1Token1),
             10 ** 12,
             10 ** 24,
             toAdd0,
@@ -119,36 +119,23 @@ contract DoveTest is Test, Helper {
         mailboxL2 = new MailboxMock(L2_DOMAIN);
         lzEndpointL2 = ILayerZeroEndpoint(0x3c2269811836af69497E5F486A85D7316753cf62);
 
-        token0L2 = ERC20Mock(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174); // USDC
-        token1L2 = ERC20Mock(0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063); // DAI
+        L2Token0 = ERC20Mock(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174); // USDC
+        L2Token1 = ERC20Mock(0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063); // DAI
 
         // deploy factory
-        factoryL2 = new L2Factory(address(gasMasterL1), address(mailboxL1), L1SGRouter);
+        factoryL2 = new L2Factory(address(gasMasterL2), address(mailboxL2), L2SGRouter, L1_CHAIN_ID, L1_DOMAIN);
         // deploy router
-        routerL2 = new L2Router(address(factoryL1));
+        routerL2 = new L2Router(address(factoryL2));
 
-        pair = new Pair(
-            address(token0L2),
-            address(token0L1),
-            address(token1L2),
-            address(token1L1),
-            address(gasMasterL2),
-            address(mailboxL2),
-            0x45A01E4e04F14f7A4a6702c74187c5F6222033cd,
-            address(dove),
-            L1_CHAIN_ID,
-            L1_DOMAIN
-        );
+        pair = Pair(factoryL2.createPair(address(L2Token0), address(L2Token1), address(L1Token0), address(L1Token1), address(dove)));
 
-        ammAddress = address(pair);
+        pairAddress = address(pair);
 
-        Helper.mintUSDCL2(address(token0L2), address(this), 10 ** 20);
-        Helper.mintDAIL2(address(token1L2), address(this), 10 ** 20);
-        token0L2.approve(address(pair), type(uint256).max);
-        token1L2.approve(address(pair), type(uint256).max);
+        Helper.mintUSDCL2(address(L2Token0), address(this), 10 ** 20);
+        Helper.mintDAIL2(address(L2Token1), address(this), 10 ** 20);
+        L2Token0.approve(address(pair), type(uint256).max);
+        L2Token1.approve(address(pair), type(uint256).max);
     }
-
-    function testFart() external {}
 
     function testPersistentStatesSwitchingForks() external {
         // on L2 fork id now and switching to L1

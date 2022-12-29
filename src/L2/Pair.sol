@@ -6,7 +6,7 @@ import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 import {Voucher} from "./Voucher.sol";
-import {Factory} from "./Factory.sol";
+//import {Factory} from "./Factory.sol";
 import {FeesAccumulator} from "./FeesAccumulator.sol";
 
 import "../hyperlane/HyperlaneClient.sol";
@@ -56,8 +56,6 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     uint256 internal voucher1Delta;
 
     uint256 constant FEE = 10000;
-
-    bool constant stable = true;
 
     /*###############################################################
                             EVENTS
@@ -284,30 +282,21 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         view
         returns (uint256)
     {
-        if (stable) {
-            uint256 xy = _k(_reserve0, _reserve1);
-            _reserve0 = (_reserve0 * 1e18) / decimals0;
-            _reserve1 = (_reserve1 * 1e18) / decimals1;
-            (uint256 reserveA, uint256 reserveB) = tokenIn == token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
-            amountIn = tokenIn == token0 ? (amountIn * 1e18) / decimals0 : (amountIn * 1e18) / decimals1;
-            uint256 y = reserveB - _get_y(amountIn + reserveA, xy, reserveB);
-            return (y * (tokenIn == token0 ? decimals1 : decimals0)) / 1e18;
-        } else {
-            (uint256 reserveA, uint256 reserveB) = tokenIn == token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
-            return (amountIn * reserveB) / (reserveA + amountIn);
-        }
+        uint256 xy = _k(_reserve0, _reserve1);
+        _reserve0 = (_reserve0 * 1e18) / decimals0;
+        _reserve1 = (_reserve1 * 1e18) / decimals1;
+        (uint256 reserveA, uint256 reserveB) = tokenIn == token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
+        amountIn = tokenIn == token0 ? (amountIn * 1e18) / decimals0 : (amountIn * 1e18) / decimals1;
+        uint256 y = reserveB - _get_y(amountIn + reserveA, xy, reserveB);
+        return (y * (tokenIn == token0 ? decimals1 : decimals0)) / 1e18;
     }
 
     function _k(uint256 x, uint256 y) internal view returns (uint256) {
-        if (stable) {
-            uint256 _x = (x * 1e18) / decimals0;
-            uint256 _y = (y * 1e18) / decimals1;
-            uint256 _a = (_x * _y) / 1e18;
-            uint256 _b = ((_x * _x) / 1e18 + (_y * _y) / 1e18);
-            return (_a * _b) / 1e18; // x3y+y3x >= k
-        } else {
-            return x * y; // xy >= k
-        }
+        uint256 _x = (x * 1e18) / decimals0;
+        uint256 _y = (y * 1e18) / decimals1;
+        uint256 _a = (_x * _y) / 1e18;
+        uint256 _b = ((_x * _x) / 1e18 + (_y * _y) / 1e18);
+        return (_a * _b) / 1e18; // x3y+y3x >= k
     }
 
     /// @notice Syncs to the L1.
