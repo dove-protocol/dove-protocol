@@ -5,7 +5,7 @@ import "./Factory.sol";
 import "./libraries/DoveLibrary.sol";
 import "./Pair.sol";
 
-contract Router {
+contract L2Router {
     address public immutable factory;
 
     constructor(address _factory) {

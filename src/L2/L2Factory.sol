@@ -4,7 +4,7 @@ pragma solidity ^0.8.15;
 import "./Pair.sol";
 import "./interfaces/IFactory.sol";
 
-contract Factory is IFactory {
+contract L2Factory is IFactory {
     mapping(address => mapping(address => address)) public getPair;
     address[] public allPairs;
 
