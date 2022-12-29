@@ -6,7 +6,8 @@ import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 import {Voucher} from "./Voucher.sol";
-import {Factory} from "./Factory.sol";
+//import {Factory} from "./Factory.sol";
+import {FeesAccumulator} from "./FeesAccumulator.sol";
 
 import "../hyperlane/HyperlaneClient.sol";
 import "../hyperlane/TypeCasts.sol";
@@ -55,8 +56,6 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     uint256 internal voucher1Delta;
 
     uint256 constant FEE = 10000;
-
-    bool constant stable = true;
 
     /*###############################################################
                             EVENTS
@@ -140,12 +139,12 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
 
     // Accrue fees on token0
     function _update0(uint256 amount) internal {
-        SafeTransferLib.safeTransfer(token0, address(feesAccumulator), amount);
+        SafeTransferLib.safeTransfer(ERC20(token0), address(feesAccumulator), amount);
     }
 
     // Accrue fees on token1
     function _update1(uint256 amount) internal {
-        SafeTransferLib.safeTransfer(token1, address(feesAccumulator), amount);
+        SafeTransferLib.safeTransfer(ERC20(token1), address(feesAccumulator), amount);
     }
 
     // update reserves and, on the first call per block, price accumulators
@@ -283,30 +282,21 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         view
         returns (uint256)
     {
-        if (stable) {
-            uint256 xy = _k(_reserve0, _reserve1);
-            _reserve0 = (_reserve0 * 1e18) / decimals0;
-            _reserve1 = (_reserve1 * 1e18) / decimals1;
-            (uint256 reserveA, uint256 reserveB) = tokenIn == token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
-            amountIn = tokenIn == token0 ? (amountIn * 1e18) / decimals0 : (amountIn * 1e18) / decimals1;
-            uint256 y = reserveB - _get_y(amountIn + reserveA, xy, reserveB);
-            return (y * (tokenIn == token0 ? decimals1 : decimals0)) / 1e18;
-        } else {
-            (uint256 reserveA, uint256 reserveB) = tokenIn == token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
-            return (amountIn * reserveB) / (reserveA + amountIn);
-        }
+        uint256 xy = _k(_reserve0, _reserve1);
+        _reserve0 = (_reserve0 * 1e18) / decimals0;
+        _reserve1 = (_reserve1 * 1e18) / decimals1;
+        (uint256 reserveA, uint256 reserveB) = tokenIn == token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
+        amountIn = tokenIn == token0 ? (amountIn * 1e18) / decimals0 : (amountIn * 1e18) / decimals1;
+        uint256 y = reserveB - _get_y(amountIn + reserveA, xy, reserveB);
+        return (y * (tokenIn == token0 ? decimals1 : decimals0)) / 1e18;
     }
 
     function _k(uint256 x, uint256 y) internal view returns (uint256) {
-        if (stable) {
-            uint256 _x = (x * 1e18) / decimals0;
-            uint256 _y = (y * 1e18) / decimals1;
-            uint256 _a = (_x * _y) / 1e18;
-            uint256 _b = ((_x * _x) / 1e18 + (_y * _y) / 1e18);
-            return (_a * _b) / 1e18; // x3y+y3x >= k
-        } else {
-            return x * y; // xy >= k
-        }
+        uint256 _x = (x * 1e18) / decimals0;
+        uint256 _y = (y * 1e18) / decimals1;
+        uint256 _a = (_x * _y) / 1e18;
+        uint256 _b = ((_x * _x) / 1e18 + (_y * _y) / 1e18);
+        return (_a * _b) / 1e18; // x3y+y3x >= k
     }
 
     /// @notice Syncs to the L1.
@@ -330,39 +320,43 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         uint256 _balance1 = _token1.balanceOf(address(this));
         (uint256 fees0, uint256 fees1) = feesAccumulator.take();
 
-        // swap token0
-        bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, L1Token0, voucher0Delta, _balance0);
-        _token0.approve(address(stargateRouter), _balance0 + fees0);
-        stargateRouter.swap{value: sgFee}(
-            destChainId,
-            srcPoolId0,
-            dstPoolId0,
-            payable(msg.sender),
-            _balance0 + fees0,
-            _balance0,
-            IStargateRouter.lzTxObj(200000, 0, "0x"),
-            abi.encodePacked(L1Target),
-            ""
-        );
-        bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-        hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
+        {
+            // swap token0
+            _token0.approve(address(stargateRouter), _balance0 + fees0);
+            stargateRouter.swap{value: sgFee}(
+                destChainId,
+                srcPoolId0,
+                dstPoolId0,
+                payable(msg.sender),
+                _balance0 + fees0,
+                _balance0,
+                IStargateRouter.lzTxObj(200000, 0, "0x"),
+                abi.encodePacked(L1Target),
+                ""
+            );
+            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, L1Token0, voucher0Delta, _balance0);
+            bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
+            hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
+        }
 
-        // swap token1
-        payload = abi.encode(MessageType.SYNC_TO_L1, L1Token1, voucher1Delta, _balance1);
-        _token1.approve(address(stargateRouter), _balance1 + fees1);
-        stargateRouter.swap{value: sgFee}(
-            destChainId,
-            srcPoolId1,
-            dstPoolId1,
-            payable(msg.sender),
-            _balance1 + fees1,
-            _balance1,
-            IStargateRouter.lzTxObj(200000, 0, "0x"),
-            abi.encodePacked(L1Target),
-            ""
-        );
-        id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-        hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
+        {
+            // swap token1
+            _token1.approve(address(stargateRouter), _balance1 + fees1);
+            stargateRouter.swap{value: sgFee}(
+                destChainId,
+                srcPoolId1,
+                dstPoolId1,
+                payable(msg.sender),
+                _balance1 + fees1,
+                _balance1,
+                IStargateRouter.lzTxObj(200000, 0, "0x"),
+                abi.encodePacked(L1Target),
+                ""
+            );
+            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, L1Token1, voucher1Delta, _balance1);
+            bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
+            hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
+        }
 
         reserve0 = ref0 + _balance0 - voucher0Delta;
         reserve1 = ref1 + _balance1 - voucher1Delta;

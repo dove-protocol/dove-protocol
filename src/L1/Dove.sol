@@ -5,6 +5,10 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {Owned} from "solmate/auth/Owned.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
+
+import {FeesDistributor} from "./FeesDistributor.sol";
+import {SGHyperlaneConverter} from "./SGHyperlaneConverter.sol";
 
 import "../hyperlane/TypeCasts.sol";
 
@@ -13,11 +17,15 @@ import "../hyperlane/HyperlaneClient.sol";
 
 import "../MessageType.sol";
 
-contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
+contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGuard {
     /*###############################################################
-                            CONSTANTS
+                            EVENTS
     ###############################################################*/
-
+    event Fees(address indexed sender, uint256 amount0, uint256 amount1);
+    event Mint(address indexed sender, uint256 amount0, uint256 amount1);
+    event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
+    event Claim(address indexed sender, address indexed recipient, uint256 amount0, uint256 amount1);
+    event Sync(uint256 reserve0, uint256 reserve1);
     /*###############################################################
                             STRUCTS
     ###############################################################*/
@@ -31,6 +39,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
     /*###############################################################
                             STORAGE
     ###############################################################*/
+
+    uint256 internal constant MINIMUM_LIQUIDITY = 10 ** 3;
 
     address public stargateRouter;
 
@@ -51,8 +61,21 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
     mapping(uint32 => bytes32) public trustedRemoteLookup;
     mapping(uint16 => bytes) public sgTrustedBridge;
 
-    mapping(uint16 => uint256) internal lastBridged0;
-    mapping(uint16 => uint256) internal lastBridged1;
+    mapping(uint32 => uint256) internal lastBridged0;
+    mapping(uint32 => uint256) internal lastBridged1;
+
+    // index0 and index1 are used to accumulate fees, this is split out from normal trades to keep the swap "clean"
+    // this further allows LP holders to easily claim fees for tokens they have/staked
+    uint256 public index0 = 0;
+    uint256 public index1 = 0;
+
+    // position assigned to each LP to track their current index0 & index1 vs the global position
+    mapping(address => uint256) public supplyIndex0;
+    mapping(address => uint256) public supplyIndex1;
+
+    // tracks the amount of unclaimed, but claimable tokens off of fees for token0 and token1
+    mapping(address => uint256) public claimable0;
+    mapping(address => uint256) public claimable1;
 
     function addTrustedRemote(uint32 origin, bytes32 sender) external onlyOwner {
         trustedRemoteLookup[origin] = sender;
@@ -81,38 +104,107 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
                             LIQUIDITY LOGIC
     ###############################################################*/
 
-    /// @notice Add liquidity to a pool.
-    function provide(uint256 amount0, uint256 amount1) public {
-        // transfer tokens from user to pool
-        ERC20(token0).transferFrom(msg.sender, address(this), amount0);
-        ERC20(token1).transferFrom(msg.sender, address(this), amount1);
-        if (reserve0 > 0 || reserve1 > 0) {
-            require((reserve0 * amount1 == reserve1 * amount0), "PROVIDE:INVALID RATIO");
-        }
-
-        uint256 shares = FixedPointMathLib.sqrt(amount0 * amount1);
-        require(shares > 0, "DAMM:PROVIDE: SHARES=0");
-        _mint(msg.sender, shares);
-        reserve0 += amount0;
-        reserve1 += amount1;
+    function claimFeesFor(address recipient) public nonReentrant returns (uint256 claimed0, uint256 claimed1) {
+        return _claimFees(recipient);
     }
 
-    /// @notice Remove liquidity from a pool.
-    function withdraw(uint256 shares) public {
-        uint256 balance0 = ERC20(token0).balanceOf(address(this));
-        uint256 balance1 = ERC20(token1).balanceOf(address(this));
+    function updateAndClaimFeesFor(address recipient) external returns (uint256 claimed0, uint256 claimed1) {
+        _updateFor(recipient);
+        return _claimFees(recipient);
+    }
 
-        uint256 amount0 = (shares * balance0) / totalSupply;
-        uint256 amount1 = (shares * balance1) / totalSupply;
-        require(amount0 > 0 && amount1 > 0, "amount = 0");
+    function _claimFees(address recipient) internal returns (uint256 claimed0, uint256 claimed1) {
+        claimed0 = claimable0[recipient];
+        claimed1 = claimable1[recipient];
 
-        _burn(msg.sender, shares);
+        claimable0[recipient] = 0;
+        claimable1[recipient] = 0;
 
-        reserve0 -= amount0;
-        reserve1 -= amount1;
+        feesDistributor.claimFeesFor(recipient, claimed0, claimed1);
 
-        ERC20(token0).transfer(msg.sender, amount0);
-        ERC20(token1).transfer(msg.sender, amount1);
+        emit Claim(msg.sender, recipient, claimed0, claimed1);
+    }
+
+    // this function MUST be called on any balance changes, otherwise can be used to infinitely claim fees
+    // Fees are segregated from core funds, so fees can never put liquidity at risk
+    function _updateFor(address recipient) internal {
+        uint256 _supplied = balanceOf[recipient]; // get LP balance of `recipient`
+        if (_supplied > 0) {
+            uint256 _supplyIndex0 = supplyIndex0[recipient]; // get last adjusted index0 for recipient
+            uint256 _supplyIndex1 = supplyIndex1[recipient];
+            uint256 _index0 = index0; // get global index0 for accumulated fees
+            uint256 _index1 = index1;
+            supplyIndex0[recipient] = _index0; // update user current position to global position
+            supplyIndex1[recipient] = _index1;
+            uint256 _delta0 = _index0 - _supplyIndex0; // see if there is any difference that need to be accrued
+            uint256 _delta1 = _index1 - _supplyIndex1;
+            if (_delta0 > 0) {
+                uint256 _share = _supplied * _delta0 / 1e18; // add accrued difference for each supplied token
+                claimable0[recipient] += _share;
+            }
+            if (_delta1 > 0) {
+                uint256 _share = _supplied * _delta1 / 1e18;
+                claimable1[recipient] += _share;
+            }
+        } else {
+            supplyIndex0[recipient] = index0; // new users are set to the default global state
+            supplyIndex1[recipient] = index1;
+        }
+    }
+
+    function _update(uint256 balance0, uint256 balance1, uint256 _reserve0, uint256 _reserve1) internal {
+        reserve0 = balance0;
+        reserve1 = balance1;
+        emit Sync(reserve0, reserve1);
+    }
+
+    function mint(address to) external nonReentrant returns (uint256 liquidity) {
+        _claimFees(to);
+        (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
+        uint256 _balance0 = ERC20(token0).balanceOf(address(this));
+        uint256 _balance1 = ERC20(token1).balanceOf(address(this));
+        uint256 _amount0 = _balance0 - _reserve0;
+        uint256 _amount1 = _balance1 - _reserve1;
+
+        uint256 _totalSupply = totalSupply;
+        if (_totalSupply == 0) {
+            liquidity = FixedPointMathLib.sqrt(_amount0 * _amount1) - MINIMUM_LIQUIDITY;
+            _mint(address(0), MINIMUM_LIQUIDITY);
+        } else {
+            uint256 a = _amount0 * _totalSupply / _reserve0;
+            uint256 b = _amount1 * _totalSupply / _reserve1;
+            liquidity = a < b ? a : b;
+        }
+        require(liquidity > 0, "ILM");
+        _updateFor(to);
+        _mint(to, liquidity);
+
+        _update(_balance0, _balance1, _reserve0, _reserve1);
+        emit Mint(msg.sender, _amount0, _amount1);
+    }
+
+    function burn(address to) external nonReentrant returns (uint256 amount0, uint256 amount1) {
+        _claimFees(to);
+        (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
+        (ERC20 _token0, ERC20 _token1) = (ERC20(token0), ERC20(token1));
+        uint256 _balance0 = _token0.balanceOf(address(this));
+        uint256 _balance1 = _token1.balanceOf(address(this));
+        uint256 _liquidity = balanceOf[address(this)];
+
+        uint256 _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
+        amount0 = _liquidity * _balance0 / _totalSupply; // using balances ensures pro-rata distribution
+        amount1 = _liquidity * _balance1 / _totalSupply; // using balances ensures pro-rata distribution
+        require(amount0 > 0 && amount1 > 0, "ILB"); // BaseV1: INSUFFICIENT_LIQUIDITY_BURNED
+        _updateFor(to);
+        _burn(address(this), _liquidity);
+
+        SafeTransferLib.safeTransfer(_token0, to, amount0);
+        SafeTransferLib.safeTransfer(_token1, to, amount1);
+        _balance0 = _token0.balanceOf(address(this));
+        _balance1 = _token1.balanceOf(address(this));
+
+        _update(_balance0, _balance1, _reserve0, _reserve1);
+        emit Burn(msg.sender, amount0, amount1, to);
     }
 
     /*###############################################################
@@ -121,18 +213,19 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
 
     function sgReceive(
         uint16 _srcChainId,
-        bytes _srcAddress,
+        bytes calldata _srcAddress,
         uint256, /*_nonce*/
         address _token,
         uint256 _bridgedAmount,
-        bytes
+        bytes calldata
     ) external override {
         require(msg.sender == stargateRouter, "NOT STARGATE");
         require(keccak256(_srcAddress) == keccak256(sgTrustedBridge[_srcChainId]), "NOT TRUSTED");
+        uint32 domain = SGHyperlaneConverter.sgToHyperlane(_srcChainId);
         if (_token == token0) {
-            lastBridged0[_srcChainId] = _bridgedAmount;
+            lastBridged0[domain] = _bridgedAmount;
         } else if (_token == token1) {
-            lastBridged1[_srcChainId] = _bridgedAmount;
+            lastBridged1[domain] = _bridgedAmount;
         }
     }
 
@@ -145,9 +238,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
         } else {
             // can proceed with full sync
             if (partialSync.token == token0) {
-                _syncFromL2(origin, partialSync.bridgedAmount, balance, partialSync.earmarkedAmount, earmarkedDelta);
+                _syncFromL2(origin, partialSync.balance, balance, partialSync.earmarkedAmount, earmarkedDelta);
             } else {
-                _syncFromL2(origin, balance, partialSync.bridgedAmount, earmarkedDelta, partialSync.earmarkedAmount);
+                _syncFromL2(origin, balance, partialSync.balance, earmarkedDelta, partialSync.earmarkedAmount);
             }
             // reset
             delete partialSyncs[origin];
@@ -178,6 +271,25 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
     /*###############################################################
                             INTERNAL FUNCTIONS
     ###############################################################*/
+
+    function _update0(uint256 amount) internal {
+        SafeTransferLib.safeTransfer(ERC20(token0), address(feesDistributor), amount);
+        uint256 _ratio = amount * 1e18 / totalSupply; // 1e18 adjustment is removed during claim
+        if (_ratio > 0) {
+            index0 += _ratio;
+        }
+        emit Fees(msg.sender, amount, 0);
+    }
+
+    // Accrue fees on token1
+    function _update1(uint256 amount) internal {
+        SafeTransferLib.safeTransfer(ERC20(token1), address(feesDistributor), amount);
+        uint256 _ratio = amount * 1e18 / totalSupply;
+        if (_ratio > 0) {
+            index1 += _ratio;
+        }
+        emit Fees(msg.sender, 0, amount);
+    }
 
     /// @notice Completes a voucher burn initiated on the L2.
     /// @dev Checks if user is able to burn or not should be done on L2 beforehand.
@@ -216,13 +328,29 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20 {
         marked1[srcDomain] += earmarkedDelta1;
         // send out fees
         // optimistically, bridged > balance
-        uint256 fees0 = lastBridged0 - balance0;
-        uint256 fees1 = lastBridged1 - balance1;
-        SafeTransferLib.safeTransfer(token0, address(feesDistributor), fees0);
-        SafeTransferLib.safeTransfer(token1, address(feesDistributor), fees1);
+        uint256 fees0 = lastBridged0[srcDomain] - balance0;
+        uint256 fees1 = lastBridged1[srcDomain] - balance1;
+        _update0(fees0);
+        _update1(fees1);
+    }
+
+    function transfer(address to, uint256 amount) public override returns (bool) {
+        _updateFor(msg.sender);
+        _updateFor(to);
+        return super.transfer(to, amount);
+    }
+
+    function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
+        _updateFor(from);
+        _updateFor(to);
+        return super.transferFrom(from, to, amount);
     }
 
     /*###############################################################
                             VIEW FUNCTIONS
     ###############################################################*/
+
+    function getReserves() external view returns (uint256, uint256) {
+        return (reserve0, reserve1);
+    }
 }
