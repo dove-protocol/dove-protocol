@@ -83,20 +83,20 @@ contract DoveTest is Test, Helper {
         dove = Dove(factoryL1.createPair(address(L1Token0), address(L1Token1)));
 
         // mint tokens
-        Helper.mintDAIL1(address(L1Token0), address(this), 10 ** 18);
-        Helper.mintUSDCL1(address(L1Token1), address(this), 10 ** 30);
+        Helper.mintDAIL1(address(L1Token0), address(this), 10 ** 36);
+        Helper.mintUSDCL1(address(L1Token1), address(this), 10 ** 60);
         // provide liquidity
         L1Token0.approve(address(dove), type(uint256).max);
         L1Token1.approve(address(dove), type(uint256).max);
         L1Token0.approve(address(routerL1), type(uint256).max);
         L1Token1.approve(address(routerL1), type(uint256).max);
 
-        (uint256 toAdd0, uint256 toAdd1,) = routerL1.quoteAddLiquidity(address(L1Token0), address(L1Token1), 10 ** 12, 10 ** 24);
+        (uint256 toAdd0, uint256 toAdd1,) = routerL1.quoteAddLiquidity(address(L1Token0), address(L1Token1), 10 ** 13, 10 ** 25); // 1M of each
         routerL1.addLiquidity(
             address(L1Token0),
             address(L1Token1),
-            10 ** 12,
-            10 ** 24,
+            10 ** 13,
+            10 ** 25,
             toAdd0,
             toAdd1,
             address(this),
@@ -131,16 +131,19 @@ contract DoveTest is Test, Helper {
 
         pairAddress = address(pair);
 
-        Helper.mintUSDCL2(address(L2Token0), address(this), 10 ** 20);
-        Helper.mintDAIL2(address(L2Token1), address(this), 10 ** 20);
+        Helper.mintUSDCL2(address(L2Token0), address(this), 10 ** 36);
+        Helper.mintDAIL2(address(L2Token1), address(this), 10 ** 60);
+
         L2Token0.approve(address(pair), type(uint256).max);
         L2Token1.approve(address(pair), type(uint256).max);
+        L2Token0.approve(address(routerL2), type(uint256).max);
+        L2Token1.approve(address(routerL2), type(uint256).max);
     }
 
     function testPersistentStatesSwitchingForks() external {
         // on L2 fork id now and switching to L1
         vm.selectFork(L1_FORK_ID);
-        assertEq(dove.reserve0(), 10 ** 13);
+        assertEq(dove.reserve0(), 10 ** 12);
         vm.selectFork(L2_FORK_ID);
         assertEq(pair.L1Target(), address(dove));
     }
@@ -162,10 +165,9 @@ contract DoveTest is Test, Helper {
         this.syncToL2();
 
         vm.selectFork(L2_FORK_ID);
-        //uint256 out1 = amm.swap(10 ** 10, 0);
-        //uint256 out2 = amm.swap(0, 10 ** 10);
-        uint256 voucher0Balance = pair.voucher0().balanceOf(address(this));
-        uint256 voucher1Balance = pair.voucher1().balanceOf(address(this));
+        _doSomeSwaps();
+        uint256 voucher0Balance = pair.voucher0().totalSupply();
+        uint256 voucher1Balance = pair.voucher1().totalSupply();
 
         this.syncToL1();
 
@@ -198,7 +200,8 @@ contract DoveTest is Test, Helper {
         vm.selectFork(L2_FORK_ID);
 
         vm.recordLogs();
-        //amm.syncToL1{value: 400 ether}(1, 1, 3, 3);
+        // remonder it's not ether but MATIC
+        pair.syncToL1{value: 800 ether}(1, 1, 3, 3, 200 ether, 200 ether);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         bytes memory payload1 = abi.decode(logs[8].data, (bytes));
@@ -231,6 +234,27 @@ contract DoveTest is Test, Helper {
                 console2.logUint(i);
             }
         }
+    }
+
+    function _doSomeSwaps() internal {
+        vm.selectFork(L2_FORK_ID);
+        uint256 amount0In;
+        uint256 amount1In;
+        uint256 amount0Out;
+        uint256 amount1Out;
+
+        amount0In = 500000 * 10**6; // 500k usdc
+        amount1Out = pair.getAmountOut(amount0In, pair.token0());
+        routerL2.swapExactTokensForTokensSimple(
+            amount0In, amount1Out, pair.token0(), pair.token1(), address(0xbeef), block.timestamp + 1000
+        );
+
+        amount1In = 500000 * 10**18; // 500k dai
+        amount0Out = pair.getAmountOut(amount1In, pair.token1());
+        routerL2.swapExactTokensForTokensSimple(
+            amount1In, amount0Out, pair.token1(), pair.token0(), address(0xbeef), block.timestamp + 1000
+        );
+
     }
 
     receive() external payable {}

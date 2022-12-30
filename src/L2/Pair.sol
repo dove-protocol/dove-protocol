@@ -55,7 +55,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     uint256 internal voucher0Delta;
     uint256 internal voucher1Delta;
 
-    uint256 constant FEE = 10000;
+    uint256 constant FEE = 1000;
 
     /*###############################################################
                             EVENTS
@@ -313,6 +313,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         uint256 sgFee,
         uint256 hyperlaneFee
     ) external payable {
+        require(msg.value >= (sgFee + hyperlaneFee)*2, "SG fee + HL fee");
         ERC20 _token0 = ERC20(token0);
         ERC20 _token1 = ERC20(token1);
         // balance before getting accumulated fees
