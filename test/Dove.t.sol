@@ -63,7 +63,7 @@ contract DoveTest is Test, Helper {
 
     function setUp() external {
         vm.makePersistent(address(this));
-        L1_FORK_ID = vm.createSelectFork(RPC_ETH_MAINNET);
+        L1_FORK_ID = vm.createSelectFork(RPC_ETH_MAINNET, 16299272);
 
         /*
             Set all the L1 stuff.
@@ -72,6 +72,7 @@ contract DoveTest is Test, Helper {
         mailboxL1 = new MailboxMock(L1_DOMAIN);
         lzEndpointL1 = ILayerZeroEndpoint(0x66A71Dcef29A0fFBDBE3c6a460a3B5BC225Cd675);
 
+        // preorder how it would be through factory
         L1Token0 = ERC20Mock(0x6B175474E89094C44Da98b954EedeAC495271d0F); // DAI
         L1Token1 = ERC20Mock(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48); // USDC
 
@@ -113,7 +114,7 @@ contract DoveTest is Test, Helper {
             Set all the L2 stuff.
         */
 
-        L2_FORK_ID = vm.createSelectFork(RPC_POLYGON_MAINNET);
+        L2_FORK_ID = vm.createSelectFork(RPC_POLYGON_MAINNET, 37469953);
 
         gasMasterL2 = new InterchainGasPaymasterMock();
         mailboxL2 = new MailboxMock(L2_DOMAIN);
@@ -127,7 +128,7 @@ contract DoveTest is Test, Helper {
         // deploy router
         routerL2 = new L2Router(address(factoryL2));
 
-        pair = Pair(factoryL2.createPair(address(L2Token0), address(L2Token1), address(L1Token0), address(L1Token1), address(dove)));
+        pair = Pair(factoryL2.createPair(address(L2Token1), address(L2Token0), address(L1Token0), address(L1Token1), address(dove)));
 
         pairAddress = address(pair);
 
@@ -138,12 +139,18 @@ contract DoveTest is Test, Helper {
         L2Token1.approve(address(pair), type(uint256).max);
         L2Token0.approve(address(routerL2), type(uint256).max);
         L2Token1.approve(address(routerL2), type(uint256).max);
+
+        // ---------------------------------------------
+        vm.selectFork(L1_FORK_ID);
+        vm.broadcast(address(factoryL1));
+        dove.addTrustedRemote(L2_DOMAIN, bytes32(uint256(uint160(address(pair)))));
+
     }
 
     function testPersistentStatesSwitchingForks() external {
         // on L2 fork id now and switching to L1
         vm.selectFork(L1_FORK_ID);
-        assertEq(dove.reserve0(), 10 ** 12);
+        assertEq(dove.reserve0(), 10 ** 13);
         vm.selectFork(L2_FORK_ID);
         assertEq(pair.L1Target(), address(dove));
     }
@@ -174,8 +181,11 @@ contract DoveTest is Test, Helper {
         vm.selectFork(L1_FORK_ID);
 
         // proper earmarked tokens
-        assertEq(dove.marked0(L2_DOMAIN), voucher0Balance);
-        assertEq(dove.marked1(L2_DOMAIN), voucher1Balance);
+        // have to swap vouchers assert because the ordering of the tokens on L2
+        // is not identical to the one on L1 and here it happens that on L1
+        // it's [DAI, USDC] and on L2 it's [USDC, DAI]
+        assertEq(dove.marked0(L2_DOMAIN), voucher1Balance);
+        assertEq(dove.marked1(L2_DOMAIN), voucher0Balance);
     }
 
     function syncToL2() external {
@@ -204,10 +214,18 @@ contract DoveTest is Test, Helper {
         pair.syncToL1{value: 800 ether}(1, 1, 3, 3, 200 ether, 200 ether);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
-        bytes memory payload1 = abi.decode(logs[8].data, (bytes));
+        // to find LZ events
+        //findEvent(logs, 0xe9bded5f24a4168e4f3bf44e00298c993b22376aad8c58c7dda9718a54cbea82);
+        // to find mock mailbox events
+        //findEvent(logs, 0x3b31784f245377d844a88ed832a668978c700fd9d25d80e8bf5ef168c6bffa20);
+
+        bytes memory payload1 = abi.decode(logs[10].data, (bytes));
         LayerZeroPacket.Packet memory packet1 = LayerZeroPacket.getCustomPacket(payload1);
-        bytes memory payload2 = abi.decode(logs[18].data, (bytes));
+        bytes memory payload2 = abi.decode(logs[21].data, (bytes));
         LayerZeroPacket.Packet memory packet2 = LayerZeroPacket.getCustomPacket(payload2);
+
+        (address sender1, bytes memory HLpayload1) = abi.decode(logs[12].data, (address, bytes));
+        (address sender2, bytes memory HLpayload2) = abi.decode(logs[23].data, (address, bytes));
 
         // switch fork
         vm.selectFork(L1_FORK_ID);
@@ -225,6 +243,14 @@ contract DoveTest is Test, Helper {
         lzEndpointL1.receivePayload(
             packet2.srcChainId, path, packet2.dstAddress, packet2.nonce + 1, 600000, packet2.payload
         );
+        vm.stopBroadcast();
+
+        (,address token1 ,uint256 marked1, uint256 balance1) = abi.decode(HLpayload1, (uint256, address, uint256, uint256));
+        (,address token2,uint256 marked2, uint256 balance2) = abi.decode(HLpayload2, (uint256, address, uint256, uint256));
+
+        vm.startBroadcast(address(mailboxL1));
+        dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender1), HLpayload1);
+        dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender2), HLpayload2);
         vm.stopBroadcast();
     }
 

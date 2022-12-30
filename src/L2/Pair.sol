@@ -55,7 +55,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     uint256 internal voucher0Delta;
     uint256 internal voucher1Delta;
 
-    uint256 constant FEE = 1000;
+    uint256 constant FEE = 300;
 
     /*###############################################################
                             EVENTS
@@ -333,7 +333,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 _balance0,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                ""
+                "0x1"
             );
             bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, L1Token0, voucher0Delta, _balance0);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
@@ -352,7 +352,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 _balance1,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                ""
+                "0x1"
             );
             bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, L1Token1, voucher1Delta, _balance1);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
@@ -387,7 +387,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         }
     }
 
-    function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyInbox {
+    function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
         require(origin == destDomain, "WRONG ORIGIN");
         require(TypeCasts.addressToBytes32(L1Target) == sender, "NOT DOVE");
         (reserve0, reserve1) = abi.decode(payload, (uint256, uint256));
