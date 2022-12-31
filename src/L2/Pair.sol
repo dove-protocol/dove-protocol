@@ -390,7 +390,15 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
         require(origin == destDomain, "WRONG ORIGIN");
         require(TypeCasts.addressToBytes32(L1Target) == sender, "NOT DOVE");
-        (reserve0, reserve1) = abi.decode(payload, (uint256, uint256));
+        uint256 messageType = abi.decode(payload, (uint256));
+        if (messageType == MessageType.SYNC_TO_L2) {
+            _syncFromL1(payload);
+        }
+    }
+
+    function _syncFromL1(bytes calldata payload) internal {
+        (,address _L1Token0, uint256 _reserve0, uint256 _reserve1) = abi.decode(payload, (uint256, address, uint256, uint256));
+        (reserve0, reserve1) = _L1Token0 == L1Token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
         ref0 = reserve0;
         ref1 = reserve1;
         voucher0Delta = 0;

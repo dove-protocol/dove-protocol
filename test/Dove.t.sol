@@ -21,6 +21,9 @@ import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {InterchainGasPaymasterMock} from "./mocks/InterchainGasPaymasterMock.sol";
 import {MailboxMock} from "./mocks/MailboxMock.sol";
 
+/*
+    Some of the calculations rely on the state of SG pools at the hardcoded fork blocks.
+*/
 contract DoveTest is Test, Helper {
     // L1
     address constant L1SGRouter = 0x8731d54E9D02c286767d56ac03e8037C07e01e98;
@@ -82,22 +85,23 @@ contract DoveTest is Test, Helper {
         routerL1 = new L1Router(address(factoryL1));
         // deploy dove
         dove = Dove(factoryL1.createPair(address(L1Token0), address(L1Token1)));
-
+        
         // mint tokens
-        Helper.mintDAIL1(address(L1Token0), address(this), 10 ** 36);
-        Helper.mintUSDCL1(address(L1Token1), address(this), 10 ** 60);
+        Helper.mintDAIL1(address(L1Token0), address(this), 10 ** 60);
+        Helper.mintUSDCL1(address(L1Token1), address(this), 10 ** 36);
         // provide liquidity
         L1Token0.approve(address(dove), type(uint256).max);
         L1Token1.approve(address(dove), type(uint256).max);
         L1Token0.approve(address(routerL1), type(uint256).max);
         L1Token1.approve(address(routerL1), type(uint256).max);
 
-        (uint256 toAdd0, uint256 toAdd1,) = routerL1.quoteAddLiquidity(address(L1Token0), address(L1Token1), 10 ** 13, 10 ** 25); // 1M of each
+        (uint256 toAdd0, uint256 toAdd1,) = routerL1.quoteAddLiquidity(address(L1Token0), address(L1Token1), 10 ** 25, 10 ** 13); // 10M of each
+
         routerL1.addLiquidity(
             address(L1Token0),
             address(L1Token1),
-            10 ** 13,
             10 ** 25,
+            10 ** 13,
             toAdd0,
             toAdd1,
             address(this),
@@ -147,14 +151,6 @@ contract DoveTest is Test, Helper {
 
     }
 
-    function testPersistentStatesSwitchingForks() external {
-        // on L2 fork id now and switching to L1
-        vm.selectFork(L1_FORK_ID);
-        assertEq(dove.reserve0(), 10 ** 13);
-        vm.selectFork(L2_FORK_ID);
-        assertEq(pair.L1Target(), address(dove));
-    }
-
     function testSyncingToL2() external {
         // AMM should be empty
         vm.selectFork(L2_FORK_ID);
@@ -169,8 +165,9 @@ contract DoveTest is Test, Helper {
         this._syncToL2();
 
         vm.selectFork(L2_FORK_ID);
-        assertEq(pair.reserve0(), doveReserve0);
-        assertEq(pair.reserve1(), doveReserve1);
+        // have compare L2R0 to L1R1 because the ordering of the tokens on L2
+        assertEq(pair.reserve0(), doveReserve1);
+        assertEq(pair.reserve1(), doveReserve0);
         assertEq(pair.L1Target(), address(dove));
     }
 
@@ -181,17 +178,32 @@ contract DoveTest is Test, Helper {
         _doSomeSwaps();
         uint256 voucher0Balance = pair.voucher0().totalSupply();
         uint256 voucher1Balance = pair.voucher1().totalSupply();
+        uint256 L2R0 = pair.reserve0(); // USDC virtual reserve
+        uint256 L2R1 = pair.reserve1(); // DAI virtual reserve
 
         this._syncToL1();
 
         vm.selectFork(L1_FORK_ID);
 
-        // proper earmarked tokens
+        // check proper earmarked tokens
         // have to swap vouchers assert because the ordering of the tokens on L2
         // is not identical to the one on L1 and here it happens that on L1
         // it's [DAI, USDC] and on L2 it's [USDC, DAI]
         assertEq(dove.marked0(L2_DOMAIN), voucher1Balance);
         assertEq(dove.marked1(L2_DOMAIN), voucher0Balance);
+        // check reserves impacted properly
+        /*
+            Napkin math
+            reserve = reserve + bridged - earmarked
+
+            reserve1[USDC]  = 10**(7+6)  + 49833333334 - 49833336416
+                            = 9999999996918
+            reserve0[DAI]   = 10**(7+18) + 49833333333333333333334 - 49833330250459178059597
+                            = 10000000003082874155273737
+        */
+        // have to swap L2R because token ordering on L2 not the same on L1
+        assertEq(dove.reserve0(), L2R1);
+        assertEq(dove.reserve1(), L2R0);
     }
 
     function _syncToL2() external {
@@ -250,6 +262,17 @@ contract DoveTest is Test, Helper {
             packet2.srcChainId, path, packet2.dstAddress, packet2.nonce + 1, 600000, packet2.payload
         );
         vm.stopBroadcast();
+
+        // (,address token0,uint256 marked0, uint256 pairBalance0) = abi.decode(HLpayload1, (uint,address,uint,uint));
+        // (,address token1,uint256 marked1, uint256 pairBalance1) = abi.decode(HLpayload2, (uint,address,uint,uint));
+        // console.log("Hyperlane payload0...");
+        // console.log("token", token0);
+        // console.log("marked", marked0);
+        // console.log("pairBalance", pairBalance0);
+        // console.log("Hyperlane payload1...");
+        // console.log("token", token1);
+        // console.log("marked", marked1);
+        // console.log("pairBalance", pairBalance1);
 
         vm.startBroadcast(address(mailboxL1));
         dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender1), HLpayload1);

@@ -239,10 +239,10 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             partialSyncs[origin] = PartialSync(token, pairBalance, earmarkedDelta);
         } else {
             // can proceed with full sync
-            if (partialSync.token == token0) {
-                _syncFromL2(origin, partialSync.pairBalance, pairBalance, partialSync.earmarkedAmount, earmarkedDelta);
-            } else {
+            if (token == token0) {
                 _syncFromL2(origin, pairBalance, partialSync.pairBalance, earmarkedDelta, partialSync.earmarkedAmount);
+            } else {
+                _syncFromL2(origin, partialSync.pairBalance, pairBalance, partialSync.earmarkedAmount, earmarkedDelta);
             }
             // reset
             delete partialSyncs[origin];
@@ -265,7 +265,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     }
 
     function syncL2(uint32 destinationDomain, address amm) external payable {
-        bytes memory payload = abi.encode(reserve0, reserve1);
+        bytes memory payload = abi.encode(MessageType.SYNC_TO_L2, token0, reserve0, reserve1);
         bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(amm), payload);
         // pay for gas
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destinationDomain);
@@ -322,11 +322,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256 earmarkedDelta0,
         uint256 earmarkedDelta1
     ) internal {
-        uint256 newReserve0 = reserve0 + pairBalance0 - earmarkedDelta0;
-        uint256 newReserve1 = reserve1 + pairBalance1 - earmarkedDelta1;
         // check soemwhere if it respects the curve
-        reserve0 = newReserve0;
-        reserve1 = newReserve1;
+        reserve0 = reserve0 + pairBalance0 - earmarkedDelta0;
+        reserve1 = reserve1 + pairBalance1 - earmarkedDelta1;
         marked0[srcDomain] += earmarkedDelta0;
         marked1[srcDomain] += earmarkedDelta1;
         // send out fees
