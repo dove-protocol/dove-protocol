@@ -23,8 +23,10 @@ import {MailboxMock} from "./mocks/MailboxMock.sol";
 
 /*
     Some of the calculations rely on the state of SG pools at the hardcoded fork blocks.
+
+    A test contract with the following simplifying assumption ; there is only one L2 AMM.
 */
-contract DoveTest is Test, Helper {
+contract DoveSimpleTest is Test, Helper {
     // L1
     address constant L1SGRouter = 0x8731d54E9D02c286767d56ac03e8037C07e01e98;
     InterchainGasPaymasterMock gasMasterL1;
@@ -151,6 +153,13 @@ contract DoveTest is Test, Helper {
 
     }
 
+
+    /*
+        Dove should be able to sync the Pair with itself.
+        It does so by communicating with the Pair the reserves of Dove.
+
+        Doing so should not nuke existing state on L2, such as vouchers deltas.
+    */
     function testSyncingToL2() external {
         // AMM should be empty
         vm.selectFork(L2_FORK_ID);
@@ -171,6 +180,11 @@ contract DoveTest is Test, Helper {
         assertEq(pair.L1Target(), address(dove));
     }
 
+    /*
+        The Pair syncing to the L1 means it essentially does the following :
+        - "impacts" the reserves (assets balances) as it would have been with swaps on L1
+        - guarantees that L2 traders have access to the underlying tokens of their vouchers
+    */
     function testSyncingToL1() external {
         this._syncToL2();
 

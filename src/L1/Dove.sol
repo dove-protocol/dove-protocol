@@ -333,6 +333,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256 fees1 = lastBridged1[srcDomain] - pairBalance1;
         _update0(fees0);
         _update1(fees1);
+        // cleanup
+        delete lastBridged0[srcDomain];
+        delete lastBridged1[srcDomain];
     }
 
     function transfer(address to, uint256 amount) public override returns (bool) {
