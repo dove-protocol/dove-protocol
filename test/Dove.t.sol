@@ -157,12 +157,18 @@ contract DoveTest is Test, Helper {
 
     function testSyncingToL2() external {
         // AMM should be empty
+        vm.selectFork(L2_FORK_ID);
         assertEq(pair.reserve0(), 0);
         assertEq(pair.reserve1(), 0);
+
         vm.selectFork(L1_FORK_ID);
+
         uint256 doveReserve0 = dove.reserve0();
         uint256 doveReserve1 = dove.reserve1();
+
         this.syncToL2();
+
+        vm.selectFork(L2_FORK_ID);
         assertEq(pair.reserve0(), doveReserve0);
         assertEq(pair.reserve1(), doveReserve1);
         assertEq(pair.L1Target(), address(dove));
@@ -269,13 +275,13 @@ contract DoveTest is Test, Helper {
         uint256 amount0Out;
         uint256 amount1Out;
 
-        amount0In = 500000 * 10**6; // 500k usdc
+        amount0In = 50000 * 10**6; // 50k usdc
         amount1Out = pair.getAmountOut(amount0In, pair.token0());
         routerL2.swapExactTokensForTokensSimple(
             amount0In, amount1Out, pair.token0(), pair.token1(), address(0xbeef), block.timestamp + 1000
         );
 
-        amount1In = 500000 * 10**18; // 500k dai
+        amount1In = 50000 * 10**18; // 50k dai
         amount0Out = pair.getAmountOut(amount1In, pair.token1());
         routerL2.swapExactTokensForTokensSimple(
             amount1In, amount0Out, pair.token1(), pair.token0(), address(0xbeef), block.timestamp + 1000
