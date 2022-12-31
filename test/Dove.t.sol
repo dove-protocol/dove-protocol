@@ -166,7 +166,7 @@ contract DoveTest is Test, Helper {
         uint256 doveReserve0 = dove.reserve0();
         uint256 doveReserve1 = dove.reserve1();
 
-        this.syncToL2();
+        this._syncToL2();
 
         vm.selectFork(L2_FORK_ID);
         assertEq(pair.reserve0(), doveReserve0);
@@ -175,14 +175,14 @@ contract DoveTest is Test, Helper {
     }
 
     function testSyncingToL1() external {
-        this.syncToL2();
+        this._syncToL2();
 
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
         uint256 voucher0Balance = pair.voucher0().totalSupply();
         uint256 voucher1Balance = pair.voucher1().totalSupply();
 
-        this.syncToL1();
+        this._syncToL1();
 
         vm.selectFork(L1_FORK_ID);
 
@@ -194,7 +194,7 @@ contract DoveTest is Test, Helper {
         assertEq(dove.marked1(L2_DOMAIN), voucher0Balance);
     }
 
-    function syncToL2() external {
+    function _syncToL2() external {
         vm.selectFork(L1_FORK_ID);
         vm.recordLogs();
         dove.syncL2{value: 1 ether}(L2_CHAIN_ID, address(pair));
@@ -208,7 +208,7 @@ contract DoveTest is Test, Helper {
         pair.handle(L1_DOMAIN, TypeCasts.addressToBytes32(sender), payload);
     }
 
-    function syncToL1() external {
+    function _syncToL1() external {
         /*
             Simulate syncing to L1.
             Using Stargate.
@@ -221,9 +221,9 @@ contract DoveTest is Test, Helper {
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         // to find LZ events
-        //findEvent(logs, 0xe9bded5f24a4168e4f3bf44e00298c993b22376aad8c58c7dda9718a54cbea82);
+        //_findEvent(logs, 0xe9bded5f24a4168e4f3bf44e00298c993b22376aad8c58c7dda9718a54cbea82);
         // to find mock mailbox events
-        //findEvent(logs, 0x3b31784f245377d844a88ed832a668978c700fd9d25d80e8bf5ef168c6bffa20);
+        //_findEvent(logs, 0x3b31784f245377d844a88ed832a668978c700fd9d25d80e8bf5ef168c6bffa20);
 
         bytes memory payload1 = abi.decode(logs[10].data, (bytes));
         LayerZeroPacket.Packet memory packet1 = LayerZeroPacket.getCustomPacket(payload1);
@@ -251,16 +251,13 @@ contract DoveTest is Test, Helper {
         );
         vm.stopBroadcast();
 
-        (,address token1 ,uint256 marked1, uint256 balance1) = abi.decode(HLpayload1, (uint256, address, uint256, uint256));
-        (,address token2,uint256 marked2, uint256 balance2) = abi.decode(HLpayload2, (uint256, address, uint256, uint256));
-
         vm.startBroadcast(address(mailboxL1));
         dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender1), HLpayload1);
         dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender2), HLpayload2);
         vm.stopBroadcast();
     }
 
-    function findEvent(Vm.Log[] memory logs, bytes32 topic) internal {
+    function _findEvent(Vm.Log[] memory logs, bytes32 topic) internal {
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == topic) {
                 console2.logUint(i);
