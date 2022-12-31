@@ -11,8 +11,8 @@ abstract contract HyperlaneClient is IMessageRecipient, Owned {
     IInterchainGasPaymaster public hyperlaneGasMaster;
     IMailbox public mailbox;
 
-    modifier onlyInbox() {
-        require(msg.sender == address(mailbox), "NOT INBOX");
+    modifier onlyMailbox() {
+        require(msg.sender == address(mailbox), "NOT MAILBOX");
         _;
     }
 

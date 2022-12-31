@@ -37,8 +37,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     address public L1Token1;
     Voucher public voucher1;
 
-    uint256 public reserve0; // initially should be set with the L1 data
-    uint256 public reserve1; // ...
+    uint256 public reserve0; 
+    uint256 public reserve1;
     uint256 public blockTimestampLast;
     uint256 public reserve0CumulativeLast;
     uint256 public reserve1CumulativeLast;
@@ -49,13 +49,14 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     uint64 internal immutable decimals1;
     uint32 internal immutable destDomain;
     uint16 internal immutable destChainId;
+    ///@notice "reference" reserves on L1
     uint256 internal ref0;
     uint256 internal ref1;
-    // amount of vouchers minted since last L12 sync
+    // amount of vouchers minted since last L1->L2 sync
     uint256 internal voucher0Delta;
     uint256 internal voucher1Delta;
 
-    uint256 constant FEE = 10000;
+    uint256 constant FEE = 300;
 
     /*###############################################################
                             EVENTS
@@ -313,6 +314,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         uint256 sgFee,
         uint256 hyperlaneFee
     ) external payable {
+        require(msg.value >= (sgFee + hyperlaneFee)*2, "SG fee + HL fee");
         ERC20 _token0 = ERC20(token0);
         ERC20 _token1 = ERC20(token1);
         // balance before getting accumulated fees
@@ -332,7 +334,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 _balance0,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                ""
+                "0x1"
             );
             bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, L1Token0, voucher0Delta, _balance0);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
@@ -351,7 +353,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 _balance1,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                ""
+                "0x1"
             );
             bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, L1Token1, voucher1Delta, _balance1);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
@@ -386,10 +388,18 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         }
     }
 
-    function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyInbox {
+    function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
         require(origin == destDomain, "WRONG ORIGIN");
         require(TypeCasts.addressToBytes32(L1Target) == sender, "NOT DOVE");
-        (reserve0, reserve1) = abi.decode(payload, (uint256, uint256));
+        uint256 messageType = abi.decode(payload, (uint256));
+        if (messageType == MessageType.SYNC_TO_L2) {
+            _syncFromL1(payload);
+        }
+    }
+
+    function _syncFromL1(bytes calldata payload) internal {
+        (,address _L1Token0, uint256 _reserve0, uint256 _reserve1) = abi.decode(payload, (uint256, address, uint256, uint256));
+        (reserve0, reserve1) = _L1Token0 == L1Token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
         ref0 = reserve0;
         ref1 = reserve1;
         voucher0Delta = 0;

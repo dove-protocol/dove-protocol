@@ -26,13 +26,14 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
     event Claim(address indexed sender, address indexed recipient, uint256 amount0, uint256 amount1);
     event Sync(uint256 reserve0, uint256 reserve1);
+    event Bridged(address token, uint256 amount);
     /*###############################################################
                             STRUCTS
     ###############################################################*/
 
     struct PartialSync {
         address token;
-        uint256 balance; // L2 balance
+        uint256 pairBalance; // L2 pair balance
         uint256 earmarkedAmount; // tokens to earmark
     }
 
@@ -227,27 +228,28 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         } else if (_token == token1) {
             lastBridged1[domain] = _bridgedAmount;
         }
+        emit Bridged(_token, _bridgedAmount);
     }
 
-    function syncFromL2(uint32 origin, address token, uint256 earmarkedDelta, uint256 balance) internal {
+    function syncFromL2(uint32 origin, address token, uint256 earmarkedDelta, uint256 pairBalance) internal {
         // check if already partial sync
         // @note Maybe enforce check that second partial sync is "pair" of first one
         PartialSync memory partialSync = partialSyncs[origin];
         if (partialSync.token == address(0)) {
-            partialSyncs[origin] = PartialSync(token, balance, earmarkedDelta);
+            partialSyncs[origin] = PartialSync(token, pairBalance, earmarkedDelta);
         } else {
             // can proceed with full sync
-            if (partialSync.token == token0) {
-                _syncFromL2(origin, partialSync.balance, balance, partialSync.earmarkedAmount, earmarkedDelta);
+            if (token == token0) {
+                _syncFromL2(origin, pairBalance, partialSync.pairBalance, earmarkedDelta, partialSync.earmarkedAmount);
             } else {
-                _syncFromL2(origin, balance, partialSync.balance, earmarkedDelta, partialSync.earmarkedAmount);
+                _syncFromL2(origin, partialSync.pairBalance, pairBalance, partialSync.earmarkedAmount, earmarkedDelta);
             }
             // reset
             delete partialSyncs[origin];
         }
     }
 
-    function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyInbox {
+    function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
         // check if message is from trusted remote
         require(trustedRemoteLookup[origin] == sender, "NOT TRUSTED");
         uint256 messageType = abi.decode(payload, (uint256));
@@ -256,13 +258,14 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             (, address token, address user, uint256 amount) = abi.decode(payload, (uint256, address, address, uint256));
             _completeVoucherBurn(origin, token, user, amount);
         } else if (messageType == MessageType.SYNC_TO_L1) {
-            (, address token, uint256 earmarkedDelta, uint256 balance) =
+            (, address token, uint256 earmarkedDelta, uint256 pairBalance) =
                 abi.decode(payload, (uint256, address, uint256, uint256));
+            syncFromL2(origin, token, earmarkedDelta, pairBalance);
         }
     }
 
     function syncL2(uint32 destinationDomain, address amm) external payable {
-        bytes memory payload = abi.encode(reserve0, reserve1);
+        bytes memory payload = abi.encode(MessageType.SYNC_TO_L2, token0, reserve0, reserve1);
         bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(amm), payload);
         // pay for gas
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destinationDomain);
@@ -314,24 +317,25 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     /// @dev    The sync should be followed by a sync on the L2.
     function _syncFromL2(
         uint32 srcDomain,
-        uint256 balance0,
-        uint256 balance1,
+        uint256 pairBalance0,
+        uint256 pairBalance1,
         uint256 earmarkedDelta0,
         uint256 earmarkedDelta1
     ) internal {
-        uint256 newReserve0 = reserve0 + balance0 - earmarkedDelta0;
-        uint256 newReserve1 = reserve1 + balance1 - earmarkedDelta1;
         // check soemwhere if it respects the curve
-        reserve0 = newReserve0;
-        reserve1 = newReserve1;
+        reserve0 = reserve0 + pairBalance0 - earmarkedDelta0;
+        reserve1 = reserve1 + pairBalance1 - earmarkedDelta1;
         marked0[srcDomain] += earmarkedDelta0;
         marked1[srcDomain] += earmarkedDelta1;
         // send out fees
         // optimistically, bridged > balance
-        uint256 fees0 = lastBridged0[srcDomain] - balance0;
-        uint256 fees1 = lastBridged1[srcDomain] - balance1;
+        uint256 fees0 = lastBridged0[srcDomain] - pairBalance0;
+        uint256 fees1 = lastBridged1[srcDomain] - pairBalance1;
         _update0(fees0);
         _update1(fees1);
+        // cleanup
+        delete lastBridged0[srcDomain];
+        delete lastBridged1[srcDomain];
     }
 
     function transfer(address to, uint256 amount) public override returns (bool) {
