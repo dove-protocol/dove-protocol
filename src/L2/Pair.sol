@@ -37,8 +37,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     address public L1Token1;
     Voucher public voucher1;
 
-    uint256 public reserve0; // initially should be set with the L1 data
-    uint256 public reserve1; // ...
+    uint256 public reserve0; 
+    uint256 public reserve1;
     uint256 public blockTimestampLast;
     uint256 public reserve0CumulativeLast;
     uint256 public reserve1CumulativeLast;
@@ -49,9 +49,10 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     uint64 internal immutable decimals1;
     uint32 internal immutable destDomain;
     uint16 internal immutable destChainId;
+    ///@notice "reference" reserves on L1
     uint256 internal ref0;
     uint256 internal ref1;
-    // amount of vouchers minted since last L12 sync
+    // amount of vouchers minted since last L1->L2 sync
     uint256 internal voucher0Delta;
     uint256 internal voucher1Delta;
 
