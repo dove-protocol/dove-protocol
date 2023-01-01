@@ -25,6 +25,14 @@ import {MailboxMock} from "./mocks/MailboxMock.sol";
     Some of the calculations rely on the state of SG pools at the hardcoded fork blocks.
 
     A test contract with the following simplifying assumption ; there is only one L2 AMM.
+
+    Given the addresses of token0/1 on L1 and L2, it should be noted that ;
+
+    L1          L2
+    token0      token1+voucher1
+    token1      token0+voucher0
+    marked0     voucher1
+    marked1     voucher0
 */
 contract DoveSimpleTest is Test, Helper {
     // L1
@@ -171,7 +179,7 @@ contract DoveSimpleTest is Test, Helper {
         uint256 doveReserve0 = dove.reserve0();
         uint256 doveReserve1 = dove.reserve1();
 
-        this._syncToL2();
+        _syncToL2();
 
         vm.selectFork(L2_FORK_ID);
         // have compare L2R0 to L1R1 because the ordering of the tokens on L2
@@ -186,7 +194,7 @@ contract DoveSimpleTest is Test, Helper {
         - guarantees that L2 traders have access to the underlying tokens of their vouchers
     */
     function testSyncingToL1() external {
-        this._syncToL2();
+        _syncToL2();
 
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
@@ -195,7 +203,7 @@ contract DoveSimpleTest is Test, Helper {
         uint256 L2R0 = pair.reserve0(); // USDC virtual reserve
         uint256 L2R1 = pair.reserve1(); // DAI virtual reserve
 
-        this._syncToL1();
+        _syncToL1();
 
         vm.selectFork(L1_FORK_ID);
 
@@ -220,7 +228,86 @@ contract DoveSimpleTest is Test, Helper {
         assertEq(dove.reserve1(), L2R0);
     }
 
-    function _syncToL2() external {
+
+    function testVouchersBurn() external {
+        _syncToL2();
+        vm.selectFork(L2_FORK_ID);
+        _doMoreSwaps();
+        _syncToL1();
+
+        vm.selectFork(L1_FORK_ID);
+        uint L1R0 = dove.reserve0();
+        uint L1R1 = dove.reserve1();
+
+        vm.selectFork(L2_FORK_ID);
+
+        uint256 voucher0Supply = pair.voucher0().totalSupply();
+        uint256 voucher1Supply = pair.voucher1().totalSupply();
+
+        // should have a bit less than 50k
+        uint256 voucher0BalanceOfBeef = pair.voucher0().balanceOf(address(0xbeef));
+        uint256 voucher1BalanceOfBeef = pair.voucher1().balanceOf(address(0xbeef));
+        // should have a bit less than 500
+        uint256 voucher1BalanceOfCafe = pair.voucher1().balanceOf(address(0xcafe));
+
+        // burn just one voucher for now
+        _burnVouchers(address(0xbeef), voucher0BalanceOfBeef, 0);
+
+        vm.selectFork(L2_FORK_ID);
+        // check vouchers has been burnt
+        assertEq(pair.voucher0().totalSupply(), voucher0Supply - voucher0BalanceOfBeef);
+        assertEq(pair.voucher0().balanceOf(address(0xbeef)), 0);
+
+        vm.selectFork(L1_FORK_ID);
+
+        assertEq(dove.marked1(L2_DOMAIN), voucher0Supply - voucher0BalanceOfBeef);
+        assertEq(dove.marked0(L2_DOMAIN), voucher1Supply);
+        // reserves should not have changed
+        assertEq(dove.reserve0(), L1R0);
+        assertEq(dove.reserve1(), L1R1);
+        // correctly transfered tokens to user
+        assertEq(L1Token1.balanceOf(address(0xbeef)), voucher0BalanceOfBeef);
+
+
+        // burn voucchers1 of user 0xcafe and 0xbeef
+        _burnVouchers(address(0xbeef), 0, voucher1BalanceOfBeef);
+        _burnVouchers(address(0xcafe), 0, voucher1BalanceOfCafe);
+
+        vm.selectFork(L2_FORK_ID);
+        // check vouchers has been burnt
+        assertEq(pair.voucher1().totalSupply(), voucher1Supply - voucher1BalanceOfBeef - voucher1BalanceOfCafe);
+        assertEq(pair.voucher1().balanceOf(address(0xbeef)), 0);
+        assertEq(pair.voucher1().balanceOf(address(0xcafe)), 0);
+
+        voucher0Supply = pair.voucher0().totalSupply();
+
+        vm.selectFork(L1_FORK_ID);
+
+        assertEq(dove.marked1(L2_DOMAIN), voucher0Supply);
+        assertEq(dove.marked0(L2_DOMAIN), voucher1Supply - voucher1BalanceOfBeef - voucher1BalanceOfCafe);
+        // reserves should not have changed
+        assertEq(dove.reserve0(), L1R0);
+        assertEq(dove.reserve1(), L1R1);
+        // correctly transfered tokens to user
+        assertEq(L1Token0.balanceOf(address(0xbeef)), voucher1BalanceOfBeef);
+        assertEq(L1Token0.balanceOf(address(0xcafe)), voucher1BalanceOfCafe);
+    }
+
+    function _burnVouchers(address user, uint256 amount0, uint256 amount1) internal {
+        vm.selectFork(L2_FORK_ID);
+        vm.recordLogs();
+        vm.broadcast(user);
+        pair.burnVouchers(amount0, amount1);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        // should be second long
+        (address sender, bytes memory HLpayload) = abi.decode(logs[1].data, (address, bytes));
+        vm.selectFork(L1_FORK_ID);
+        vm.broadcast(address(mailboxL1));
+        dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender), HLpayload);
+
+    }
+
+    function _syncToL2() internal {
         vm.selectFork(L1_FORK_ID);
         vm.recordLogs();
         dove.syncL2{value: 1 ether}(L2_CHAIN_ID, address(pair));
@@ -234,7 +321,7 @@ contract DoveSimpleTest is Test, Helper {
         pair.handle(L1_DOMAIN, TypeCasts.addressToBytes32(sender), payload);
     }
 
-    function _syncToL1() external {
+    function _syncToL1() internal {
         /*
             Simulate syncing to L1.
             Using Stargate.
@@ -320,7 +407,27 @@ contract DoveSimpleTest is Test, Helper {
         routerL2.swapExactTokensForTokensSimple(
             amount1In, amount0Out, pair.token1(), pair.token0(), address(0xbeef), block.timestamp + 1000
         );
+    }
 
+    function _doMoreSwaps() internal {
+        _doSomeSwaps();
+
+        uint256 amount0In;
+        uint256 amount1In;
+        uint256 amount0Out;
+        uint256 amount1Out;
+
+        amount0In = 5000 * 10**6; // 5k usdc
+        amount1Out = pair.getAmountOut(amount0In, pair.token0());
+        routerL2.swapExactTokensForTokensSimple(
+            amount0In, amount1Out, pair.token0(), pair.token1(), address(0xcafe), block.timestamp + 1000
+        );
+
+        amount1In = 300 * 10**18; // 300 dai
+        amount0Out = pair.getAmountOut(amount1In, pair.token1());
+        routerL2.swapExactTokensForTokensSimple(
+            amount1In, amount0Out, pair.token1(), pair.token0(), address(0xfeeb), block.timestamp + 1000
+        );
     }
 
     receive() external payable {}

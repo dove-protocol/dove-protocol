@@ -29,6 +29,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
 
     ///@notice The bridged token0.
     address public token0;
+    ///@dev This is NOT the token0 on L1 but the L1 address
+    ///@dev of the token0 on L2.
     address public L1Token0;
     Voucher public voucher0;
 
@@ -402,7 +404,5 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         (reserve0, reserve1) = _L1Token0 == L1Token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
         ref0 = reserve0;
         ref1 = reserve1;
-        voucher0Delta = 0;
-        voucher1Delta = 0;
     }
 }
