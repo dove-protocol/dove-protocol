@@ -229,6 +229,9 @@ contract DoveSimpleTest is Test, Helper {
     }
 
 
+    /*
+        Burning vouchers on L1 should result in the user getting the underlying token on L1.
+    */
     function testVouchersBurn() external {
         _syncToL2();
         vm.selectFork(L2_FORK_ID);
@@ -292,6 +295,8 @@ contract DoveSimpleTest is Test, Helper {
         assertEq(L1Token0.balanceOf(address(0xbeef)), voucher1BalanceOfBeef);
         assertEq(L1Token0.balanceOf(address(0xcafe)), voucher1BalanceOfCafe);
     }
+
+
 
     function _burnVouchers(address user, uint256 amount0, uint256 amount1) internal {
         vm.selectFork(L2_FORK_ID);

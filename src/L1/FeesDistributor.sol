@@ -5,9 +5,10 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 contract FeesDistributor {
-    address owner;
-    address token0;
-    address token1;
+    
+    address internal owner;
+    address internal token0;
+    address internal token1;
 
     constructor(address _token0, address _token1) {
         owner = msg.sender;

@@ -8,6 +8,7 @@ import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 
 import {FeesDistributor} from "./FeesDistributor.sol";
+import {Fountain} from "./Fountain.sol";
 import {SGHyperlaneConverter} from "./SGHyperlaneConverter.sol";
 
 import "../hyperlane/TypeCasts.sol";
@@ -52,6 +53,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     uint256 public reserve1;
 
     FeesDistributor public feesDistributor;
+    Fountain public fountain;
 
     /// @notice earmarked tokens
     mapping(uint32 => uint256) public marked0;
@@ -99,6 +101,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         stargateRouter = _sgRouter;
 
         feesDistributor = new FeesDistributor(_token0, _token1);
+        fountain = new Fountain(_token0, _token1);
     }
 
     /*###############################################################
@@ -308,7 +311,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         } else {
             marked1[srcDomain] -= amount;
         }
-        ERC20(token).transfer(user, amount);
+        (uint256 amount0, uint256 amount1) = token == token0 ? (amount, uint(0)) : (uint(0), amount);
+        fountain.squirt(user, amount0, amount1);
     }
 
     /// @notice Syncing implies bridging the tokens from the L2 back to the L1.
@@ -333,6 +337,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256 fees1 = lastBridged1[srcDomain] - pairBalance1;
         _update0(fees0);
         _update1(fees1);
+        // put earmarked tokens on the side
+        SafeTransferLib.safeTransfer(ERC20(token0), address(fountain), earmarkedDelta0);
+        SafeTransferLib.safeTransfer(ERC20(token1), address(fountain), earmarkedDelta1);
         // cleanup
         delete lastBridged0[srcDomain];
         delete lastBridged1[srcDomain];
