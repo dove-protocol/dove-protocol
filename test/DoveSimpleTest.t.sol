@@ -296,7 +296,37 @@ contract DoveSimpleTest is Test, Helper {
         assertEq(L1Token0.balanceOf(address(0xcafe)), voucher1BalanceOfCafe);
     }
 
+    /*
+        Fees and earmarked tokens should go to their respective contracts, and not be held in Dove
+        as to not potentially consider them part of the reserves.
+    */
+    function testSeparateFinances() external {
+        _syncToL2();
+        vm.selectFork(L2_FORK_ID);
+        _doSomeSwaps();
+        _syncToL1();
 
+        vm.selectFork(L1_FORK_ID);
+        // test for fees
+        // todo : remove magic numbers
+        assertEq(L1Token0.balanceOf(address(dove.feesDistributor())), 136666666666666666666);
+        assertEq(L1Token1.balanceOf(address(dove.feesDistributor())), 136666666);
+        // earmarked
+        assertEq(L1Token0.balanceOf(address(dove.fountain())), 49833330250459178059597);
+        assertEq(L1Token1.balanceOf(address(dove.fountain())), 49833336416);
+    }
+
+    function testFeesClaiming() external {
+        _syncToL2();
+        vm.selectFork(L2_FORK_ID);
+        _doSomeSwaps();
+        _syncToL1();
+
+        vm.selectFork(L1_FORK_ID);
+        dove.updateAndClaimFeesFor(address(this));
+        assertEq(L1Token0.balanceOf(address(dove.feesDistributor())), 0);
+        assertEq(L1Token1.balanceOf(address(dove.feesDistributor())), 0);
+    }
 
     function _burnVouchers(address user, uint256 amount0, uint256 amount1) internal {
         vm.selectFork(L2_FORK_ID);
