@@ -13,6 +13,7 @@ import "../hyperlane/HyperlaneClient.sol";
 import "../hyperlane/TypeCasts.sol";
 
 import "./interfaces/IStargateRouter.sol";
+import "./interfaces/IL2Factory.sol";
 
 import "../MessageType.sol";
 
@@ -22,10 +23,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     /*###############################################################
                             STORAGE
     ###############################################################*/
-    IStargateRouter public stargateRouter;
-    address public L1Target;
-
-    address public factory;
+    IL2Factory public factory;
 
     ///@notice The bridged token0.
     address public token0;
@@ -49,8 +47,6 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
 
     uint64 internal immutable decimals0;
     uint64 internal immutable decimals1;
-    uint32 internal immutable destDomain;
-    uint16 internal immutable destChainId;
 
     uint16 internal immutable srcPoolId0;
     uint16 internal immutable dstPoolId0;
@@ -92,18 +88,9 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         uint16 _srcPoolId1,
         uint16 _dstPoolId1,
         address _gasMaster,
-        address _mailbox,
-        address _stargateRouter,
-        address _L1Target,
-        uint16 _destChainId,
-        uint32 _destDomain
+        address _mailbox
     ) HyperlaneClient(_gasMaster, _mailbox, address(0)) {
-        factory = msg.sender;
-
-        destChainId = _destChainId;
-        destDomain = _destDomain;
-        stargateRouter = IStargateRouter(_stargateRouter);
-        L1Target = _L1Target;
+        factory = IL2Factory(msg.sender);
 
         token0 = _token0;
         L1Token0 = _L1Token0;
@@ -355,6 +342,12 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         uint256 _balance1 = _token1.balanceOf(address(this));
         (uint256 fees0, uint256 fees1) = feesAccumulator.take();
 
+        address L1Target = factory.getL1Pair(token0, token1);
+        uint32 destDomain = factory.destDomain();
+        uint16 destChainId = factory.destChainId();
+
+        IStargateRouter stargateRouter = IStargateRouter(factory.stargateRouter());
+
         {
             // swap token0
             _token0.approve(address(stargateRouter), _balance0 + fees0);
@@ -406,6 +399,9 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     /// @param amount1 The amount of voucher1 to burn.
     function burnVouchers(uint256 amount0, uint256 amount1) external payable nonReentrant {
         uint256 fee = amount0 > 0 && amount1 > 0 ? msg.value / 2 : msg.value;
+        uint32 destDomain = factory.destDomain();
+        address L1Target = factory.getL1Pair(token0, token1);
+
         // tell L1 that vouchers been burned
         if (amount0 > 0) {
             voucher0.burn(msg.sender, amount0);
@@ -426,7 +422,9 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         bytes32 sender,
         bytes calldata payload
     ) external onlyMailbox {
+        uint32 destDomain = factory.destDomain();
         require(origin == destDomain, "WRONG ORIGIN");
+        address L1Target = factory.getL1Pair(token0, token1);
         require(TypeCasts.addressToBytes32(L1Target) == sender, "NOT DOVE");
         uint256 messageType = abi.decode(payload, (uint256));
         if (messageType == MessageType.SYNC_TO_L2) {

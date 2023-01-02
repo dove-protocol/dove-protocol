@@ -9,6 +9,8 @@ contract L2Factory {
     address[] public allPairs;
     mapping(address => bool) public isPair;
 
+    mapping(address => mapping(address => address)) public getL1Pair;
+
     address public gasMaster;
     address public mailbox;
     address public stargateRouter;
@@ -68,11 +70,7 @@ contract L2Factory {
                 dstPoolId0,
                 dstPoolId1,
                 gasMaster,
-                mailbox,
-                stargateRouter,
-                L1Target,
-                destChainId,
-                destDomain
+                mailbox
             )
         );
         // shitty design, should remove gasMaster,sgRouter, destChainId and destDomain from constructor
@@ -88,16 +86,14 @@ contract L2Factory {
                 dstPoolId0,
                 dstPoolId1,
                 gasMaster,
-                mailbox,
-                stargateRouter,
-                L1Target,
-                destChainId,
-                destDomain
+                mailbox
             )
         );
 
         getPair[token0][token1] = pair;
         getPair[token1][token0] = pair; // populate mapping in the reverse direction
+        getL1Pair[token0][token1] = L1Target;
+        getL1Pair[token1][token0] = L1Target; // populate mapping in the reverse direction
         allPairs.push(pair);
         isPair[pair] = true;
         emit PairCreated(token0, token1, pair, allPairs.length);

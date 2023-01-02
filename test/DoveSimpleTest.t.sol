@@ -204,7 +204,7 @@ contract DoveSimpleTest is Test, Helper {
         // have compare L2R0 to L1R1 because the ordering of the tokens on L2
         assertEq(pair.reserve0(), doveReserve1);
         assertEq(pair.reserve1(), doveReserve0);
-        assertEq(pair.L1Target(), address(dove));
+        assertEq(factoryL2.getL1Pair(address(L2Token0), address(L2Token1)), address(dove));
     }
 
     /*
