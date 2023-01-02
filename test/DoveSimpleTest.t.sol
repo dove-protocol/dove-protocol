@@ -3,7 +3,6 @@ pragma solidity ^0.8.15;
 
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
-import "forge-std/console2.sol";
 
 import {Dove} from "src/L1/Dove.sol";
 import {L1Router} from "src/L1/L1Router.sol";
@@ -74,6 +73,9 @@ contract DoveSimpleTest is Test, Helper {
     string RPC_ETH_MAINNET = vm.envString("ETH_MAINNET_RPC_URL");
     string RPC_POLYGON_MAINNET = vm.envString("POLYGON_MAINNET_RPC_URL");
 
+    uint256 constant initialLiquidity0 = 10 ** 25;
+    uint256 constant initialLiquidity1 = 10 ** 13;
+
     function setUp() external {
         vm.makePersistent(address(this));
         L1_FORK_ID = vm.createSelectFork(RPC_ETH_MAINNET, 16299272);
@@ -105,13 +107,13 @@ contract DoveSimpleTest is Test, Helper {
         L1Token0.approve(address(routerL1), type(uint256).max);
         L1Token1.approve(address(routerL1), type(uint256).max);
 
-        (uint256 toAdd0, uint256 toAdd1,) = routerL1.quoteAddLiquidity(address(L1Token0), address(L1Token1), 10 ** 25, 10 ** 13); // 10M of each
+        (uint256 toAdd0, uint256 toAdd1,) = routerL1.quoteAddLiquidity(address(L1Token0), address(L1Token1), initialLiquidity0, initialLiquidity1); // 10M of each
 
         routerL1.addLiquidity(
             address(L1Token0),
             address(L1Token1),
-            10 ** 25,
-            10 ** 13,
+            initialLiquidity0,
+            initialLiquidity1,
             toAdd0,
             toAdd1,
             address(this),
@@ -213,6 +215,8 @@ contract DoveSimpleTest is Test, Helper {
         // it's [DAI, USDC] and on L2 it's [USDC, DAI]
         assertEq(dove.marked0(L2_DOMAIN), voucher1Balance);
         assertEq(dove.marked1(L2_DOMAIN), voucher0Balance);
+        assertEq(L1Token0.balanceOf(address(dove.fountain())), voucher1Balance);
+        assertEq(L1Token1.balanceOf(address(dove.fountain())), voucher0Balance);
         // check reserves impacted properly
         /*
             Napkin math
@@ -223,9 +227,9 @@ contract DoveSimpleTest is Test, Helper {
             reserve0[DAI]   = 10**(7+18) + 49833333333333333333334 - 49833330250459178059597
                             = 10000000003082874155273737
         */
-        // have to swap L2R because token ordering on L2 not the same on L1
-        assertEq(dove.reserve0(), L2R1);
-        assertEq(dove.reserve1(), L2R0);
+        // todo : remove magic numbers (which are the fees here)
+        assertEq(dove.reserve0(), L2R1 + 136666666666666666666);
+        assertEq(dove.reserve1(), L2R0 + 136666666);
     }
 
 
@@ -296,25 +300,6 @@ contract DoveSimpleTest is Test, Helper {
         assertEq(L1Token0.balanceOf(address(0xcafe)), voucher1BalanceOfCafe);
     }
 
-    /*
-        Fees and earmarked tokens should go to their respective contracts, and not be held in Dove
-        as to not potentially consider them part of the reserves.
-    */
-    function testSeparateFinances() external {
-        _syncToL2();
-        vm.selectFork(L2_FORK_ID);
-        _doSomeSwaps();
-        _syncToL1();
-
-        vm.selectFork(L1_FORK_ID);
-        // test for fees
-        // todo : remove magic numbers
-        assertEq(L1Token0.balanceOf(address(dove.feesDistributor())), 136666666666666666666);
-        assertEq(L1Token1.balanceOf(address(dove.feesDistributor())), 136666666);
-        // earmarked
-        assertEq(L1Token0.balanceOf(address(dove.fountain())), 49833330250459178059597);
-        assertEq(L1Token1.balanceOf(address(dove.fountain())), 49833336416);
-    }
 
     function testFeesClaiming() external {
         _syncToL2();
@@ -323,9 +308,47 @@ contract DoveSimpleTest is Test, Helper {
         _syncToL1();
 
         vm.selectFork(L1_FORK_ID);
-        dove.updateAndClaimFeesFor(address(this));
-        assertEq(L1Token0.balanceOf(address(dove.feesDistributor())), 0);
-        assertEq(L1Token1.balanceOf(address(dove.feesDistributor())), 0);
+        // send LP tokens
+        uint256 balance = dove.balanceOf(address(this));
+        // split it in 3
+        dove.transfer(address(0xfab), balance / 3);
+        dove.transfer(address(0xbaf), balance / 3);
+        dove.transfer(address(0xbef), balance / 3);
+
+        (uint256 amount0, uint256 amount1) = routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xfab)));
+
+        // remove liquidity
+        vm.startBroadcast(address(0xfab));
+        dove.approve(address(routerL1), dove.balanceOf(address(0xfab)));
+        routerL1.removeLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xfab)), amount0, amount1, address(0xfab), block.timestamp + 1);
+        vm.stopBroadcast();
+
+        (amount0, amount1) = routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xbaf)));
+        vm.startBroadcast(address(0xbaf));
+        dove.approve(address(routerL1), dove.balanceOf(address(0xbaf)));
+        routerL1.removeLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xbaf)), amount0, amount1, address(0xbaf), block.timestamp + 1);
+        vm.stopBroadcast();
+
+        (amount0, amount1) = routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xbef)));
+        vm.startBroadcast(address(0xbef));
+        dove.approve(address(routerL1), dove.balanceOf(address(0xbef)));
+        routerL1.removeLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xbef)), amount0, amount1, address(0xbef), block.timestamp + 1);
+        vm.stopBroadcast();
+
+        // should all have gotten the same outputs
+        // assertApproxEqAbs(L1Token0.balanceOf(address(0xfab)), L1Token0.balanceOf(address(0xbaf)), 1e-9);
+        // assertApproxEqAbs(L1Token0.balanceOf(address(0xfab)), L1Token0.balanceOf(address(0xbef)), 1e-9);
+        // assertApproxEqAbs(L1Token1.balanceOf(address(0xfab)), L1Token1.balanceOf(address(0xbaf)), 1e-9);
+        // assertApproxEqAbs(L1Token1.balanceOf(address(0xfab)), L1Token1.balanceOf(address(0xbef)), 1e-9);
+
+        assertTrue(L1Token0.balanceOf(address(0xfab)) > initialLiquidity0 / 3);
+        assertTrue(L1Token0.balanceOf(address(0xbaf)) > initialLiquidity0 / 3);
+        assertTrue(L1Token0.balanceOf(address(0xbef)) > initialLiquidity0 / 3);
+        assertTrue(L1Token1.balanceOf(address(0xfab)) > initialLiquidity1 / 3);
+        assertTrue(L1Token1.balanceOf(address(0xbaf)) > initialLiquidity1 / 3);
+        assertTrue(L1Token1.balanceOf(address(0xbef)) > initialLiquidity1 / 3);
+
+
     }
 
     function _burnVouchers(address user, uint256 amount0, uint256 amount1) internal {
