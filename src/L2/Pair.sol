@@ -376,18 +376,13 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     function burnVouchers(uint256 amount0, uint256 amount1) external payable nonReentrant {
         uint256 fee = amount0 > 0 && amount1 > 0 ? msg.value / 2 : msg.value;
         // tell L1 that vouchers been burned
-        if (amount0 > 0) {
-            voucher0.burn(msg.sender, amount0);
-            bytes memory payload = abi.encode(MessageType.BURN_VOUCHER, L1Token0, msg.sender, amount0);
-            bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-            hyperlaneGasMaster.payGasFor{value: fee}(id, destDomain);
-        }
-        if (amount1 > 0) {
-            voucher1.burn(msg.sender, amount1);
-            bytes memory payload = abi.encode(MessageType.BURN_VOUCHER, L1Token1, msg.sender, amount1);
-            bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-            hyperlaneGasMaster.payGasFor{value: fee}(id, destDomain);
-        }
+        require(amount0 > 0 || amount1 > 0, "NO VOUCHERS");
+        voucher0.burn(msg.sender, amount0);
+        voucher1.burn(msg.sender, amount1);
+        bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, msg.sender, amount0, amount1);
+        bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
+        hyperlaneGasMaster.payGasFor{value: fee}(id, destDomain);
+        
     }
 
     function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
