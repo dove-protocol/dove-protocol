@@ -193,8 +193,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256 messageType = abi.decode(payload, (uint256));
         if (messageType == MessageType.BURN_VOUCHERS) {
             // receive both token addresses and amounts
-            (, address user, uint256 amount0, uint256 amount1) = abi.decode(payload, (uint256, address, uint256, uint256));
-            _completeVoucherBurns(origin, user, amount0, amount1);
+            (, address user, address token0Address, uint256 amount0, uint256 amount1) = abi.decode(payload, (uint256, address, address, uint256, uint256));
+            _completeVoucherBurns(origin, user, token0Address, amount0, amount1);
         } else if (messageType == MessageType.SYNC_TO_L1) {
             (, address token, uint256 earmarkedDelta, uint256 pairBalance) =
                 abi.decode(payload, (uint256, address, uint256, uint256));
@@ -217,13 +217,21 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     /// @dev Checks if user is able to burn or not should be done on L2 beforehand.
     /// @param srcDomain The domain id of the remote chain.
     /// @param user The user who initiated the burn.
+    /// @param token0Address The address of the token0.
     /// @param amount0 The quantity of local token0 tokens.
     /// @param amount1 The quantity of local token1 tokens.
-    function _completeVoucherBurns(uint32 srcDomain, address user, uint256 amount0, uint256 amount1) internal {
+    function _completeVoucherBurns(uint32 srcDomain, address token0Address, address user, uint256 amount0, uint256 amount1) internal {
         // update earmarked tokens
-        marked0[srcDomain] -= amount0;
-        marked1[srcDomain] -= amount1;
-        fountain.squirt(user, amount0, amount1);
+        if(token0Address == token0) {
+            marked0[srcDomain] -= amount0;
+            marked1[srcDomain] -= amount1;
+            fountain.squirt(user, amount0, amount1);
+
+        } else {
+            marked0[srcDomain] -= amount1;
+            marked1[srcDomain] -= amount0;
+            fountain.squirt(user, amount1, amount0);
+        }
     }
 
     /// @notice Syncing implies bridging the tokens from the L2 back to the L1.

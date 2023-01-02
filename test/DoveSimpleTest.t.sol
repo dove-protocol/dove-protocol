@@ -358,7 +358,7 @@ contract DoveSimpleTest is Test, Helper {
         pair.burnVouchers(amount0, amount1);
         Vm.Log[] memory logs = vm.getRecordedLogs();
         // should be second long
-        (address sender, bytes memory HLpayload) = abi.decode(logs[1].data, (address, bytes));
+        (address sender, bytes memory HLpayload) = abi.decode(logs[2].data, (address, bytes));
         vm.selectFork(L1_FORK_ID);
         vm.broadcast(address(mailboxL1));
         dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender), HLpayload);

@@ -379,7 +379,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         require(amount0 > 0 || amount1 > 0, "NO VOUCHERS");
         voucher0.burn(msg.sender, amount0);
         voucher1.burn(msg.sender, amount1);
-        bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, msg.sender, amount0, amount1);
+        bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, msg.sender, L1Token0, amount0, amount1);
         bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
         hyperlaneGasMaster.payGasFor{value: fee}(id, destDomain);
         
