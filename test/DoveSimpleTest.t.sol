@@ -73,8 +73,8 @@ contract DoveSimpleTest is Test, Helper {
     string RPC_ETH_MAINNET = vm.envString("ETH_MAINNET_RPC_URL");
     string RPC_POLYGON_MAINNET = vm.envString("POLYGON_MAINNET_RPC_URL");
 
-    uint256 constant initialLiquidity0 = 10 ** 25;
-    uint256 constant initialLiquidity1 = 10 ** 13;
+    uint256 constant initialLiquidity0 = 10**25;
+    uint256 constant initialLiquidity1 = 10**13;
 
     function setUp() external {
         vm.makePersistent(address(this));
@@ -97,17 +97,22 @@ contract DoveSimpleTest is Test, Helper {
         routerL1 = new L1Router(address(factoryL1));
         // deploy dove
         dove = Dove(factoryL1.createPair(address(L1Token0), address(L1Token1)));
-        
+
         // mint tokens
-        Helper.mintDAIL1(address(L1Token0), address(this), 10 ** 60);
-        Helper.mintUSDCL1(address(L1Token1), address(this), 10 ** 36);
+        Helper.mintDAIL1(address(L1Token0), address(this), 10**60);
+        Helper.mintUSDCL1(address(L1Token1), address(this), 10**36);
         // provide liquidity
         L1Token0.approve(address(dove), type(uint256).max);
         L1Token1.approve(address(dove), type(uint256).max);
         L1Token0.approve(address(routerL1), type(uint256).max);
         L1Token1.approve(address(routerL1), type(uint256).max);
 
-        (uint256 toAdd0, uint256 toAdd1,) = routerL1.quoteAddLiquidity(address(L1Token0), address(L1Token1), initialLiquidity0, initialLiquidity1); // 10M of each
+        (uint256 toAdd0, uint256 toAdd1, ) = routerL1.quoteAddLiquidity(
+            address(L1Token0),
+            address(L1Token1),
+            initialLiquidity0,
+            initialLiquidity1
+        ); // 10M of each
 
         routerL1.addLiquidity(
             address(L1Token0),
@@ -123,7 +128,9 @@ contract DoveSimpleTest is Test, Helper {
         // set SG bridges as trusted
         vm.broadcast(address(factoryL1));
         dove.addStargateTrustedBridge(
-            109, 0x9d1B1669c73b033DFe47ae5a0164Ab96df25B944, 0x296F55F8Fb28E498B858d0BcDA06D955B2Cb3f97
+            109,
+            0x9d1B1669c73b033DFe47ae5a0164Ab96df25B944,
+            0x296F55F8Fb28E498B858d0BcDA06D955B2Cb3f97
         );
 
         /*
@@ -144,12 +151,24 @@ contract DoveSimpleTest is Test, Helper {
         // deploy router
         routerL2 = new L2Router(address(factoryL2));
 
-        pair = Pair(factoryL2.createPair(address(L2Token1), address(L2Token0), address(L1Token0), address(L1Token1), address(dove)));
+        pair = Pair(
+            factoryL2.createPair(
+                address(L2Token1),
+                address(L2Token0),
+                1,
+                1,
+                3,
+                3,
+                address(L1Token0),
+                address(L1Token1),
+                address(dove)
+            )
+        );
 
         pairAddress = address(pair);
 
-        Helper.mintUSDCL2(address(L2Token0), address(this), 10 ** 36);
-        Helper.mintDAIL2(address(L2Token1), address(this), 10 ** 60);
+        Helper.mintUSDCL2(address(L2Token0), address(this), 10**36);
+        Helper.mintDAIL2(address(L2Token1), address(this), 10**60);
 
         L2Token0.approve(address(pair), type(uint256).max);
         L2Token1.approve(address(pair), type(uint256).max);
@@ -160,9 +179,7 @@ contract DoveSimpleTest is Test, Helper {
         vm.selectFork(L1_FORK_ID);
         vm.broadcast(address(factoryL1));
         dove.addTrustedRemote(L2_DOMAIN, bytes32(uint256(uint160(address(pair)))));
-
     }
-
 
     /*
         Dove should be able to sync the Pair with itself.
@@ -232,7 +249,6 @@ contract DoveSimpleTest is Test, Helper {
         assertEq(dove.reserve1(), L2R0 + 136666666);
     }
 
-
     /*
         Burning vouchers on L1 should result in the user getting the underlying token on L1.
     */
@@ -243,8 +259,8 @@ contract DoveSimpleTest is Test, Helper {
         _syncToL1();
 
         vm.selectFork(L1_FORK_ID);
-        uint L1R0 = dove.reserve0();
-        uint L1R1 = dove.reserve1();
+        uint256 L1R0 = dove.reserve0();
+        uint256 L1R1 = dove.reserve1();
 
         vm.selectFork(L2_FORK_ID);
 
@@ -275,7 +291,6 @@ contract DoveSimpleTest is Test, Helper {
         // correctly transfered tokens to user
         assertEq(L1Token1.balanceOf(address(0xbeef)), voucher0BalanceOfBeef);
 
-
         // burn voucchers1 of user 0xcafe and 0xbeef
         _burnVouchers(address(0xbeef), 0, voucher1BalanceOfBeef);
         _burnVouchers(address(0xcafe), 0, voucher1BalanceOfCafe);
@@ -300,7 +315,6 @@ contract DoveSimpleTest is Test, Helper {
         assertEq(L1Token0.balanceOf(address(0xcafe)), voucher1BalanceOfCafe);
     }
 
-
     function testFeesClaiming() external {
         _syncToL2();
         vm.selectFork(L2_FORK_ID);
@@ -315,24 +329,60 @@ contract DoveSimpleTest is Test, Helper {
         dove.transfer(address(0xbaf), balance / 3);
         dove.transfer(address(0xbef), balance / 3);
 
-        (uint256 amount0, uint256 amount1) = routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xfab)));
+        (uint256 amount0, uint256 amount1) = routerL1.quoteRemoveLiquidity(
+            dove.token0(),
+            dove.token1(),
+            dove.balanceOf(address(0xfab))
+        );
 
         // remove liquidity
         vm.startBroadcast(address(0xfab));
         dove.approve(address(routerL1), dove.balanceOf(address(0xfab)));
-        routerL1.removeLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xfab)), amount0, amount1, address(0xfab), block.timestamp + 1);
+        routerL1.removeLiquidity(
+            dove.token0(),
+            dove.token1(),
+            dove.balanceOf(address(0xfab)),
+            amount0,
+            amount1,
+            address(0xfab),
+            block.timestamp + 1
+        );
         vm.stopBroadcast();
 
-        (amount0, amount1) = routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xbaf)));
+        (amount0, amount1) = routerL1.quoteRemoveLiquidity(
+            dove.token0(),
+            dove.token1(),
+            dove.balanceOf(address(0xbaf))
+        );
         vm.startBroadcast(address(0xbaf));
         dove.approve(address(routerL1), dove.balanceOf(address(0xbaf)));
-        routerL1.removeLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xbaf)), amount0, amount1, address(0xbaf), block.timestamp + 1);
+        routerL1.removeLiquidity(
+            dove.token0(),
+            dove.token1(),
+            dove.balanceOf(address(0xbaf)),
+            amount0,
+            amount1,
+            address(0xbaf),
+            block.timestamp + 1
+        );
         vm.stopBroadcast();
 
-        (amount0, amount1) = routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xbef)));
+        (amount0, amount1) = routerL1.quoteRemoveLiquidity(
+            dove.token0(),
+            dove.token1(),
+            dove.balanceOf(address(0xbef))
+        );
         vm.startBroadcast(address(0xbef));
         dove.approve(address(routerL1), dove.balanceOf(address(0xbef)));
-        routerL1.removeLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xbef)), amount0, amount1, address(0xbef), block.timestamp + 1);
+        routerL1.removeLiquidity(
+            dove.token0(),
+            dove.token1(),
+            dove.balanceOf(address(0xbef)),
+            amount0,
+            amount1,
+            address(0xbef),
+            block.timestamp + 1
+        );
         vm.stopBroadcast();
 
         // should all have gotten the same outputs
@@ -347,11 +397,13 @@ contract DoveSimpleTest is Test, Helper {
         assertTrue(L1Token1.balanceOf(address(0xfab)) > initialLiquidity1 / 3);
         assertTrue(L1Token1.balanceOf(address(0xbaf)) > initialLiquidity1 / 3);
         assertTrue(L1Token1.balanceOf(address(0xbef)) > initialLiquidity1 / 3);
-
-
     }
 
-    function _burnVouchers(address user, uint256 amount0, uint256 amount1) internal {
+    function _burnVouchers(
+        address user,
+        uint256 amount0,
+        uint256 amount1
+    ) internal {
         vm.selectFork(L2_FORK_ID);
         vm.recordLogs();
         vm.broadcast(user);
@@ -362,7 +414,6 @@ contract DoveSimpleTest is Test, Helper {
         vm.selectFork(L1_FORK_ID);
         vm.broadcast(address(mailboxL1));
         dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender), HLpayload);
-
     }
 
     function _syncToL2() internal {
@@ -387,8 +438,8 @@ contract DoveSimpleTest is Test, Helper {
         vm.selectFork(L2_FORK_ID);
 
         vm.recordLogs();
-        // remonder it's not ether but MATIC
-        pair.syncToL1{value: 800 ether}(1, 1, 3, 3, 200 ether, 200 ether);
+        // reminder it's not ether but MATIC
+        pair.syncToL1{value: 800 ether}(200 ether, 200 ether);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         // to find LZ events
@@ -415,10 +466,20 @@ contract DoveSimpleTest is Test, Helper {
         // larp as default library
         vm.startBroadcast(0x4D73AdB72bC3DD368966edD0f0b2148401A178E2);
         lzEndpointL1.receivePayload(
-            packet1.srcChainId, path, packet1.dstAddress, packet1.nonce + 1, 600000, packet1.payload
+            packet1.srcChainId,
+            path,
+            packet1.dstAddress,
+            packet1.nonce + 1,
+            600000,
+            packet1.payload
         );
         lzEndpointL1.receivePayload(
-            packet2.srcChainId, path, packet2.dstAddress, packet2.nonce + 1, 600000, packet2.payload
+            packet2.srcChainId,
+            path,
+            packet2.dstAddress,
+            packet2.nonce + 1,
+            600000,
+            packet2.payload
         );
         vm.stopBroadcast();
 
@@ -457,13 +518,23 @@ contract DoveSimpleTest is Test, Helper {
         amount0In = 50000 * 10**6; // 50k usdc
         amount1Out = pair.getAmountOut(amount0In, pair.token0());
         routerL2.swapExactTokensForTokensSimple(
-            amount0In, amount1Out, pair.token0(), pair.token1(), address(0xbeef), block.timestamp + 1000
+            amount0In,
+            amount1Out,
+            pair.token0(),
+            pair.token1(),
+            address(0xbeef),
+            block.timestamp + 1000
         );
 
         amount1In = 50000 * 10**18; // 50k dai
         amount0Out = pair.getAmountOut(amount1In, pair.token1());
         routerL2.swapExactTokensForTokensSimple(
-            amount1In, amount0Out, pair.token1(), pair.token0(), address(0xbeef), block.timestamp + 1000
+            amount1In,
+            amount0Out,
+            pair.token1(),
+            pair.token0(),
+            address(0xbeef),
+            block.timestamp + 1000
         );
     }
 
@@ -478,13 +549,23 @@ contract DoveSimpleTest is Test, Helper {
         amount0In = 5000 * 10**6; // 5k usdc
         amount1Out = pair.getAmountOut(amount0In, pair.token0());
         routerL2.swapExactTokensForTokensSimple(
-            amount0In, amount1Out, pair.token0(), pair.token1(), address(0xcafe), block.timestamp + 1000
+            amount0In,
+            amount1Out,
+            pair.token0(),
+            pair.token1(),
+            address(0xcafe),
+            block.timestamp + 1000
         );
 
         amount1In = 300 * 10**18; // 300 dai
         amount0Out = pair.getAmountOut(amount1In, pair.token1());
         routerL2.swapExactTokensForTokensSimple(
-            amount1In, amount0Out, pair.token1(), pair.token0(), address(0xfeeb), block.timestamp + 1000
+            amount1In,
+            amount0Out,
+            pair.token1(),
+            pair.token0(),
+            address(0xfeeb),
+            block.timestamp + 1000
         );
     }
 

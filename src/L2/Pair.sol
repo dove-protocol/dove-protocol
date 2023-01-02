@@ -39,7 +39,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     address public L1Token1;
     Voucher public voucher1;
 
-    uint256 public reserve0; 
+    uint256 public reserve0;
     uint256 public reserve1;
     uint256 public blockTimestampLast;
     uint256 public reserve0CumulativeLast;
@@ -51,6 +51,12 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     uint64 internal immutable decimals1;
     uint32 internal immutable destDomain;
     uint16 internal immutable destChainId;
+
+    uint16 internal immutable srcPoolId0;
+    uint16 internal immutable dstPoolId0;
+    uint16 internal immutable srcPoolId1;
+    uint16 internal immutable dstPoolId1;
+
     ///@notice "reference" reserves on L1
     uint256 internal ref0;
     uint256 internal ref1;
@@ -81,6 +87,10 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         address _L1Token0,
         address _token1,
         address _L1Token1,
+        uint16 _srcPoolId0,
+        uint16 _dstPoolId0,
+        uint16 _srcPoolId1,
+        uint16 _dstPoolId1,
         address _gasMaster,
         address _mailbox,
         address _stargateRouter,
@@ -100,11 +110,16 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         token1 = _token1;
         L1Token1 = _L1Token1;
 
+        srcPoolId0 = _srcPoolId0;
+        dstPoolId0 = _dstPoolId0;
+        srcPoolId1 = _srcPoolId1;
+        dstPoolId1 = _dstPoolId1;
+
         ERC20 token0_ = ERC20(_token0);
         ERC20 token1_ = ERC20(_token1);
 
-        decimals0 = uint64(10 ** token0_.decimals());
-        decimals1 = uint64(10 ** token1_.decimals());
+        decimals0 = uint64(10**token0_.decimals());
+        decimals1 = uint64(10**token1_.decimals());
 
         /// @dev Assume one AMM per L2.
         voucher0 = new Voucher(
@@ -125,7 +140,15 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     ###############################################################*/
 
     // TODO ; use balance0() instrad of reserrve0???
-    function getReserves() public view returns (uint256 _reserve0, uint256 _reserve1, uint256 _blockTimestampLast) {
+    function getReserves()
+        public
+        view
+        returns (
+            uint256 _reserve0,
+            uint256 _reserve1,
+            uint256 _blockTimestampLast
+        )
+    {
         _reserve0 = reserve0;
         _reserve1 = reserve1;
         _blockTimestampLast = blockTimestampLast;
@@ -151,7 +174,12 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     }
 
     // update reserves and, on the first call per block, price accumulators
-    function _update(uint256 _balance0, uint256 _balance1, uint256 _reserve0, uint256 _reserve1) internal {
+    function _update(
+        uint256 _balance0,
+        uint256 _balance1,
+        uint256 _reserve0,
+        uint256 _reserve1
+    ) internal {
         uint256 blockTimestamp = block.timestamp;
         uint256 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
         if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
@@ -169,7 +197,11 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     function currentCumulativePrices()
         public
         view
-        returns (uint256 reserve0Cumulative, uint256 reserve1Cumulative, uint256 blockTimestamp)
+        returns (
+            uint256 reserve0Cumulative,
+            uint256 reserve1Cumulative,
+            uint256 blockTimestamp
+        )
     {
         blockTimestamp = block.timestamp;
         reserve0Cumulative = reserve0CumulativeLast;
@@ -186,7 +218,12 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     }
 
     // this low-level function should be called from a contract which performs important safety checks
-    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external nonReentrant {
+    function swap(
+        uint256 amount0Out,
+        uint256 amount1Out,
+        address to,
+        bytes calldata data
+    ) external nonReentrant {
         //require(!BaseV1Factory(factory).isPaused());
         require(amount0Out > 0 || amount1Out > 0, "IOA"); // BaseV1: INSUFFICIENT_OUTPUT_AMOUNT
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
@@ -250,7 +287,11 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         return (3 * x0 * ((y * y) / 1e18)) / 1e18 + ((((x0 * x0) / 1e18) * x0) / 1e18);
     }
 
-    function _get_y(uint256 x0, uint256 xy, uint256 y) internal pure returns (uint256) {
+    function _get_y(
+        uint256 x0,
+        uint256 xy,
+        uint256 y
+    ) internal pure returns (uint256) {
         for (uint256 i = 0; i < 255; i++) {
             uint256 y_prev = y;
             uint256 k = _f(x0, y);
@@ -280,11 +321,12 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         return _getAmountOut(amountIn, tokenIn, _reserve0, _reserve1);
     }
 
-    function _getAmountOut(uint256 amountIn, address tokenIn, uint256 _reserve0, uint256 _reserve1)
-        internal
-        view
-        returns (uint256)
-    {
+    function _getAmountOut(
+        uint256 amountIn,
+        address tokenIn,
+        uint256 _reserve0,
+        uint256 _reserve1
+    ) internal view returns (uint256) {
         uint256 xy = _k(_reserve0, _reserve1);
         _reserve0 = (_reserve0 * 1e18) / decimals0;
         _reserve1 = (_reserve1 * 1e18) / decimals1;
@@ -304,19 +346,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
 
     /// @notice Syncs to the L1.
     /// @dev Dependent on SG.
-    /// @param srcPoolId0 The id of the src pool for token0.
-    /// @param dstPoolId0 The id of the dst pool for token0.
-    /// @param srcPoolId1 The id of the src pool for token1.
-    /// @param dstPoolId1 The id of the dst pool for token1.
-    function syncToL1(
-        uint256 srcPoolId0,
-        uint256 dstPoolId0,
-        uint256 srcPoolId1,
-        uint256 dstPoolId1,
-        uint256 sgFee,
-        uint256 hyperlaneFee
-    ) external payable {
-        require(msg.value >= (sgFee + hyperlaneFee)*2, "SG fee + HL fee");
+    function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable {
+        require(msg.value >= (sgFee + hyperlaneFee) * 2, "SG fee + HL fee");
         ERC20 _token0 = ERC20(token0);
         ERC20 _token1 = ERC20(token1);
         // balance before getting accumulated fees
@@ -390,7 +421,11 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         }
     }
 
-    function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
+    function handle(
+        uint32 origin,
+        bytes32 sender,
+        bytes calldata payload
+    ) external onlyMailbox {
         require(origin == destDomain, "WRONG ORIGIN");
         require(TypeCasts.addressToBytes32(L1Target) == sender, "NOT DOVE");
         uint256 messageType = abi.decode(payload, (uint256));
@@ -400,7 +435,10 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     }
 
     function _syncFromL1(bytes calldata payload) internal {
-        (,address _L1Token0, uint256 _reserve0, uint256 _reserve1) = abi.decode(payload, (uint256, address, uint256, uint256));
+        (, address _L1Token0, uint256 _reserve0, uint256 _reserve1) = abi.decode(
+            payload,
+            (uint256, address, uint256, uint256)
+        );
         (reserve0, reserve1) = _L1Token0 == L1Token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
         ref0 = reserve0;
         ref1 = reserve1;

@@ -55,7 +55,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     FeesDistributor public feesDistributor;
     Fountain public fountain;
 
-    /// @notice earmarked tokens
+    /// @notice domain id [hyperlane] => earmarked tokens
     mapping(uint32 => uint256) public marked0;
     mapping(uint32 => uint256) public marked1;
     /// @notice domain id [hyperlane] => PartialSync

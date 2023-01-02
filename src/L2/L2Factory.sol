@@ -4,10 +4,10 @@ pragma solidity ^0.8.15;
 import "./Pair.sol";
 
 contract L2Factory {
-    event PairCreated(address indexed token0, address indexed token1, address pair, uint);
+    event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
     mapping(address => mapping(address => address)) public getPair;
     address[] public allPairs;
-    mapping(address => bool) public isPair; 
+    mapping(address => bool) public isPair;
 
     address public gasMaster;
     address public mailbox;
@@ -40,11 +40,14 @@ contract L2Factory {
     function createPair(
         address tokenA,
         address tokenB,
+        uint16 srcPoolId0,
+        uint16 srcPoolId1,
+        uint16 dstPoolId0,
+        uint16 dstPoolId1,
         address L1TokenA,
         address L1TokenB,
         address L1Target
-    ) external returns (address pair)
-    {
+    ) external returns (address pair) {
         require(tokenA != tokenB, "Factory: IDENTICAL_ADDRESSES");
         // sort tokens
         (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
@@ -60,6 +63,10 @@ contract L2Factory {
                 L1Token0,
                 token1,
                 L1Token1,
+                srcPoolId0,
+                srcPoolId1,
+                dstPoolId0,
+                dstPoolId1,
                 gasMaster,
                 mailbox,
                 stargateRouter,
@@ -70,18 +77,24 @@ contract L2Factory {
         );
         // shitty design, should remove gasMaster,sgRouter, destChainId and destDomain from constructor
         // should query factory
-        pair = address(new Pair{salt:salt}(
+        pair = address(
+            new Pair{salt: salt}(
                 token0,
                 L1Token0,
                 token1,
                 L1Token1,
+                srcPoolId0,
+                srcPoolId1,
+                dstPoolId0,
+                dstPoolId1,
                 gasMaster,
                 mailbox,
                 stargateRouter,
                 L1Target,
                 destChainId,
                 destDomain
-        ));
+            )
+        );
 
         getPair[token0][token1] = pair;
         getPair[token1][token0] = pair; // populate mapping in the reverse direction
