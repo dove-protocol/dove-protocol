@@ -220,7 +220,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     /// @param token0Address The address of the token0.
     /// @param amount0 The quantity of local token0 tokens.
     /// @param amount1 The quantity of local token1 tokens.
-    function _completeVoucherBurns(uint32 srcDomain, address token0Address, address user, uint256 amount0, uint256 amount1) internal {
+    function _completeVoucherBurns(uint32 srcDomain, address user, address token0Address, uint256 amount0, uint256 amount1) internal {
         // update earmarked tokens
         if(token0Address == token0) {
             marked0[srcDomain] -= amount0;
