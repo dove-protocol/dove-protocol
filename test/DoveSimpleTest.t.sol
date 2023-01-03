@@ -248,56 +248,84 @@ contract DoveSimpleTest is Test, Helper {
 
         vm.selectFork(L2_FORK_ID);
 
+
         uint256 voucher0Supply = pair.voucher0().totalSupply();
         uint256 voucher1Supply = pair.voucher1().totalSupply();
 
-        // should have a bit less than 50k
-        uint256 voucher0BalanceOfBeef = pair.voucher0().balanceOf(address(0xbeef));
+        // dai
         uint256 voucher1BalanceOfBeef = pair.voucher1().balanceOf(address(0xbeef));
-        // should have a bit less than 500
-        uint256 voucher1BalanceOfCafe = pair.voucher1().balanceOf(address(0xcafe));
 
         // burn just one voucher for now
-        _burnVouchers(address(0xbeef), voucher0BalanceOfBeef, 0);
-
-        vm.selectFork(L2_FORK_ID);
-        // check vouchers has been burnt
-        assertEq(pair.voucher0().totalSupply(), voucher0Supply - voucher0BalanceOfBeef);
-        assertEq(pair.voucher0().balanceOf(address(0xbeef)), 0);
-
-        vm.selectFork(L1_FORK_ID);
-
-        assertEq(dove.marked1(L2_DOMAIN), voucher0Supply - voucher0BalanceOfBeef);
-        assertEq(dove.marked0(L2_DOMAIN), voucher1Supply);
-        // reserves should not have changed
-        assertEq(dove.reserve0(), L1R0);
-        assertEq(dove.reserve1(), L1R1);
-        // correctly transfered tokens to user
-        assertEq(L1Token1.balanceOf(address(0xbeef)), voucher0BalanceOfBeef);
-
-
-        // burn voucchers1 of user 0xcafe and 0xbeef
         _burnVouchers(address(0xbeef), 0, voucher1BalanceOfBeef);
-        _burnVouchers(address(0xcafe), 0, voucher1BalanceOfCafe);
 
         vm.selectFork(L2_FORK_ID);
         // check vouchers has been burnt
-        assertEq(pair.voucher1().totalSupply(), voucher1Supply - voucher1BalanceOfBeef - voucher1BalanceOfCafe);
+        assertEq(pair.voucher0().totalSupply(), voucher0Supply);
         assertEq(pair.voucher1().balanceOf(address(0xbeef)), 0);
-        assertEq(pair.voucher1().balanceOf(address(0xcafe)), 0);
-
-        voucher0Supply = pair.voucher0().totalSupply();
 
         vm.selectFork(L1_FORK_ID);
 
         assertEq(dove.marked1(L2_DOMAIN), voucher0Supply);
-        assertEq(dove.marked0(L2_DOMAIN), voucher1Supply - voucher1BalanceOfBeef - voucher1BalanceOfCafe);
+        assertEq(dove.marked0(L2_DOMAIN), voucher1Supply - voucher1BalanceOfBeef);
         // reserves should not have changed
         assertEq(dove.reserve0(), L1R0);
         assertEq(dove.reserve1(), L1R1);
         // correctly transfered tokens to user
         assertEq(L1Token0.balanceOf(address(0xbeef)), voucher1BalanceOfBeef);
-        assertEq(L1Token0.balanceOf(address(0xcafe)), voucher1BalanceOfCafe);
+
+        vm.selectFork(L2_FORK_ID);
+        // nothing should have happened
+        assertEq(pair.voucher1().totalSupply(), voucher1Supply - voucher1BalanceOfBeef);
+        assertEq(pair.voucher0().balanceOf(address(0xbeef)), 3082);
+        assertEq(pair.voucher1().balanceOf(address(0xcafe)), 0);
+
+        vm.selectFork(L1_FORK_ID);
+
+        assertEq(dove.marked1(L2_DOMAIN), voucher0Supply);
+        assertEq(dove.marked0(L2_DOMAIN), voucher1Supply - voucher1BalanceOfBeef);
+        // reserves should not have changed
+        assertEq(dove.reserve0(), L1R0);
+        assertEq(dove.reserve1(), L1R1);
+        // correctly transfered tokens to user
+        assertEq(L1Token0.balanceOf(address(0xbeef)), voucher1BalanceOfBeef);
+        assertEq(L1Token0.balanceOf(address(0xcafe)), 0);
+    }
+
+
+    function testVouchersMath() external {
+        _syncToL2();
+        vm.selectFork(L2_FORK_ID);
+        _doMoreSwaps();
+
+        // before syncing, check correct tokens balances on pair
+        assertEq(L2Token0.balanceOf(address(pair)), 4684333334);
+        assertEq(L2Token1.balanceOf(address(pair)), 45148999999641686690942);
+        assertEq(pair.voucher0().balanceOf(address(pair)), 0);
+        assertEq(pair.voucher1().balanceOf(address(pair)), 0);
+
+        _syncToL1();
+
+        vm.selectFork(L1_FORK_ID);
+        uint L1R0 = dove.reserve0();
+        uint L1R1 = dove.reserve1();
+
+        vm.selectFork(L2_FORK_ID);
+
+        // magic numbers based on napkin math
+        assertEq(L2Token0.balanceOf(address(0xbeef)), 49833333334);
+        assertEq(L2Token1.balanceOf(address(0xbeef)), 0);
+        assertEq(pair.voucher0().balanceOf(address(0xbeef)), 3082);
+        assertEq(pair.voucher1().balanceOf(address(0xbeef)), 49833330250459178059597);
+
+        assertEq(L2Token0.balanceOf(address(0xcafe)), 0);
+        assertEq(L2Token1.balanceOf(address(0xcafe)), 4983333333691646642392);
+        assertEq(pair.voucher0().balanceOf(address(0xcafe)), 0);
+        assertEq(pair.voucher1().balanceOf(address(0xcafe)), 0);
+
+        assertEq(L2Token0.balanceOf(address(0xfeeb)), 299000000);
+        assertEq(L2Token1.balanceOf(address(0xfeeb)), 0);
+        assertEq(pair.voucher0().balanceOf(address(0xfeeb)), 0);
+        assertEq(pair.voucher1().balanceOf(address(0xfeeb)), 0);
     }
 
 
@@ -459,12 +487,39 @@ contract DoveSimpleTest is Test, Helper {
         routerL2.swapExactTokensForTokensSimple(
             amount0In, amount1Out, pair.token0(), pair.token1(), address(0xbeef), block.timestamp + 1000
         );
+        /*
+            Napkin math
+            Balances after fees
 
+            erc20       pair
+            DAI         0
+            USDC        49833333334
+
+            erc20       pair                        0xbeef  
+            DAI         0                           0 
+            USDC        49833333334                 0
+            vDAI        0                           49833330250459178059597
+            vUSDC       0                           0
+
+        */
         amount1In = 50000 * 10**18; // 50k dai
         amount0Out = pair.getAmountOut(amount1In, pair.token1());
         routerL2.swapExactTokensForTokensSimple(
             amount1In, amount0Out, pair.token1(), pair.token0(), address(0xbeef), block.timestamp + 1000
         );
+        /*
+            Napkin math
+            Balances after fees
+
+            0xbeef trades 50000000000000000000000 dai for 49833336416 usdc
+            Not enough held in Pair, so will have to voucher mint 3082 vUSDC
+
+            erc20       pair                        0xbeef  
+            DAI         49833333333333333333334     0
+            USDC        0                           49833333334     
+            vDAI        0                           49833330250459178059597
+            vUSDC       0                           3082
+        */
     }
 
     function _doMoreSwaps() internal {
@@ -480,12 +535,35 @@ contract DoveSimpleTest is Test, Helper {
         routerL2.swapExactTokensForTokensSimple(
             amount0In, amount1Out, pair.token0(), pair.token1(), address(0xcafe), block.timestamp + 1000
         );
+        /*
+            Napkin math
+            Balances after fees
 
+            0xcafe trades 5000000000 usdc for 4983333333691646642392 dai
+
+            erc20       pair                        0xcafe  
+            DAI         44849999999641686690942     4983333333691646642392
+            USDC        4983333334                  0     
+            vDAI        0                           0
+            vUSDC       0                           0
+        */
         amount1In = 300 * 10**18; // 300 dai
         amount0Out = pair.getAmountOut(amount1In, pair.token1());
         routerL2.swapExactTokensForTokensSimple(
             amount1In, amount0Out, pair.token1(), pair.token0(), address(0xfeeb), block.timestamp + 1000
         );
+        /*
+            Napkin math
+            Balances after fees
+
+            0xfeeb trades 300000000000000000000 dai for 299000000 usdc
+
+            erc20       pair                        0xfeeb  
+            DAI         45148999999641686690942     0
+            USDC        4684333334                  299000000     
+            vDAI        0                           0
+            vUSDC       0                           0
+        */
     }
 
     receive() external payable {}
