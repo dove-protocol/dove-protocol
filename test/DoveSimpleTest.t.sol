@@ -234,7 +234,7 @@ contract DoveSimpleTest is Test, Helper {
 
 
     /*
-        Burning vouchers on L1 should result in the user getting the underlying token on L1.
+        Burning vouchers on L2 should result in the user getting the underlying token on L1.
     */
     function testVouchersBurn() external {
         _syncToL2();
