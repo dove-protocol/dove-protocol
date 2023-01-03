@@ -192,9 +192,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         require(trustedRemoteLookup[origin] == sender, "NOT TRUSTED");
         uint256 messageType = abi.decode(payload, (uint256));
         if (messageType == MessageType.BURN_VOUCHERS) {
-            // receive both token addresses and amounts
-            (, address user, address token0Address, uint256 amount0, uint256 amount1) = abi.decode(payload, (uint256, address, address, uint256, uint256));
-            _completeVoucherBurns(origin, user, token0Address, amount0, amount1);
+            // receive both amounts and a single address to determine ordering
+            (, address user, address token, uint256 amount0, uint256 amount1) = abi.decode(payload, (uint256, address, address, uint256, uint256));
+            _completeVoucherBurns(origin, user, token, amount0, amount1);
         } else if (messageType == MessageType.SYNC_TO_L1) {
             (, address token, uint256 earmarkedDelta, uint256 pairBalance) =
                 abi.decode(payload, (uint256, address, uint256, uint256));
@@ -222,7 +222,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     /// @param amount1 The quantity of local token1 tokens.
     function _completeVoucherBurns(uint32 srcDomain, address user, address token, uint256 amount0, uint256 amount1) internal {
         // update earmarked tokens
-        if(token0Address == token0) {
+        if(token == token0) {
             marked0[srcDomain] -= amount0;
             marked1[srcDomain] -= amount1;
             fountain.squirt(user, amount0, amount1);
