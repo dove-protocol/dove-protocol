@@ -39,7 +39,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     address public L1Token1;
     Voucher public voucher1;
 
-    uint256 public reserve0; 
+    uint256 public reserve0;
     uint256 public reserve1;
     uint256 public blockTimestampLast;
     uint256 public reserve0CumulativeLast;
@@ -233,7 +233,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         uint256 sgFee,
         uint256 hyperlaneFee
     ) external payable {
-        require(msg.value >= (sgFee + hyperlaneFee)*2, "SG fee + HL fee");
+        require(msg.value >= (sgFee + hyperlaneFee) * 2, "SG fee + HL fee");
         ERC20 _token0 = ERC20(token0);
         ERC20 _token1 = ERC20(token1);
         // balance before getting accumulated fees
@@ -378,7 +378,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     }
 
     function _syncFromL1(bytes calldata payload) internal {
-        (,address _L1Token0, uint256 _reserve0, uint256 _reserve1) = abi.decode(payload, (uint256, address, uint256, uint256));
+        (, address _L1Token0, uint256 _reserve0, uint256 _reserve1) =
+            abi.decode(payload, (uint256, address, uint256, uint256));
         (reserve0, reserve1) = _L1Token0 == L1Token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
         ref0 = reserve0;
         ref1 = reserve1;

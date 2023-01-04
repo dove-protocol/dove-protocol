@@ -5,7 +5,6 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 contract Fountain {
-
     address internal owner;
     address internal token0;
     address internal token1;

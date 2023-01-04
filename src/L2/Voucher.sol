@@ -6,16 +6,10 @@ import {Owned} from "solmate/auth/Owned.sol";
 
 /// @notice A voucher ERC20.
 contract Voucher is ERC20, Owned {
-
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        uint8 _decimals
-    )
-    ERC20(_name, _symbol, _decimals)
-    Owned(msg.sender)
-    {
-    }
+    constructor(string memory _name, string memory _symbol, uint8 _decimals)
+        ERC20(_name, _symbol, _decimals)
+        Owned(msg.sender)
+    {}
 
     function mint(address to, uint256 amount) public onlyOwner {
         _mint(to, amount);
@@ -24,7 +18,4 @@ contract Voucher is ERC20, Owned {
     function burn(address from, uint256 amount) public onlyOwner {
         _burn(from, amount);
     }
-
-    
-
 }
