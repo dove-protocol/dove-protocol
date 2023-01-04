@@ -58,6 +58,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     uint256 internal voucher0Delta;
     uint256 internal voucher1Delta;
 
+    uint256 internal syncID;
+
     uint256 constant FEE = 300;
 
     /*###############################################################
@@ -336,9 +338,9 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 _balance0,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                "0x1"
+                abi.encodePacked(syncID)
             );
-            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, L1Token0, voucher0Delta, _balance0);
+            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID++, L1Token0, voucher0Delta, _balance0);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
         }
@@ -355,9 +357,9 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 _balance1,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                "0x1"
+                abi.encodePacked(syncID)
             );
-            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, L1Token1, voucher1Delta, _balance1);
+            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID++, L1Token1, voucher1Delta, _balance1);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
         }
