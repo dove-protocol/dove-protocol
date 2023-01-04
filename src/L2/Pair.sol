@@ -25,6 +25,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     ###############################################################*/
     IL2Factory public factory;
 
+    address public L1Target;
+
     ///@notice The bridged token0.
     address public token0;
     ///@dev This is NOT the token0 on L1 but the L1 address
@@ -88,9 +90,12 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         uint16 _srcPoolId1,
         uint16 _dstPoolId1,
         address _gasMaster,
-        address _mailbox
+        address _mailbox,
+        address _L1Target
     ) HyperlaneClient(_gasMaster, _mailbox, address(0)) {
         factory = IL2Factory(msg.sender);
+
+        L1Target = _L1Target;
 
         token0 = _token0;
         L1Token0 = _L1Token0;
@@ -342,7 +347,6 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         uint256 _balance1 = _token1.balanceOf(address(this));
         (uint256 fees0, uint256 fees1) = feesAccumulator.take();
 
-        address L1Target = factory.getL1Pair(token0, token1);
         uint32 destDomain = factory.destDomain();
         uint16 destChainId = factory.destChainId();
 
@@ -400,7 +404,6 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     function burnVouchers(uint256 amount0, uint256 amount1) external payable nonReentrant {
         uint256 fee = amount0 > 0 && amount1 > 0 ? msg.value / 2 : msg.value;
         uint32 destDomain = factory.destDomain();
-        address L1Target = factory.getL1Pair(token0, token1);
 
         // tell L1 that vouchers been burned
         if (amount0 > 0) {
@@ -424,7 +427,6 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     ) external onlyMailbox {
         uint32 destDomain = factory.destDomain();
         require(origin == destDomain, "WRONG ORIGIN");
-        address L1Target = factory.getL1Pair(token0, token1);
         require(TypeCasts.addressToBytes32(L1Target) == sender, "NOT DOVE");
         uint256 messageType = abi.decode(payload, (uint256));
         if (messageType == MessageType.SYNC_TO_L2) {

@@ -70,7 +70,8 @@ contract L2Factory {
                 dstPoolId0,
                 dstPoolId1,
                 gasMaster,
-                mailbox
+                mailbox,
+                L1Target
             )
         );
         // shitty design, should remove gasMaster,sgRouter, destChainId and destDomain from constructor
@@ -86,7 +87,8 @@ contract L2Factory {
                 dstPoolId0,
                 dstPoolId1,
                 gasMaster,
-                mailbox
+                mailbox,
+                L1Target
             )
         );
 
