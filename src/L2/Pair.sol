@@ -27,15 +27,15 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
 
     address public factory;
 
-    ///@notice The bridged token0.
+    /// @notice The bridged token0.
     address public token0;
-    ///@dev This is NOT the token0 on L1 but the L1 address
-    ///@dev of the token0 on L2.
+    /// @dev This is NOT the token0 on L1 but the L1 address of the token0 on L2.
     address public L1Token0;
     Voucher public voucher0;
 
-    ///@notice The bridged token1.
+    /// @notice The bridged token1.
     address public token1;
+    /// @dev This is NOT the token1 on L1 but the L1 address of the token1 on L2.
     address public L1Token1;
     Voucher public voucher1;
 
@@ -51,10 +51,10 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     uint64 internal immutable decimals1;
     uint32 internal immutable destDomain;
     uint16 internal immutable destChainId;
-    ///@notice "reference" reserves on L1
+    /// @notice "Reference" reserves on L1
     uint256 internal ref0;
     uint256 internal ref1;
-    // amount of vouchers minted since last L1->L2 sync
+    /// @notice Amount of vouchers minted since last L2->L1 sync
     uint256 internal voucher0Delta;
     uint256 internal voucher1Delta;
 
@@ -140,32 +140,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         return ref1 + ERC20(token1).balanceOf(address(this)) - voucher1Delta;
     }
 
-    // Accrue fees on token0
-    function _update0(uint256 amount) internal {
-        SafeTransferLib.safeTransfer(ERC20(token0), address(feesAccumulator), amount);
-    }
-
-    // Accrue fees on token1
-    function _update1(uint256 amount) internal {
-        SafeTransferLib.safeTransfer(ERC20(token1), address(feesAccumulator), amount);
-    }
-
-    // update reserves and, on the first call per block, price accumulators
-    function _update(uint256 _balance0, uint256 _balance1, uint256 _reserve0, uint256 _reserve1) internal {
-        uint256 blockTimestamp = block.timestamp;
-        uint256 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
-        if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
-            reserve0CumulativeLast += _reserve0 * timeElapsed;
-            reserve1CumulativeLast += _reserve1 * timeElapsed;
-        }
-
-        reserve0 = _balance0;
-        reserve1 = _balance1;
-        blockTimestampLast = blockTimestamp;
-        emit Sync(reserve0, reserve1);
-    }
-
-    // produces the cumulative price using counterfactuals to save gas and avoid a call to sync.
+    /// @notice Produces the cumulative price using counterfactuals to save gas and avoid a call to sync.
     function currentCumulativePrices()
         public
         view
@@ -185,7 +160,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         }
     }
 
-    // this low-level function should be called from a contract which performs important safety checks
+    /// @dev This low-level function should be called from a contract which performs important safety checks
     function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external nonReentrant {
         //require(!BaseV1Factory(factory).isPaused());
         require(amount0Out > 0 || amount1Out > 0, "IOA"); // BaseV1: INSUFFICIENT_OUTPUT_AMOUNT
@@ -242,72 +217,14 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         _update(balance0(), balance1(), reserve0, reserve1);
     }
 
-    function _f(uint256 x0, uint256 y) internal pure returns (uint256) {
-        return (x0 * ((((y * y) / 1e18) * y) / 1e18)) / 1e18 + (((((x0 * x0) / 1e18) * x0) / 1e18) * y) / 1e18;
-    }
-
-    function _d(uint256 x0, uint256 y) internal pure returns (uint256) {
-        return (3 * x0 * ((y * y) / 1e18)) / 1e18 + ((((x0 * x0) / 1e18) * x0) / 1e18);
-    }
-
-    function _get_y(uint256 x0, uint256 xy, uint256 y) internal pure returns (uint256) {
-        for (uint256 i = 0; i < 255; i++) {
-            uint256 y_prev = y;
-            uint256 k = _f(x0, y);
-            if (k < xy) {
-                uint256 dy = ((xy - k) * 1e18) / _d(x0, y);
-                y = y + dy;
-            } else {
-                uint256 dy = ((k - xy) * 1e18) / _d(x0, y);
-                y = y - dy;
-            }
-            if (y > y_prev) {
-                if (y - y_prev <= 1) {
-                    return y;
-                }
-            } else {
-                if (y_prev - y <= 1) {
-                    return y;
-                }
-            }
-        }
-        return y;
-    }
-
-    function getAmountOut(uint256 amountIn, address tokenIn) external view returns (uint256) {
-        (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
-        amountIn -= amountIn / FEE; // remove fee from amount received
-        return _getAmountOut(amountIn, tokenIn, _reserve0, _reserve1);
-    }
-
-    function _getAmountOut(uint256 amountIn, address tokenIn, uint256 _reserve0, uint256 _reserve1)
-        internal
-        view
-        returns (uint256)
-    {
-        uint256 xy = _k(_reserve0, _reserve1);
-        _reserve0 = (_reserve0 * 1e18) / decimals0;
-        _reserve1 = (_reserve1 * 1e18) / decimals1;
-        (uint256 reserveA, uint256 reserveB) = tokenIn == token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
-        amountIn = tokenIn == token0 ? (amountIn * 1e18) / decimals0 : (amountIn * 1e18) / decimals1;
-        uint256 y = reserveB - _get_y(amountIn + reserveA, xy, reserveB);
-        return (y * (tokenIn == token0 ? decimals1 : decimals0)) / 1e18;
-    }
-
-    function _k(uint256 x, uint256 y) internal view returns (uint256) {
-        uint256 _x = (x * 1e18) / decimals0;
-        uint256 _y = (y * 1e18) / decimals1;
-        uint256 _a = (_x * _y) / 1e18;
-        uint256 _b = ((_x * _x) / 1e18 + (_y * _y) / 1e18);
-        return (_a * _b) / 1e18; // x3y+y3x >= k
-    }
-
     /// @notice Syncs to the L1.
     /// @dev Dependent on SG.
     /// @param srcPoolId0 The id of the src pool for token0.
     /// @param dstPoolId0 The id of the dst pool for token0.
     /// @param srcPoolId1 The id of the src pool for token1.
     /// @param dstPoolId1 The id of the dst pool for token1.
+    /// @param sgFee The fee for Stargate bridging.
+    /// @param hyperlaneFee The fee for Hyperlane messaging.
     function syncToL1(
         uint256 srcPoolId0,
         uint256 dstPoolId0,
@@ -382,9 +299,21 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, msg.sender, L1Token0, amount0, amount1);
         bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
         hyperlaneGasMaster.payGasFor{value: fee}(id, destDomain);
-        
     }
 
+    /// @notice Calculate the amount of token0 or token1 that will be received for a given amount of token0 or token1.
+    /// @param amountIn The amount of token0 or token1 to be sent.
+    /// @param tokenIn The address of the token to be sent.
+    function getAmountOut(uint256 amountIn, address tokenIn) external view returns (uint256) {
+        (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
+        amountIn -= amountIn / FEE; // remove fee from amount received
+        return _getAmountOut(amountIn, tokenIn, _reserve0, _reserve1);
+    }
+
+    /// @notice Receives a Hyperlane message and handles it according to message type.
+    /// @param origin The domain of the message sender.
+    /// @param sender The address of the message sender.
+    /// @param payload The message payload.
     function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
         require(origin == destDomain, "WRONG ORIGIN");
         require(TypeCasts.addressToBytes32(L1Target) == sender, "NOT DOVE");
@@ -394,10 +323,89 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         }
     }
 
+    function _getAmountOut(uint256 amountIn, address tokenIn, uint256 _reserve0, uint256 _reserve1)
+        internal
+        view
+        returns (uint256)
+    {
+        uint256 xy = _k(_reserve0, _reserve1);
+        _reserve0 = (_reserve0 * 1e18) / decimals0;
+        _reserve1 = (_reserve1 * 1e18) / decimals1;
+        (uint256 reserveA, uint256 reserveB) = tokenIn == token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
+        amountIn = tokenIn == token0 ? (amountIn * 1e18) / decimals0 : (amountIn * 1e18) / decimals1;
+        uint256 y = reserveB - _get_y(amountIn + reserveA, xy, reserveB);
+        return (y * (tokenIn == token0 ? decimals1 : decimals0)) / 1e18;
+    }
+
+    function _k(uint256 x, uint256 y) internal view returns (uint256) {
+        uint256 _x = (x * 1e18) / decimals0;
+        uint256 _y = (y * 1e18) / decimals1;
+        uint256 _a = (_x * _y) / 1e18;
+        uint256 _b = ((_x * _x) / 1e18 + (_y * _y) / 1e18);
+        return (_a * _b) / 1e18; // x3y+y3x >= k
+    }
+
+    function _f(uint256 x0, uint256 y) internal pure returns (uint256) {
+        return (x0 * ((((y * y) / 1e18) * y) / 1e18)) / 1e18 + (((((x0 * x0) / 1e18) * x0) / 1e18) * y) / 1e18;
+    }
+
+    function _d(uint256 x0, uint256 y) internal pure returns (uint256) {
+        return (3 * x0 * ((y * y) / 1e18)) / 1e18 + ((((x0 * x0) / 1e18) * x0) / 1e18);
+    }
+
+    function _get_y(uint256 x0, uint256 xy, uint256 y) internal pure returns (uint256) {
+        for (uint256 i = 0; i < 255; i++) {
+            uint256 y_prev = y;
+            uint256 k = _f(x0, y);
+            if (k < xy) {
+                uint256 dy = ((xy - k) * 1e18) / _d(x0, y);
+                y = y + dy;
+            } else {
+                uint256 dy = ((k - xy) * 1e18) / _d(x0, y);
+                y = y - dy;
+            }
+            if (y > y_prev) {
+                if (y - y_prev <= 1) {
+                    return y;
+                }
+            } else {
+                if (y_prev - y <= 1) {
+                    return y;
+                }
+            }
+        }
+        return y;
+    }
+
     function _syncFromL1(bytes calldata payload) internal {
         (,address _L1Token0, uint256 _reserve0, uint256 _reserve1) = abi.decode(payload, (uint256, address, uint256, uint256));
         (reserve0, reserve1) = _L1Token0 == L1Token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
         ref0 = reserve0;
         ref1 = reserve1;
+    }
+
+    // Accrue fees on token0
+    function _update0(uint256 amount) internal {
+        SafeTransferLib.safeTransfer(ERC20(token0), address(feesAccumulator), amount);
+    }
+
+    // Accrue fees on token1
+    function _update1(uint256 amount) internal {
+        SafeTransferLib.safeTransfer(ERC20(token1), address(feesAccumulator), amount);
+    }
+
+    // update reserves and, on the first call per block, price accumulators
+    function _update(uint256 _balance0, uint256 _balance1, uint256 _reserve0, uint256 _reserve1) internal {
+        uint256 blockTimestamp = block.timestamp;
+        uint256 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
+        if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
+            reserve0CumulativeLast += _reserve0 * timeElapsed;
+            reserve1CumulativeLast += _reserve1 * timeElapsed;
+        }
+
+        reserve0 = _balance0;
+        reserve1 = _balance1;
+        blockTimestampLast = blockTimestamp;
+        emit Sync(reserve0, reserve1);
     }
 }
