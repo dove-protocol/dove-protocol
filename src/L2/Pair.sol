@@ -160,6 +160,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         }
     }
 
+    
     /// @dev This low-level function should be called from a contract which performs important safety checks
     function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external nonReentrant {
         //require(!BaseV1Factory(factory).isPaused());
@@ -193,8 +194,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         {
             // scope for reserve{0,1}Adjusted, avoids stack too deep errors
             (address _token0, address _token1) = (token0, token1);
-            if (amount0In > 0) _update0(amount0In / FEE); // accrue fees for token0 and move them out of pool
-            if (amount1In > 0) _update1(amount1In / FEE); // accrue fees for token1 and move them out of pool
+            if (amount0In > 0) _accumulateFees(token0, amount0In / FEE); // accrue fees for token0 and move them out of pool
+            if (amount1In > 0) _accumulateFees(token1, amount1In / FEE); // accrue fees for token1 and move them out of pool
             _balance0 = balance0(); // since we removed tokens, we need to reconfirm balances, can also simply use previous balance - amountIn/ 10000, but doing balanceOf again as safety check
             _balance1 = balance1();
             // The curve, either x3y+y3x for stable pools, or x*y for volatile pools
@@ -323,6 +324,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         }
     }
 
+    /// @dev Calculates amount received based on amount sent and reserves, in respect to the curve.
     function _getAmountOut(uint256 amountIn, address tokenIn, uint256 _reserve0, uint256 _reserve1)
         internal
         view
@@ -377,6 +379,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         return y;
     }
 
+    /// @dev Syncs the reserves from L1.
     function _syncFromL1(bytes calldata payload) internal {
         (, address _L1Token0, uint256 _reserve0, uint256 _reserve1) =
             abi.decode(payload, (uint256, address, uint256, uint256));
@@ -385,17 +388,12 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         ref1 = reserve1;
     }
 
-    // Accrue fees on token0
-    function _update0(uint256 amount) internal {
-        SafeTransferLib.safeTransfer(ERC20(token0), address(feesAccumulator), amount);
+    /// @dev Accumulates fees in the feesAccumulator contract for the given token.
+    function _accumulateFees(address token, uint256 amount) internal {
+        SafeTransferLib.safeTransfer(ERC20(token), address(feesAccumulator), amount);
     }
 
-    // Accrue fees on token1
-    function _update1(uint256 amount) internal {
-        SafeTransferLib.safeTransfer(ERC20(token1), address(feesAccumulator), amount);
-    }
-
-    // update reserves and, on the first call per block, price accumulators
+    /// @dev Updates the reserves and, on the first call per block, price accumulators
     function _update(uint256 _balance0, uint256 _balance1, uint256 _reserve0, uint256 _reserve1) internal {
         uint256 blockTimestamp = block.timestamp;
         uint256 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired

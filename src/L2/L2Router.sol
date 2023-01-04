@@ -6,7 +6,7 @@ import {Pair} from "./Pair.sol";
 import {L2Factory} from "./L2Factory.sol";
 
 contract L2Router {
-    struct route {
+    struct Route {
         address from;
         address to;
     }
@@ -14,6 +14,8 @@ contract L2Router {
     L2Factory public immutable factory;
     bytes32 immutable pairCodeHash;
 
+    /// @notice Prevents a function from being called after a deadline
+    /// @param deadline The deadline timestamp
     modifier ensure(uint256 deadline) {
         require(deadline >= block.timestamp, "BaseV1Router: EXPIRED");
         _;
@@ -30,14 +32,19 @@ contract L2Router {
         require(token0 != address(0), "BaseV1Router: ZERO_ADDRESS");
     }
 
-    // performs chained getAmountOut calculations on any number of pairs
+    /// @notice Performs getAmountOut calculations given a pair and an amountIn
+    /// @param amountIn The amount of tokenIn to swap
+    /// @param tokenIn The address of the token to swap from
+    /// @param tokenOut The address of the token to swap to
     function getAmountOut(uint256 amountIn, address tokenIn, address tokenOut) external view returns (uint256 amount) {
         address pair = factory.getPair(tokenIn, tokenOut);
         amount = Pair(pair).getAmountOut(amountIn, tokenIn);
     }
 
-    // performs chained getAmountOut calculations on any number of pairs
-    function getAmountsOut(uint256 amountIn, route[] memory routes) public view returns (uint256[] memory amounts) {
+    /// @notice Performs chained getAmountOut calculations on any number of pairs
+    /// @param amountIn The amount of tokenIn to swap
+    /// @param routes An array of route structs, each containing a token pair 
+    function getAmountsOut(uint256 amountIn, Route[] memory routes) public view returns (uint256[] memory amounts) {
         require(routes.length >= 1, "BaseV1Router: INVALID_PATH");
         amounts = new uint[](routes.length+1);
         amounts[0] = amountIn;
@@ -49,12 +56,56 @@ contract L2Router {
         }
     }
 
+    /// @notice Checks if provided address is a registered pair
+    /// @param pair The address to check
     function isPair(address pair) external view returns (bool) {
         return factory.isPair(pair);
     }
 
-    // **** SWAP ****
-    // requires the initial amount to have already been sent to the first pair
+    /// @notice Swap tokens for an exact amount of tokens given a pair
+    /// @param amountIn The amount of tokenIn to swap
+    /// @param amountOutMin The minimum amount of tokenOut to receive
+    /// @param tokenFrom The address of the token to swap from
+    /// @param tokenTo The address of the token to swap to
+    /// @param to The address to send the output tokens to
+    /// @param deadline The time at which this transaction must be mined
+    function swapExactTokensForTokensSimple(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        address tokenFrom,
+        address tokenTo,
+        address to,
+        uint256 deadline
+    ) external ensure(deadline) returns (uint256[] memory amounts) {
+        Route[] memory routes = new route[](1);
+        routes[0].from = tokenFrom;
+        routes[0].to = tokenTo;
+        amounts = getAmountsOut(amountIn, routes);
+        require(amounts[amounts.length - 1] >= amountOutMin, "BaseV1Router: INSUFFICIENT_OUTPUT_AMOUNT");
+        _safeTransferFrom(routes[0].from, msg.sender, factory.getPair(routes[0].from, routes[0].to), amounts[0]);
+        _swap(amounts, routes, to);
+    }
+
+    /// @notice Swap tokens for an exact amount of tokens given a path
+    /// @param amountIn The amount of tokenIn to swap
+    /// @param amountOutMin The minimum amount of tokenOut to receive
+    /// @param routes An array of route structs, each containing a token pair
+    /// @param to The address to send the output tokens to
+    /// @param deadline The time at which this transaction must be mined
+    function swapExactTokensForTokens(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        Route[] calldata routes,
+        address to,
+        uint256 deadline
+    ) external ensure(deadline) returns (uint256[] memory amounts) {
+        amounts = getAmountsOut(amountIn, routes);
+        require(amounts[amounts.length - 1] >= amountOutMin, "BaseV1Router: INSUFFICIENT_OUTPUT_AMOUNT");
+        _safeTransferFrom(routes[0].from, msg.sender, factory.getPair(routes[0].from, routes[0].to), amounts[0]);
+        _swap(amounts, routes, to);
+    }
+
+    /// @dev Requires initial amount to be sent to the first pair in the path
     function _swap(uint256[] memory amounts, route[] memory routes, address _to) internal virtual {
         for (uint256 i = 0; i < routes.length; i++) {
             (address token0,) = sortTokens(routes[i].from, routes[i].to);
@@ -64,36 +115,6 @@ contract L2Router {
             address to = i < routes.length - 1 ? factory.getPair(routes[i + 1].from, routes[i + 1].to) : _to;
             Pair(factory.getPair(routes[i].from, routes[i].to)).swap(amount0Out, amount1Out, to, new bytes(0));
         }
-    }
-
-    function swapExactTokensForTokensSimple(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address tokenFrom,
-        address tokenTo,
-        address to,
-        uint256 deadline
-    ) external ensure(deadline) returns (uint256[] memory amounts) {
-        route[] memory routes = new route[](1);
-        routes[0].from = tokenFrom;
-        routes[0].to = tokenTo;
-        amounts = getAmountsOut(amountIn, routes);
-        require(amounts[amounts.length - 1] >= amountOutMin, "BaseV1Router: INSUFFICIENT_OUTPUT_AMOUNT");
-        _safeTransferFrom(routes[0].from, msg.sender, factory.getPair(routes[0].from, routes[0].to), amounts[0]);
-        _swap(amounts, routes, to);
-    }
-
-    function swapExactTokensForTokens(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        route[] calldata routes,
-        address to,
-        uint256 deadline
-    ) external ensure(deadline) returns (uint256[] memory amounts) {
-        amounts = getAmountsOut(amountIn, routes);
-        require(amounts[amounts.length - 1] >= amountOutMin, "BaseV1Router: INSUFFICIENT_OUTPUT_AMOUNT");
-        _safeTransferFrom(routes[0].from, msg.sender, factory.getPair(routes[0].from, routes[0].to), amounts[0]);
-        _swap(amounts, routes, to);
     }
 
     function _safeTransfer(address token, address to, uint256 value) internal {
