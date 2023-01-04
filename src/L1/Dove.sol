@@ -29,6 +29,14 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     event Updated(uint256 reserve0, uint256 reserve1);
     event Bridged(address token, uint256 amount);
     event SyncPending(uint256 indexed srcDomain, uint256 syncID);
+    event SyncFinalized(
+        uint256 indexed srcDomain,
+        uint256 syncID,
+        uint256 pairBalance0,
+        uint256 pairBalance1,
+        uint256 earmarkedAmount0,
+        uint256 earmarkedAmount1
+    );
     /*###############################################################
                             STRUCTS
     ###############################################################*/
@@ -289,6 +297,15 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             // put earmarked tokens on the side
             SafeTransferLib.safeTransfer(ERC20(partialSync0.token), address(fountain), partialSync0.earmarkedAmount);
             SafeTransferLib.safeTransfer(ERC20(partialSync1.token), address(fountain), partialSync1.earmarkedAmount);
+
+            emit SyncFinalized(
+                srcDomain,
+                syncID,
+                partialSync0.pairBalance,
+                partialSync1.pairBalance,
+                partialSync0.earmarkedAmount,
+                partialSync1.earmarkedAmount
+            );
         }
         uint256 balance0 = ERC20(partialSync0.token).balanceOf(address(this));
         uint256 balance1 = ERC20(partialSync0.token).balanceOf(address(this));
