@@ -160,7 +160,6 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         }
     }
 
-
     /// @dev This low-level function should be called from a contract which performs important safety checks
     function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external nonReentrant {
         //require(!BaseV1Factory(factory).isPaused());

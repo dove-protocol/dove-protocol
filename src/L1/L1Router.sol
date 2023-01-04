@@ -40,12 +40,6 @@ library Math {
 }
 
 contract L1Router {
-    struct route {
-        address from;
-        address to;
-        bool stable;
-    }
-
     address public immutable factory;
     uint256 internal constant MINIMUM_LIQUIDITY = 10 ** 3;
     bytes32 immutable pairCodeHash;
@@ -66,7 +60,7 @@ contract L1Router {
         require(token0 != address(0), "BaseV1Router: ZERO_ADDRESS");
     }
 
-    // calculates the CREATE2 address for a pair without making any external calls
+    /// @notice Calculates the CREATE2 address for a pair without making any external calls
     function pairFor(address tokenA, address tokenB) public view returns (address pair) {
         (address token0, address token1) = sortTokens(tokenA, tokenB);
         pair = address(
@@ -85,7 +79,7 @@ contract L1Router {
         );
     }
 
-    // given some amount of an asset and pair reserves, returns an equivalent amount of the other asset
+    /// @notice Given some amount of an asset and pair reserves, returns an equivalent amount of the other asset.
     function quoteLiquidity(uint256 amountA, uint256 reserveA, uint256 reserveB)
         internal
         pure
@@ -96,7 +90,7 @@ contract L1Router {
         amountB = amountA * reserveB / reserveA;
     }
 
-    // fetches and sorts the reserves for a pair
+    /// @notice Fetches and sorts the reserves for a pair.
     function getReserves(address tokenA, address tokenB) public view returns (uint256 reserveA, uint256 reserveB) {
         (address token0,) = sortTokens(tokenA, tokenB);
         (uint256 reserve0, uint256 reserve1) = IDove(IFactory(factory).getPair(tokenA, tokenB)).getReserves();
@@ -107,6 +101,11 @@ contract L1Router {
         return IFactory(factory).isPair(pair);
     }
 
+    /// @notice Quote the amount of LP tokens that will be minted when adding liquidity.
+    /// @param tokenA Address of the first token.
+    /// @param tokenB A ddress of the second token.
+    /// @param amountADesired Amount of the first token to add liquidity with.
+    /// @param amountBDesired Amount of the second token to add liquidity with.
     function quoteAddLiquidity(address tokenA, address tokenB, uint256 amountADesired, uint256 amountBDesired)
         external
         view
@@ -136,6 +135,10 @@ contract L1Router {
         }
     }
 
+    /// @notice Quote the amount of LP tokens that will be burned when removing liquidity
+    /// @param tokenA The first token of the pair
+    /// @param tokenB The second token of the pair
+    /// @param liquidity The amount of LP tokens to be burned
     function quoteRemoveLiquidity(address tokenA, address tokenB, uint256 liquidity)
         external
         view

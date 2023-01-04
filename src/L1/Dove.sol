@@ -219,11 +219,11 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
 
     /// @notice Completes a voucher burn initiated on the L2.
     /// @dev Checks if user is able to burn or not should be done on L2 beforehand.
-    /// @param srcDomain The domain id of the remote chain.
-    /// @param user The user who initiated the burn.
-    /// @param token The address of the token0 for reference in ordering.
-    /// @param amount0 The quantity of local token0 tokens.
-    /// @param amount1 The quantity of local token1 tokens.
+    /// @param srcDomain Domain id of the remote chain.
+    /// @param user User who initiated the burn.
+    /// @param token Address of the token0 for reference in ordering.
+    /// @param amount0 Quantity of local token0 tokens.
+    /// @param amount1 Quantity of local token1 tokens.
     function _completeVoucherBurns(uint32 srcDomain, address user, address token, uint256 amount0, uint256 amount1)
         internal
     {
@@ -241,8 +241,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
 
     /// @notice Syncing implies bridging the tokens from the L2 back to the L1.
     /// @notice These tokens are simply added back to the reserves.
-    /// @dev    This should be an authenticated call, only callable by the operator.
-    /// @dev    The sync should be followed by a sync on the L2.
+    /// @dev This should be an authenticated call, only callable by the operator.
+    /// @dev The sync should be followed by a sync on the L2.
     function _syncFromL2(
         uint32 srcDomain,
         uint256 pairBalance0,
