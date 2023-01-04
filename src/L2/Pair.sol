@@ -160,7 +160,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         }
     }
 
-    
+
     /// @dev This low-level function should be called from a contract which performs important safety checks
     function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external nonReentrant {
         //require(!BaseV1Factory(factory).isPaused());
@@ -220,12 +220,12 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
 
     /// @notice Syncs to the L1.
     /// @dev Dependent on SG.
-    /// @param srcPoolId0 The id of the src pool for token0.
-    /// @param dstPoolId0 The id of the dst pool for token0.
-    /// @param srcPoolId1 The id of the src pool for token1.
-    /// @param dstPoolId1 The id of the dst pool for token1.
-    /// @param sgFee The fee for Stargate bridging.
-    /// @param hyperlaneFee The fee for Hyperlane messaging.
+    /// @param srcPoolId0 ID of the src pool for token0.
+    /// @param dstPoolId0 ID of the dst pool for token0.
+    /// @param srcPoolId1 ID of the src pool for token1.
+    /// @param dstPoolId1 ID of the dst pool for token1.
+    /// @param sgFee Fee for Stargate bridging.
+    /// @param hyperlaneFee Fee for Hyperlane messaging.
     function syncToL1(
         uint256 srcPoolId0,
         uint256 dstPoolId0,
@@ -289,8 +289,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     }
 
     /// @notice Allows user to burn his L2 vouchers to get the L1 tokens.
-    /// @param amount0 The amount of voucher0 to burn.
-    /// @param amount1 The amount of voucher1 to burn.
+    /// @param amount0 Amount of voucher0 to burn.
+    /// @param amount1 Amount of voucher1 to burn.
     function burnVouchers(uint256 amount0, uint256 amount1) external payable nonReentrant {
         uint256 fee = amount0 > 0 && amount1 > 0 ? msg.value / 2 : msg.value;
         // tell L1 that vouchers been burned
@@ -303,8 +303,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     }
 
     /// @notice Calculate the amount of token0 or token1 that will be received for a given amount of token0 or token1.
-    /// @param amountIn The amount of token0 or token1 to be sent.
-    /// @param tokenIn The address of the token to be sent.
+    /// @param amountIn Amount of token0 or token1 to be sent.
+    /// @param tokenIn Address of the token to be sent.
     function getAmountOut(uint256 amountIn, address tokenIn) external view returns (uint256) {
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         amountIn -= amountIn / FEE; // remove fee from amount received
@@ -312,9 +312,9 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     }
 
     /// @notice Receives a Hyperlane message and handles it according to message type.
-    /// @param origin The domain of the message sender.
-    /// @param sender The address of the message sender.
-    /// @param payload The message payload.
+    /// @param origin Domain of the message sender.
+    /// @param sender Address of the message sender.
+    /// @param payload Message payload.
     function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
         require(origin == destDomain, "WRONG ORIGIN");
         require(TypeCasts.addressToBytes32(L1Target) == sender, "NOT DOVE");

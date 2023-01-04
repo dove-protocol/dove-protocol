@@ -14,36 +14,40 @@ contract L2Router {
     L2Factory public immutable factory;
     bytes32 immutable pairCodeHash;
 
-    /// @notice Prevents a function from being called after a deadline
-    /// @param deadline The deadline timestamp
+    /// @notice Prevents a function from being called after a deadline.
+    /// @param deadline Deadline timestamp.
     modifier ensure(uint256 deadline) {
         require(deadline >= block.timestamp, "BaseV1Router: EXPIRED");
         _;
     }
 
+    /// @param _factory Address of the L2Factory contract.
     constructor(address _factory) {
         factory = L2Factory(_factory);
         pairCodeHash = factory.pairCodeHash();
     }
 
+    /// @notice Sorts token pairs based on their addresses for consistent ordering.
+    /// @param tokenA Address of the first token.
+    /// @param tokenB Address of the second token.
     function sortTokens(address tokenA, address tokenB) public pure returns (address token0, address token1) {
         require(tokenA != tokenB, "BaseV1Router: IDENTICAL_ADDRESSES");
         (token0, token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
         require(token0 != address(0), "BaseV1Router: ZERO_ADDRESS");
     }
 
-    /// @notice Performs getAmountOut calculations given a pair and an amountIn
-    /// @param amountIn The amount of tokenIn to swap
-    /// @param tokenIn The address of the token to swap from
-    /// @param tokenOut The address of the token to swap to
+    /// @notice Performs getAmountOut calculations given a pair and an amountIn.
+    /// @param amountIn Amount of tokenIn to swap.
+    /// @param tokenIn Address of the token to swap from.
+    /// @param tokenOut Address of the token to swap to.
     function getAmountOut(uint256 amountIn, address tokenIn, address tokenOut) external view returns (uint256 amount) {
         address pair = factory.getPair(tokenIn, tokenOut);
         amount = Pair(pair).getAmountOut(amountIn, tokenIn);
     }
 
-    /// @notice Performs chained getAmountOut calculations on any number of pairs
-    /// @param amountIn The amount of tokenIn to swap
-    /// @param routes An array of route structs, each containing a token pair 
+    /// @notice Performs chained getAmountOut calculations on any number of pairs.
+    /// @param amountIn Amount of tokenIn to swap.
+    /// @param routes An array of route structs, each containing a token pair.
     function getAmountsOut(uint256 amountIn, Route[] memory routes) public view returns (uint256[] memory amounts) {
         require(routes.length >= 1, "BaseV1Router: INVALID_PATH");
         amounts = new uint[](routes.length+1);
@@ -56,19 +60,19 @@ contract L2Router {
         }
     }
 
-    /// @notice Checks if provided address is a registered pair
-    /// @param pair The address to check
+    /// @notice Checks if provided address is a registered pair.
+    /// @param pair Address to check.
     function isPair(address pair) external view returns (bool) {
         return factory.isPair(pair);
     }
 
-    /// @notice Swap tokens for an exact amount of tokens given a pair
-    /// @param amountIn The amount of tokenIn to swap
-    /// @param amountOutMin The minimum amount of tokenOut to receive
-    /// @param tokenFrom The address of the token to swap from
-    /// @param tokenTo The address of the token to swap to
-    /// @param to The address to send the output tokens to
-    /// @param deadline The time at which this transaction must be mined
+    /// @notice Swap tokens for an exact amount of tokens given a pair.
+    /// @param amountIn Amount of tokenIn to swap.
+    /// @param amountOutMin Minimum amount of tokenOut to receive.
+    /// @param tokenFrom Address of the token to swap from.
+    /// @param tokenTo Address of the token to swap to.
+    /// @param to Address to send the output tokens to.
+    /// @param deadline Time at which this transaction must be mined.
     function swapExactTokensForTokensSimple(
         uint256 amountIn,
         uint256 amountOutMin,
@@ -87,11 +91,11 @@ contract L2Router {
     }
 
     /// @notice Swap tokens for an exact amount of tokens given a path
-    /// @param amountIn The amount of tokenIn to swap
-    /// @param amountOutMin The minimum amount of tokenOut to receive
-    /// @param routes An array of route structs, each containing a token pair
-    /// @param to The address to send the output tokens to
-    /// @param deadline The time at which this transaction must be mined
+    /// @param amountIn Amount of tokenIn to swap.
+    /// @param amountOutMin Minimum amount of tokenOut to receive.
+    /// @param routes An array of route structs, each containing a token pair.
+    /// @param to Address to send the output tokens to.
+    /// @param deadline Time at which this transaction must be mined.
     function swapExactTokensForTokens(
         uint256 amountIn,
         uint256 amountOutMin,

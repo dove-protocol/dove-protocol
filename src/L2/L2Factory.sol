@@ -16,6 +16,11 @@ contract L2Factory {
     uint16 public destChainId;
     uint32 public destDomain;
 
+    /// @param _gasMaster Address of the Hyperlane gas master contract.
+    /// @param _mailbox Address of the Hyperlane mailbox contract.
+    /// @param _stargateRouter Address of the Stargate router contract.
+    /// @param _destChainId Destination chain ID.
+    /// @param _destDomain Destination domain ID. (https://docs.hyperlane.xyz/hyperlane-docs-1/developers-faq-and-troubleshooting/domains)
     constructor(address _gasMaster, address _mailbox, address _stargateRouter, uint16 _destChainId, uint32 _destDomain)
         public
     {
@@ -26,14 +31,22 @@ contract L2Factory {
         destDomain = _destDomain;
     }
 
+    /// @notice Returns the number of pairs in the factory
     function allPairsLength() external view returns (uint256) {
         return allPairs.length;
     }
 
+    /// @notice Returns the creation code hash of the pair contract
     function pairCodeHash() external pure returns (bytes32) {
         return keccak256(type(Pair).creationCode);
     }
 
+    /// @notice Creates a new pair contract and registers it in the factory
+    /// @param tokenA Address of the first token
+    /// @param tokenB Address of the second token
+    /// @param L1TokenA Address of the first token on L1
+    /// @param L1TokenB Address of the second token on L1
+    /// @param L1Target Address of the L1 target contract
     function createPair(address tokenA, address tokenB, address L1TokenA, address L1TokenB, address L1Target)
         external
         returns (address pair)
