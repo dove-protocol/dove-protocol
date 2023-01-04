@@ -81,7 +81,7 @@ contract L2Router {
         address to,
         uint256 deadline
     ) external ensure(deadline) returns (uint256[] memory amounts) {
-        Route[] memory routes = new route[](1);
+        Route[] memory routes = new Route[](1);
         routes[0].from = tokenFrom;
         routes[0].to = tokenTo;
         amounts = getAmountsOut(amountIn, routes);
@@ -110,7 +110,7 @@ contract L2Router {
     }
 
     /// @dev Requires initial amount to be sent to the first pair in the path
-    function _swap(uint256[] memory amounts, route[] memory routes, address _to) internal virtual {
+    function _swap(uint256[] memory amounts, Route[] memory routes, address _to) internal virtual {
         for (uint256 i = 0; i < routes.length; i++) {
             (address token0,) = sortTokens(routes[i].from, routes[i].to);
             uint256 amountOut = amounts[i + 1];
