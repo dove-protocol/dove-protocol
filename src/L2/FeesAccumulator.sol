@@ -15,6 +15,7 @@ contract FeesAccumulator {
         token1 = _token1;
     }
 
+    /// @notice Transfers all fees to the owner.
     function take() public returns (uint256 fees0, uint256 fees1) {
         require(msg.sender == owner);
         ERC20 _token0 = ERC20(token0);
