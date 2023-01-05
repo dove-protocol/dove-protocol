@@ -326,7 +326,7 @@ contract DoveSimpleTest is Test, Helper {
         assertEq(pair.voucher0().balanceOf(address(pair)), 0);
         assertEq(pair.voucher1().balanceOf(address(pair)), 0);
 
-        _syncToL1();
+        _standardSyncToL1();
 
         vm.selectFork(L1_FORK_ID);
         uint L1R0 = dove.reserve0();
@@ -460,7 +460,7 @@ contract DoveSimpleTest is Test, Helper {
         assertEq(L1Token0.balanceOf(address(dove.fountain())), voucher1Balance);
         assertEq(L1Token1.balanceOf(address(dove.fountain())), voucher0Balance);
         assertEq(dove.reserve0(), L2R1 + 136666666666666666666);
-        assertEq(dove.reserve1(), L2R0 + 136666666);
+        assertEq(dove.reserve1(), L2R0 + 166566667);
     }
 
     function _burnVouchers(address user, uint256 amount0, uint256 amount1) internal {
