@@ -196,10 +196,12 @@ contract DoveSimpleTest is Test, Helper {
         - guarantees that L2 traders have access to the underlying tokens of their vouchers
     */
     function testSyncingToL1() external {
+        uint256 k0 = _k(initialLiquidity0, initialLiquidity1);
         _syncToL2();
 
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
+        vm.selectFork(L2_FORK_ID);
         uint256 voucher0Balance = pair.voucher0().totalSupply();
         uint256 voucher1Balance = pair.voucher1().totalSupply();
         uint256 L2R0 = pair.reserve0(); // USDC virtual reserve
@@ -217,19 +219,21 @@ contract DoveSimpleTest is Test, Helper {
         assertEq(dove.marked1(L2_DOMAIN), voucher0Balance);
         assertEq(L1Token0.balanceOf(address(dove.fountain())), voucher1Balance);
         assertEq(L1Token1.balanceOf(address(dove.fountain())), voucher0Balance);
-        // check reserves impacted properly
-        /*
-            Napkin math
-            reserve = reserve + bridged - earmarked
+        // // check reserves impacted properly
+        // /*
+        //     Napkin math
+        //     reserve = reserve + bridged - earmarked
 
-            reserve1[USDC]  = 10**(7+6)  + 49833333334 - 49833336416
-                            = 9999999996918
-            reserve0[DAI]   = 10**(7+18) + 49833333333333333333334 - 49833330250459178059597
-                            = 10000000003082874155273737
-        */
-        // todo : remove magic numbers (which are the fees here)
+        //     reserve1[USDC]  = 10**(7+6)  + 166566667 - 3082
+        //                     = 10000166563585
+        //     reserve0[DAI]   = 10**(7+18) + 49970000000000000000000 - 49833330250459178059597
+        //                     = 10000136669749540821940403
+        // */
+        // // todo : remove magic numbers (which are the fees here)
         assertEq(dove.reserve0(), L2R1 + 136666666666666666666);
-        assertEq(dove.reserve1(), L2R0 + 136666666);
+        // because of swap optimization, we only bridged the fees!
+        assertEq(dove.reserve1(), L2R0 + 166566667);
+        assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k0);
     }
 
 
@@ -491,9 +495,8 @@ contract DoveSimpleTest is Test, Helper {
             Napkin math
             Balances after fees
 
-            erc20       pair
-            DAI         0
-            USDC        49833333334
+            0xbeef trades 50000000000 usdc for 49833330250459178059597 dai
+            Not enough held in Pair, so will have to voucher mint entire amount out in dai
 
             erc20       pair                        0xbeef  
             DAI         0                           0 
@@ -564,6 +567,14 @@ contract DoveSimpleTest is Test, Helper {
             vDAI        0                           0
             vUSDC       0                           0
         */
+    }
+
+    function _k(uint256 x, uint256 y) internal view returns (uint256) {
+        uint256 _x = (x * 1e18) / uint64(10 ** 18);
+        uint256 _y = (y * 1e18) / uint64(10 ** 6);
+        uint256 _a = (_x * _y) / 1e18;
+        uint256 _b = ((_x * _x) / 1e18 + (_y * _y) / 1e18);
+        return (_a * _b) / 1e18; // x3y+y3x >= k
     }
 
     receive() external payable {}
