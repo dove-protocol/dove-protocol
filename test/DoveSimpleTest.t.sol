@@ -205,7 +205,7 @@ contract DoveSimpleTest is Test, Helper {
         uint256 L2R0 = pair.reserve0(); // USDC virtual reserve
         uint256 L2R1 = pair.reserve1(); // DAI virtual reserve
 
-        _syncToL1();
+        _standardSyncToL1();
 
         vm.selectFork(L1_FORK_ID);
 
@@ -240,7 +240,7 @@ contract DoveSimpleTest is Test, Helper {
         _syncToL2();
         vm.selectFork(L2_FORK_ID);
         _doMoreSwaps();
-        _syncToL1();
+        _standardSyncToL1();
 
         vm.selectFork(L1_FORK_ID);
         uint L1R0 = dove.reserve0();
@@ -305,7 +305,7 @@ contract DoveSimpleTest is Test, Helper {
         _syncToL2();
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
-        _syncToL1();
+        _standardSyncToL1();
 
         vm.selectFork(L1_FORK_ID);
         // send LP tokens
@@ -351,6 +351,34 @@ contract DoveSimpleTest is Test, Helper {
 
     }
 
+    function testSyncingToL1_withSGSwapsProcessedLast() external {
+        _syncToL2();
+
+        vm.selectFork(L2_FORK_ID);
+        _doSomeSwaps();
+
+        uint256 voucher0Balance = pair.voucher0().totalSupply();
+        uint256 voucher1Balance = pair.voucher1().totalSupply();
+        uint256 L2R0 = pair.reserve0(); // USDC virtual reserve
+        uint256 L2R1 = pair.reserve1(); // DAI virtual reserve
+
+        uint[] memory order = new uint[](4);
+        order[0] = 2;
+        order[1] = 3;
+        order[2] = 0;
+        order[3] = 1;
+        _syncToL1(order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+
+        vm.selectFork(L1_FORK_ID);
+
+        assertEq(dove.marked0(L2_DOMAIN), voucher1Balance);
+        assertEq(dove.marked1(L2_DOMAIN), voucher0Balance);
+        assertEq(L1Token0.balanceOf(address(dove.fountain())), voucher1Balance);
+        assertEq(L1Token1.balanceOf(address(dove.fountain())), voucher0Balance);
+        assertEq(dove.reserve0(), L2R1 + 136666666666666666666);
+        assertEq(dove.reserve1(), L2R0 + 136666666);
+    }
+
     function _burnVouchers(address user, uint256 amount0, uint256 amount1) internal {
         vm.selectFork(L2_FORK_ID);
         vm.recordLogs();
@@ -379,7 +407,23 @@ contract DoveSimpleTest is Test, Helper {
         pair.handle(L1_DOMAIN, TypeCasts.addressToBytes32(sender), payload);
     }
 
-    function _syncToL1() internal {
+    function _standardSyncToL1() internal {
+        uint[] memory order = new uint[](4);
+        order[0] = 0;
+        order[1] = 1;
+        order[2] = 2;
+        order[3] = 3;
+
+        _syncToL1(order, _handleSGMessage, _handleSGMessage, _handleHLMessage, _handleHLMessage);
+    }
+
+    function _syncToL1(
+        uint[] memory order,
+        function(bytes memory) internal one,
+        function(bytes memory) internal two,
+        function(bytes memory) internal three,
+        function(bytes memory) internal four
+    ) internal {
         /*
             Simulate syncing to L1.
             Using Stargate.
@@ -396,31 +440,25 @@ contract DoveSimpleTest is Test, Helper {
         // to find mock mailbox events
         //_findEvent(logs, 0x3b31784f245377d844a88ed832a668978c700fd9d25d80e8bf5ef168c6bffa20);
 
-        bytes memory payload1 = abi.decode(logs[10].data, (bytes));
-        LayerZeroPacket.Packet memory packet1 = LayerZeroPacket.getCustomPacket(payload1);
-        bytes memory payload2 = abi.decode(logs[21].data, (bytes));
-        LayerZeroPacket.Packet memory packet2 = LayerZeroPacket.getCustomPacket(payload2);
+        // first two payloads are LZ
+        // last two are HL
+        bytes[] memory payloads = new bytes[](4);
+        payloads[0] = abi.decode(logs[10].data, (bytes));
+        payloads[1] = abi.decode(logs[21].data, (bytes));
+        payloads[2] = logs[12].data;
+        payloads[3] = logs[23].data;
 
-        (address sender1, bytes memory HLpayload1) = abi.decode(logs[12].data, (address, bytes));
-        (address sender2, bytes memory HLpayload2) = abi.decode(logs[23].data, (address, bytes));
-
-        // switch fork
-        vm.selectFork(L1_FORK_ID);
-        bytes memory path = abi.encodePacked(packet1.srcAddress, packet1.dstAddress);
-        vm.store(
-            address(lzEndpointL1),
-            keccak256(abi.encodePacked(path, keccak256(abi.encodePacked(uint256(packet1.srcChainId), uint256(5))))),
-            bytes32(uint256(packet1.nonce))
-        );
-        // larp as default library
-        vm.startBroadcast(0x4D73AdB72bC3DD368966edD0f0b2148401A178E2);
-        lzEndpointL1.receivePayload(
-            packet1.srcChainId, path, packet1.dstAddress, packet1.nonce + 1, 600000, packet1.payload
-        );
-        lzEndpointL1.receivePayload(
-            packet2.srcChainId, path, packet2.dstAddress, packet2.nonce + 1, 600000, packet2.payload
-        );
-        vm.stopBroadcast();
+        for(uint i; i < order.length; i++) {
+            if(order[i] == 0) {
+                one(payloads[i]);
+            } else if(order[i] == 1) {
+                two(payloads[i]);
+            } else if(order[i] == 2) {
+                three(payloads[i]);
+            } else if(order[i] == 3) {
+                four(payloads[i]);
+            }
+        }
 
         // (,address token0,uint256 marked0, uint256 pairBalance0) = abi.decode(HLpayload1, (uint,address,uint,uint));
         // (,address token1,uint256 marked1, uint256 pairBalance1) = abi.decode(HLpayload2, (uint,address,uint,uint));
@@ -433,10 +471,36 @@ contract DoveSimpleTest is Test, Helper {
         // console.log("marked", marked1);
         // console.log("pairBalance", pairBalance1);
 
-        vm.startBroadcast(address(mailboxL1));
-        dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender1), HLpayload1);
-        dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender2), HLpayload2);
-        vm.stopBroadcast();
+
+    }
+
+    function _handleSGMessage(
+        bytes memory payload
+    ) internal {
+        
+        LayerZeroPacket.Packet memory packet = LayerZeroPacket.getCustomPacket(payload);
+        // switch fork
+        vm.selectFork(L1_FORK_ID);
+        bytes memory path = abi.encodePacked(packet.srcAddress, packet.dstAddress);
+        vm.store(
+            address(lzEndpointL1),
+            keccak256(abi.encodePacked(path, keccak256(abi.encodePacked(uint256(packet.srcChainId), uint256(5))))),
+            bytes32(uint256(packet.nonce))
+        );
+        // larp as default library
+        vm.broadcast(0x4D73AdB72bC3DD368966edD0f0b2148401A178E2);
+        lzEndpointL1.receivePayload(
+            packet.srcChainId, path, packet.dstAddress, packet.nonce + 1, 600000, packet.payload
+        );
+    }
+
+    function _handleHLMessage(
+        bytes memory payload
+    ) internal {
+        vm.selectFork(L1_FORK_ID);
+        (address sender, bytes memory HLpayload) = abi.decode(payload, (address, bytes));
+        vm.broadcast(address(mailboxL1));
+        dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender), HLpayload);
     }
 
     function _findEvent(Vm.Log[] memory logs, bytes32 topic) internal {
