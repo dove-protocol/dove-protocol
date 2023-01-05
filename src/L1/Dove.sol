@@ -14,6 +14,7 @@ import {SGHyperlaneConverter} from "./SGHyperlaneConverter.sol";
 import "../hyperlane/TypeCasts.sol";
 
 import "./interfaces/IStargateReceiver.sol";
+import "./interfaces/IL1Factory.sol";
 import "../hyperlane/HyperlaneClient.sol";
 
 import "../MessageType.sol";
@@ -58,7 +59,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
 
     uint256 internal constant MINIMUM_LIQUIDITY = 10 ** 3;
 
-    address public stargateRouter;
+    IL1Factory public factory;
 
     address public token0;
     address public token1;
@@ -69,7 +70,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     FeesDistributor public feesDistributor;
     Fountain public fountain;
 
-    /// @notice earmarked tokens
+    /// @notice domain id [hyperlane] => earmarked tokens
     mapping(uint32 => uint256) public marked0;
     mapping(uint32 => uint256) public marked1;
     mapping(uint32 => mapping(uint256 => Sync)) public syncs;
@@ -92,13 +93,14 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                             CONSTRUCTOR
     ###############################################################*/
 
-    constructor(address _token0, address _token1, address _hyperlaneGasMaster, address _mailbox, address _sgRouter)
+    constructor(address _token0, address _token1, address _hyperlaneGasMaster, address _mailbox)
         ERC20("Dove", "DVE", 18)
         HyperlaneClient(_hyperlaneGasMaster, _mailbox, msg.sender)
     {
+        factory = IL1Factory(msg.sender);
+
         token0 = _token0;
         token1 = _token1;
-        stargateRouter = _sgRouter;
 
         feesDistributor = new FeesDistributor(_token0, _token1);
         fountain = new Fountain(_token0, _token1);
@@ -171,6 +173,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256 _bridgedAmount,
         bytes calldata data
     ) external override {
+        address stargateRouter = factory.stargateRouter();
         require(msg.sender == stargateRouter, "NOT STARGATE");
         require(keccak256(_srcAddress) == keccak256(sgTrustedBridge[_srcChainId]), "NOT TRUSTED");
         uint256 syncID = abi.decode(data, (uint256));

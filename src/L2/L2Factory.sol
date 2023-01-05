@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
+import "./interfaces/IL2Factory.sol";
+
 import "./Pair.sol";
 
-contract L2Factory {
-    event PairCreated(address indexed token0, address indexed token1, address pair, uint);
+contract L2Factory is IL2Factory {
     mapping(address => mapping(address => address)) public getPair;
     address[] public allPairs;
-    mapping(address => bool) public isPair; 
+    mapping(address => bool) public isPair;
 
     address public gasMaster;
     address public mailbox;
@@ -40,11 +41,11 @@ contract L2Factory {
     function createPair(
         address tokenA,
         address tokenB,
+        SGConfig calldata sgConfig,
         address L1TokenA,
         address L1TokenB,
         address L1Target
-    ) external returns (address pair)
-    {
+    ) external returns (address pair) {
         require(tokenA != tokenB, "Factory: IDENTICAL_ADDRESSES");
         // sort tokens
         (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
@@ -52,8 +53,7 @@ contract L2Factory {
         require(token0 != address(0) && token1 != address(0), "Factory: ZERO_ADDRESS");
         require(L1Token0 != address(0) && L1Token1 != address(0), "Factory: ZERO_ADDRESS_ORIGIN");
         // check if pair exists
-        address pairAddress = getPair[token0][token1];
-        require(pairAddress == address(0), "Factory: PAIR_EXISTS"); // single check is sufficient
+        require(getPair[token0][token1] == address(0), "Factory: PAIR_EXISTS"); // single check is sufficient
         bytes32 salt = keccak256(
             abi.encodePacked(
                 token0,
@@ -62,26 +62,23 @@ contract L2Factory {
                 L1Token1,
                 gasMaster,
                 mailbox,
-                stargateRouter,
-                L1Target,
-                destChainId,
-                destDomain
+                L1Target
             )
         );
         // shitty design, should remove gasMaster,sgRouter, destChainId and destDomain from constructor
         // should query factory
-        pair = address(new Pair{salt:salt}(
+        pair = address(
+            new Pair{salt: salt}(
                 token0,
                 L1Token0,
                 token1,
                 L1Token1,
+                sgConfig,
                 gasMaster,
                 mailbox,
-                stargateRouter,
-                L1Target,
-                destChainId,
-                destDomain
-        ));
+                L1Target
+            )
+        );
 
         getPair[token0][token1] = pair;
         getPair[token1][token0] = pair; // populate mapping in the reverse direction
