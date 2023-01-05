@@ -340,7 +340,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 abi.encodePacked(L1Target),
                 abi.encodePacked(syncID)
             );
-            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID++, L1Token0, voucher0Delta, _balance0);
+            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID, L1Token0, voucher0Delta, _balance0);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
         }
@@ -359,7 +359,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 abi.encodePacked(L1Target),
                 abi.encodePacked(syncID)
             );
-            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID++, L1Token1, voucher1Delta, _balance1);
+            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID, L1Token1, voucher1Delta, _balance1);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
         }
@@ -370,6 +370,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         ref1 = reserve1;
         voucher0Delta = 0;
         voucher1Delta = 0;
+        syncID++;
     }
 
     /// @notice Allows user to burn his L2 vouchers to get the L1 tokens.
