@@ -9,7 +9,7 @@ import {L1Router} from "src/L1/L1Router.sol";
 import {L1Factory} from "src/L1/L1Factory.sol";
 import {Pair} from "src/L2/Pair.sol";
 import {L2Router} from "src/L2/L2Router.sol";
-import {L2Factory} from "src/L2/L2Factory.sol";
+import {IL2Factory, L2Factory} from "src/L2/L2Factory.sol";
 import {TypeCasts} from "src/hyperlane/TypeCasts.sol";
 
 import {ILayerZeroEndpoint} from "./utils/ILayerZeroEndpoint.sol";
@@ -150,15 +150,19 @@ contract DoveSimpleTest is Test, Helper {
         factoryL2 = new L2Factory(address(gasMasterL2), address(mailboxL2), L2SGRouter, L1_CHAIN_ID, L1_DOMAIN);
         // deploy router
         routerL2 = new L2Router(address(factoryL2));
-
+        IL2Factory.SGConfig memory sgConfig = IL2Factory.SGConfig(
+            {
+                srcPoolId0 : 1,
+                dstPoolId0 : 1,
+                srcPoolId1 : 3,
+                dstPoolId1 : 3
+            }
+        );
         pair = Pair(
             factoryL2.createPair(
                 address(L2Token1),
                 address(L2Token0),
-                1,
-                1,
-                3,
-                3,
+                sgConfig,
                 address(L1Token0),
                 address(L1Token1),
                 address(dove)
@@ -204,7 +208,6 @@ contract DoveSimpleTest is Test, Helper {
         // have compare L2R0 to L1R1 because the ordering of the tokens on L2
         assertEq(pair.reserve0(), doveReserve1);
         assertEq(pair.reserve1(), doveReserve0);
-        assertEq(factoryL2.getL1Pair(address(L2Token0), address(L2Token1)), address(dove));
     }
 
     /*

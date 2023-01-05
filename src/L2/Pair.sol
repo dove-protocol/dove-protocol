@@ -6,7 +6,6 @@ import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 import {Voucher} from "./Voucher.sol";
-//import {Factory} from "./Factory.sol";
 import {FeesAccumulator} from "./FeesAccumulator.sol";
 
 import "../hyperlane/HyperlaneClient.sol";
@@ -50,10 +49,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     uint64 internal immutable decimals0;
     uint64 internal immutable decimals1;
 
-    uint16 internal immutable srcPoolId0;
-    uint16 internal immutable dstPoolId0;
-    uint16 internal immutable srcPoolId1;
-    uint16 internal immutable dstPoolId1;
+    IL2Factory.SGConfig internal sgConfig;
 
     ///@notice "reference" reserves on L1
     uint256 internal ref0;
@@ -85,10 +81,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         address _L1Token0,
         address _token1,
         address _L1Token1,
-        uint16 _srcPoolId0,
-        uint16 _dstPoolId0,
-        uint16 _srcPoolId1,
-        uint16 _dstPoolId1,
+        IL2Factory.SGConfig memory _sgConfig,
         address _gasMaster,
         address _mailbox,
         address _L1Target
@@ -102,10 +95,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         token1 = _token1;
         L1Token1 = _L1Token1;
 
-        srcPoolId0 = _srcPoolId0;
-        dstPoolId0 = _dstPoolId0;
-        srcPoolId1 = _srcPoolId1;
-        dstPoolId1 = _dstPoolId1;
+        sgConfig = _sgConfig;
 
         ERC20 token0_ = ERC20(_token0);
         ERC20 token1_ = ERC20(_token1);
@@ -357,8 +347,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
             _token0.approve(address(stargateRouter), _balance0 + fees0);
             stargateRouter.swap{value: sgFee}(
                 destChainId,
-                srcPoolId0,
-                dstPoolId0,
+                sgConfig.srcPoolId0,
+                sgConfig.dstPoolId0,
                 payable(msg.sender),
                 _balance0 + fees0,
                 _balance0,
@@ -376,8 +366,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
             _token1.approve(address(stargateRouter), _balance1 + fees1);
             stargateRouter.swap{value: sgFee}(
                 destChainId,
-                srcPoolId1,
-                dstPoolId1,
+                sgConfig.srcPoolId1,
+                sgConfig.dstPoolId1,
                 payable(msg.sender),
                 _balance1 + fees1,
                 _balance1,
