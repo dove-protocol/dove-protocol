@@ -6,6 +6,7 @@
 [profile.default]
 solc_version = '0.8.15'
 auto_detect_solc = false
+optimizer = true
 optimizer_runs = 1_000
 
 [fuzz]

@@ -214,18 +214,30 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         uint256 _balance0;
         uint256 _balance1;
         {
-            // scope for _token{0,1}, avoids stack too deep errors
             (address _token0, address _token1) = (token0, token1);
+            _balance0 = ERC20(_token0).balanceOf(address(this));
+            _balance1 = ERC20(_token1).balanceOf(address(this));
+            // scope for _token{0,1}, avoids stack too deep errors
             require(to != _token0 && to != _token1, "IT"); // BaseV1: INVALID_TO
             // optimistically mints vouchers
             if (amount0Out > 0) {
-                voucher0.mint(to, amount0Out);
-                voucher0Delta += amount0Out;
+                // delta is what we have to transfer
+                // difference between our token balance and what user needs
+                (uint256 toSend, uint256 toMint) = _balance0 >= amount0Out ? (amount0Out, 0) : (_balance0, amount0Out - _balance0);
+                if (toSend > 0) SafeTransferLib.safeTransfer(ERC20(_token0), to, toSend);
+                if (toMint > 0) {
+                    voucher0.mint(to, toMint);
+                    voucher0Delta += toMint;
+                }
             }
             // optimistically mints vouchers
             if (amount1Out > 0) {
-                voucher1.mint(to, amount1Out);
-                voucher1Delta += amount1Out;
+                (uint256 toSend, uint256 toMint) = _balance1 >= amount1Out ? (amount1Out, 0) : (_balance1, amount1Out - _balance1);
+                if (toSend > 0) SafeTransferLib.safeTransfer(ERC20(_token1), to, toSend);
+                if (toMint > 0) {
+                    voucher1.mint(to, toMint);
+                    voucher1Delta += toMint;
+                }
             }
             //if (data.length > 0) IBaseV1Callee(to).hook(msg.sender, amount0Out, amount1Out, data);
             _balance0 = balance0();
@@ -236,7 +248,6 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         require(amount0In > 0 || amount1In > 0, "IIA"); // BaseV1: INSUFFICIENT_INPUT_AMOUNT
         {
             // scope for reserve{0,1}Adjusted, avoids stack too deep errors
-            (address _token0, address _token1) = (token0, token1);
             if (amount0In > 0) _update0(amount0In / FEE); // accrue fees for token0 and move them out of pool
             if (amount1In > 0) _update1(amount1In / FEE); // accrue fees for token1 and move them out of pool
             _balance0 = balance0(); // since we removed tokens, we need to reconfirm balances, can also simply use previous balance - amountIn/ 10000, but doing balanceOf again as safety check
@@ -396,18 +407,13 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         uint32 destDomain = factory.destDomain();
 
         // tell L1 that vouchers been burned
-        if (amount0 > 0) {
-            voucher0.burn(msg.sender, amount0);
-            bytes memory payload = abi.encode(MessageType.BURN_VOUCHER, L1Token0, msg.sender, amount0);
-            bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-            hyperlaneGasMaster.payGasFor{value: fee}(id, destDomain);
-        }
-        if (amount1 > 0) {
-            voucher1.burn(msg.sender, amount1);
-            bytes memory payload = abi.encode(MessageType.BURN_VOUCHER, L1Token1, msg.sender, amount1);
-            bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-            hyperlaneGasMaster.payGasFor{value: fee}(id, destDomain);
-        }
+        require(amount0 > 0 || amount1 > 0, "NO VOUCHERS");
+        if (amount0 > 0) voucher0.burn(msg.sender, amount0);
+        if (amount1 > 0) voucher1.burn(msg.sender, amount1);
+        bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, msg.sender, L1Token0, amount0, amount1);
+        bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
+        hyperlaneGasMaster.payGasFor{value: fee}(id, destDomain);
+        
     }
 
     function handle(
