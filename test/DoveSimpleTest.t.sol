@@ -453,6 +453,12 @@ contract DoveSimpleTest is Test, Helper {
         order[3] = 1;
         _syncToL1(order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
+        // given messages weren't in expected order, sync should still be pending
+        assertEq(dove.marked0(L2_DOMAIN), 0);
+        assertEq(dove.marked1(L2_DOMAIN), 0);
+
+        dove.finalizeSyncFromL2(L2_DOMAIN, 0);
+
         vm.selectFork(L1_FORK_ID);
 
         assertEq(dove.marked0(L2_DOMAIN), voucher1Balance);
@@ -531,17 +537,10 @@ contract DoveSimpleTest is Test, Helper {
         payloads[2] = logs[12].data;
         payloads[3] = logs[23].data;
 
-        for(uint i; i < order.length; i++) {
-            if(order[i] == 0) {
-                one(payloads[i]);
-            } else if(order[i] == 1) {
-                two(payloads[i]);
-            } else if(order[i] == 2) {
-                three(payloads[i]);
-            } else if(order[i] == 3) {
-                four(payloads[i]);
-            }
-        }
+        one(payloads[order[0]]);
+        two(payloads[order[1]]);
+        three(payloads[order[2]]);
+        four(payloads[order[3]]);
 
         // (,address token0,uint256 marked0, uint256 pairBalance0) = abi.decode(HLpayload1, (uint,address,uint,uint));
         // (,address token1,uint256 marked1, uint256 pairBalance1) = abi.decode(HLpayload2, (uint,address,uint,uint));
@@ -559,8 +558,7 @@ contract DoveSimpleTest is Test, Helper {
 
     function _handleSGMessage(
         bytes memory payload
-    ) internal {
-        
+    ) internal {        
         LayerZeroPacket.Packet memory packet = LayerZeroPacket.getCustomPacket(payload);
         // switch fork
         vm.selectFork(L1_FORK_ID);
