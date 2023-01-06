@@ -58,6 +58,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     uint256 internal voucher0Delta;
     uint256 internal voucher1Delta;
 
+    uint256 internal syncID;
+
     uint256 constant FEE = 300;
 
     /*###############################################################
@@ -100,8 +102,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         ERC20 token0_ = ERC20(_token0);
         ERC20 token1_ = ERC20(_token1);
 
-        decimals0 = uint64(10**token0_.decimals());
-        decimals1 = uint64(10**token1_.decimals());
+        decimals0 = uint64(10 ** token0_.decimals());
+        decimals1 = uint64(10 ** token1_.decimals());
 
         /// @dev Assume one AMM per L2.
         voucher0 = new Voucher(
@@ -122,15 +124,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     ###############################################################*/
 
     // TODO ; use balance0() instrad of reserrve0???
-    function getReserves()
-        public
-        view
-        returns (
-            uint256 _reserve0,
-            uint256 _reserve1,
-            uint256 _blockTimestampLast
-        )
-    {
+    function getReserves() public view returns (uint256 _reserve0, uint256 _reserve1, uint256 _blockTimestampLast) {
         _reserve0 = reserve0;
         _reserve1 = reserve1;
         _blockTimestampLast = blockTimestampLast;
@@ -156,12 +150,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     }
 
     // update reserves and, on the first call per block, price accumulators
-    function _update(
-        uint256 _balance0,
-        uint256 _balance1,
-        uint256 _reserve0,
-        uint256 _reserve1
-    ) internal {
+    function _update(uint256 _balance0, uint256 _balance1, uint256 _reserve0, uint256 _reserve1) internal {
         uint256 blockTimestamp = block.timestamp;
         uint256 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
         if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
@@ -179,11 +168,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     function currentCumulativePrices()
         public
         view
-        returns (
-            uint256 reserve0Cumulative,
-            uint256 reserve1Cumulative,
-            uint256 blockTimestamp
-        )
+        returns (uint256 reserve0Cumulative, uint256 reserve1Cumulative, uint256 blockTimestamp)
     {
         blockTimestamp = block.timestamp;
         reserve0Cumulative = reserve0CumulativeLast;
@@ -200,12 +185,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     }
 
     // this low-level function should be called from a contract which performs important safety checks
-    function swap(
-        uint256 amount0Out,
-        uint256 amount1Out,
-        address to,
-        bytes calldata data
-    ) external nonReentrant {
+    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external nonReentrant {
         //require(!BaseV1Factory(factory).isPaused());
         require(amount0Out > 0 || amount1Out > 0, "IOA"); // BaseV1: INSUFFICIENT_OUTPUT_AMOUNT
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
@@ -223,7 +203,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
             if (amount0Out > 0) {
                 // delta is what we have to transfer
                 // difference between our token balance and what user needs
-                (uint256 toSend, uint256 toMint) = _balance0 >= amount0Out ? (amount0Out, 0) : (_balance0, amount0Out - _balance0);
+                (uint256 toSend, uint256 toMint) =
+                    _balance0 >= amount0Out ? (amount0Out, 0) : (_balance0, amount0Out - _balance0);
                 if (toSend > 0) SafeTransferLib.safeTransfer(ERC20(_token0), to, toSend);
                 if (toMint > 0) {
                     voucher0.mint(to, toMint);
@@ -232,7 +213,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
             }
             // optimistically mints vouchers
             if (amount1Out > 0) {
-                (uint256 toSend, uint256 toMint) = _balance1 >= amount1Out ? (amount1Out, 0) : (_balance1, amount1Out - _balance1);
+                (uint256 toSend, uint256 toMint) =
+                    _balance1 >= amount1Out ? (amount1Out, 0) : (_balance1, amount1Out - _balance1);
                 if (toSend > 0) SafeTransferLib.safeTransfer(ERC20(_token1), to, toSend);
                 if (toMint > 0) {
                     voucher1.mint(to, toMint);
@@ -280,11 +262,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         return (3 * x0 * ((y * y) / 1e18)) / 1e18 + ((((x0 * x0) / 1e18) * x0) / 1e18);
     }
 
-    function _get_y(
-        uint256 x0,
-        uint256 xy,
-        uint256 y
-    ) internal pure returns (uint256) {
+    function _get_y(uint256 x0, uint256 xy, uint256 y) internal pure returns (uint256) {
         for (uint256 i = 0; i < 255; i++) {
             uint256 y_prev = y;
             uint256 k = _f(x0, y);
@@ -314,12 +292,11 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         return _getAmountOut(amountIn, tokenIn, _reserve0, _reserve1);
     }
 
-    function _getAmountOut(
-        uint256 amountIn,
-        address tokenIn,
-        uint256 _reserve0,
-        uint256 _reserve1
-    ) internal view returns (uint256) {
+    function _getAmountOut(uint256 amountIn, address tokenIn, uint256 _reserve0, uint256 _reserve1)
+        internal
+        view
+        returns (uint256)
+    {
         uint256 xy = _k(_reserve0, _reserve1);
         _reserve0 = (_reserve0 * 1e18) / decimals0;
         _reserve1 = (_reserve1 * 1e18) / decimals1;
@@ -365,9 +342,9 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 _balance0,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                "0x1"
+                abi.encodePacked(syncID)
             );
-            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, L1Token0, voucher0Delta, _balance0);
+            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID, L1Token0, voucher0Delta, _balance0);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
         }
@@ -384,9 +361,9 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 _balance1,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                "0x1"
+                abi.encodePacked(syncID)
             );
-            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, L1Token1, voucher1Delta, _balance1);
+            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID, L1Token1, voucher1Delta, _balance1);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
         }
@@ -397,6 +374,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         ref1 = reserve1;
         voucher0Delta = 0;
         voucher1Delta = 0;
+        syncID++;
     }
 
     /// @notice Allows user to burn his L2 vouchers to get the L1 tokens.
@@ -413,14 +391,9 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, msg.sender, L1Token0, amount0, amount1);
         bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
         hyperlaneGasMaster.payGasFor{value: fee}(id, destDomain);
-        
     }
 
-    function handle(
-        uint32 origin,
-        bytes32 sender,
-        bytes calldata payload
-    ) external onlyMailbox {
+    function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
         uint32 destDomain = factory.destDomain();
         require(origin == destDomain, "WRONG ORIGIN");
         require(TypeCasts.addressToBytes32(L1Target) == sender, "NOT DOVE");
@@ -431,10 +404,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     }
 
     function _syncFromL1(bytes calldata payload) internal {
-        (, address _L1Token0, uint256 _reserve0, uint256 _reserve1) = abi.decode(
-            payload,
-            (uint256, address, uint256, uint256)
-        );
+        (, address _L1Token0, uint256 _reserve0, uint256 _reserve1) =
+            abi.decode(payload, (uint256, address, uint256, uint256));
         (reserve0, reserve1) = _L1Token0 == L1Token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
         ref0 = reserve0;
         ref1 = reserve1;

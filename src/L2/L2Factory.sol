@@ -16,13 +16,9 @@ contract L2Factory is IL2Factory {
     uint16 public destChainId;
     uint32 public destDomain;
 
-    constructor(
-        address _gasMaster,
-        address _mailbox,
-        address _stargateRouter,
-        uint16 _destChainId,
-        uint32 _destDomain
-    ) public {
+    constructor(address _gasMaster, address _mailbox, address _stargateRouter, uint16 _destChainId, uint32 _destDomain)
+        public
+    {
         gasMaster = _gasMaster;
         mailbox = _mailbox;
         stargateRouter = _stargateRouter;
@@ -54,17 +50,7 @@ contract L2Factory is IL2Factory {
         require(L1Token0 != address(0) && L1Token1 != address(0), "Factory: ZERO_ADDRESS_ORIGIN");
         // check if pair exists
         require(getPair[token0][token1] == address(0), "Factory: PAIR_EXISTS"); // single check is sufficient
-        bytes32 salt = keccak256(
-            abi.encodePacked(
-                token0,
-                L1Token0,
-                token1,
-                L1Token1,
-                gasMaster,
-                mailbox,
-                L1Target
-            )
-        );
+        bytes32 salt = keccak256(abi.encodePacked(token0, L1Token0, token1, L1Token1, gasMaster, mailbox, L1Target));
         // shitty design, should remove gasMaster,sgRouter, destChainId and destDomain from constructor
         // should query factory
         pair = address(

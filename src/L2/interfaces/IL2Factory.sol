@@ -30,7 +30,5 @@ interface IL2Factory {
         address L1TokenA,
         address L1TokenB,
         address L1Target
-    )
-        external
-        returns (address pair);
+    ) external returns (address pair);
 }
