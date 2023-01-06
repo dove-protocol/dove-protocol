@@ -453,13 +453,12 @@ contract DoveSimpleTest is Test, Helper {
         order[3] = 1;
         _syncToL1(order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
+        vm.selectFork(L1_FORK_ID);
         // given messages weren't in expected order, sync should still be pending
         assertEq(dove.marked0(L2_DOMAIN), 0);
         assertEq(dove.marked1(L2_DOMAIN), 0);
-
+    
         dove.finalizeSyncFromL2(L2_DOMAIN, 0);
-
-        vm.selectFork(L1_FORK_ID);
 
         assertEq(dove.marked0(L2_DOMAIN), voucher1Balance);
         assertEq(dove.marked1(L2_DOMAIN), voucher0Balance);
@@ -467,6 +466,28 @@ contract DoveSimpleTest is Test, Helper {
         assertEq(L1Token1.balanceOf(address(dove.fountain())), voucher0Balance);
         assertEq(dove.reserve0(), L2R1 + 136666666666666666666);
         assertEq(dove.reserve1(), L2R0 + 166566667);
+    }
+
+    function testCannotFinalizeTwice() external {
+        _syncToL2();
+
+        vm.selectFork(L2_FORK_ID);
+        _doSomeSwaps();
+
+        uint256 voucher0Balance = pair.voucher0().totalSupply();
+        uint256 voucher1Balance = pair.voucher1().totalSupply();
+
+        uint[] memory order = new uint[](4);
+        order[0] = 2;
+        order[1] = 3;
+        order[2] = 0;
+        order[3] = 1;
+        _syncToL1(order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+
+        vm.selectFork(L1_FORK_ID);
+        dove.finalizeSyncFromL2(L2_DOMAIN, 0);
+        vm.expectRevert();
+        dove.finalizeSyncFromL2(L2_DOMAIN, 0);
     }
 
     function _burnVouchers(address user, uint256 amount0, uint256 amount1) internal {
