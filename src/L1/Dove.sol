@@ -192,22 +192,12 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256 messageType = abi.decode(payload, (uint256));
         if (messageType == MessageType.BURN_VOUCHERS) {
             // receive both amounts and a single address to determine ordering
-            (
-                ,
-                address user,
-                address token,
-                uint256 amount0,
-                uint256 amount1
-            ) = abi.decode(payload, (uint256, address, address, uint256, uint256));
+            (, address user, address token, uint256 amount0, uint256 amount1) =
+                abi.decode(payload, (uint256, address, address, uint256, uint256));
             _completeVoucherBurns(origin, user, token, amount0, amount1);
         } else if (messageType == MessageType.SYNC_TO_L1) {
-            (
-                ,
-                uint256 syncID,
-                address token,
-                uint256 earmarkedDelta,
-                uint256 pairBalance
-            ) = abi.decode(payload, (uint256, uint256, address, uint256, uint256));
+            (, uint256 syncID, address token, uint256 earmarkedDelta, uint256 pairBalance) =
+                abi.decode(payload, (uint256, uint256, address, uint256, uint256));
             _syncFromL2(origin, syncID, token, earmarkedDelta, pairBalance);
         }
     }
@@ -221,10 +211,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     function finalizeSyncFromL2(uint32 originDomain, uint256 syncID) external {
         require(lastBridged0[originDomain][syncID] > 0 && lastBridged1[originDomain][syncID] > 0, "NO SG SWAPS");
         Sync memory sync = syncs[originDomain][syncID];
-        (
-            PartialSync memory partialSync0,
-            PartialSync memory partialSync1
-        ) = sync.partialSyncA.token == token0 ? (sync.partialSyncA, sync.partialSyncB) : (sync.partialSyncB, sync.partialSyncA);
+        (PartialSync memory partialSync0, PartialSync memory partialSync1) = sync.partialSyncA.token == token0
+            ? (sync.partialSyncA, sync.partialSyncB)
+            : (sync.partialSyncB, sync.partialSyncA);
         _finalizeSyncFromL2(originDomain, syncID, partialSync0, partialSync1);
     }
 
@@ -239,13 +228,14 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     /// @param token The address of the token0 for reference in ordering.
     /// @param amount0 The quantity of local token0 tokens.
     /// @param amount1 The quantity of local token1 tokens.
-    function _completeVoucherBurns(uint32 srcDomain, address user, address token, uint256 amount0, uint256 amount1) internal {
+    function _completeVoucherBurns(uint32 srcDomain, address user, address token, uint256 amount0, uint256 amount1)
+        internal
+    {
         // update earmarked tokens
-        if(token == token0) {
+        if (token == token0) {
             marked0[srcDomain] -= amount0;
             marked1[srcDomain] -= amount1;
             fountain.squirt(user, amount0, amount1);
-
         } else {
             marked0[srcDomain] -= amount1;
             marked1[srcDomain] -= amount0;
@@ -253,7 +243,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         }
     }
 
-    function _syncFromL2(uint32 origin, uint256 syncID, address token, uint256 earmarkedDelta, uint256 pairBalance) internal {
+    function _syncFromL2(uint32 origin, uint256 syncID, address token, uint256 earmarkedDelta, uint256 pairBalance)
+        internal
+    {
         Sync memory sync = syncs[origin][syncID];
         // sync.partialSync1 should always be the first one to be set, regardless
         // if it's token0 or token1 being bridged
@@ -265,9 +257,13 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             if (lastBridged0[origin][syncID] > 0 && lastBridged1[origin][syncID] > 0) {
                 // if incoming message's token is token0, means partialSyncA is token1
                 if (token == token0) {
-                    _finalizeSyncFromL2(origin, syncID, PartialSync(token, pairBalance, earmarkedDelta), sync.partialSyncA);
+                    _finalizeSyncFromL2(
+                        origin, syncID, PartialSync(token, pairBalance, earmarkedDelta), sync.partialSyncA
+                    );
                 } else {
-                    _finalizeSyncFromL2(origin, syncID, sync.partialSyncA, PartialSync(token, pairBalance, earmarkedDelta));
+                    _finalizeSyncFromL2(
+                        origin, syncID, sync.partialSyncA, PartialSync(token, pairBalance, earmarkedDelta)
+                    );
                 }
                 // reset
                 delete syncs[origin][syncID];
@@ -308,18 +304,17 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                 partialSync1.pairBalance,
                 partialSync0.earmarkedAmount,
                 partialSync1.earmarkedAmount
-            );
+                );
         }
         {
             emit Fees(
                 srcDomain,
                 lastBridged0[srcDomain][syncID] - partialSync0.pairBalance,
                 lastBridged1[srcDomain][syncID] - partialSync1.pairBalance
-            );
+                );
             // cleanup
             delete lastBridged0[srcDomain][syncID];
             delete lastBridged1[srcDomain][syncID];
-            
         }
         uint256 balance0 = ERC20(partialSync0.token).balanceOf(address(this));
         uint256 balance1 = ERC20(partialSync1.token).balanceOf(address(this));
