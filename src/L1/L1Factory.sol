@@ -6,7 +6,7 @@ import {Dove} from "./Dove.sol";
 contract L1Factory {
     address public hyperlaneGasMaster;
     address public mailbox;
-    address public sgRouter;
+    address public stargateRouter;
 
     bool public isPaused;
     address public pauser;
@@ -18,13 +18,13 @@ contract L1Factory {
 
     event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
 
-    constructor(address _hyperlaneGasMaster, address _mailbox, address _sgRouter) {
+    constructor(address _hyperlaneGasMaster, address _mailbox, address _stargateRouter) {
         pauser = msg.sender;
         isPaused = false;
 
         hyperlaneGasMaster = _hyperlaneGasMaster;
         mailbox = _mailbox;
-        sgRouter = _sgRouter;
+        stargateRouter = _stargateRouter;
     }
 
     function allPairsLength() external view returns (uint256) {
@@ -61,8 +61,7 @@ contract L1Factory {
             token0,
             token1,
             hyperlaneGasMaster,
-            mailbox,
-            sgRouter
+            mailbox
             )
         );
         getPair[token0][token1] = pair;

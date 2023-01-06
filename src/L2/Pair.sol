@@ -6,13 +6,13 @@ import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 import {Voucher} from "./Voucher.sol";
-//import {Factory} from "./Factory.sol";
 import {FeesAccumulator} from "./FeesAccumulator.sol";
 
 import "../hyperlane/HyperlaneClient.sol";
 import "../hyperlane/TypeCasts.sol";
 
 import "./interfaces/IStargateRouter.sol";
+import "./interfaces/IL2Factory.sol";
 
 import "../MessageType.sol";
 
@@ -22,10 +22,9 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     /*###############################################################
                             STORAGE
     ###############################################################*/
-    IStargateRouter public stargateRouter;
-    address public L1Target;
+    IL2Factory public factory;
 
-    address public factory;
+    address public L1Target;
 
     /// @notice The bridged token0.
     address public token0;
@@ -49,14 +48,17 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
 
     uint64 internal immutable decimals0;
     uint64 internal immutable decimals1;
-    uint32 internal immutable destDomain;
-    uint16 internal immutable destChainId;
-    /// @notice "Reference" reserves on L1
+
+    IL2Factory.SGConfig internal sgConfig;
+
+    ///@notice "reference" reserves on L1
     uint256 internal ref0;
     uint256 internal ref1;
     /// @notice Amount of vouchers minted since last L2->L1 sync
     uint256 internal voucher0Delta;
     uint256 internal voucher1Delta;
+
+    uint256 internal syncID;
 
     uint256 constant FEE = 300;
 
@@ -81,24 +83,21 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         address _L1Token0,
         address _token1,
         address _L1Token1,
+        IL2Factory.SGConfig memory _sgConfig,
         address _gasMaster,
         address _mailbox,
-        address _stargateRouter,
-        address _L1Target,
-        uint16 _destChainId,
-        uint32 _destDomain
+        address _L1Target
     ) HyperlaneClient(_gasMaster, _mailbox, address(0)) {
-        factory = msg.sender;
+        factory = IL2Factory(msg.sender);
 
-        destChainId = _destChainId;
-        destDomain = _destDomain;
-        stargateRouter = IStargateRouter(_stargateRouter);
         L1Target = _L1Target;
 
         token0 = _token0;
         L1Token0 = _L1Token0;
         token1 = _token1;
         L1Token1 = _L1Token1;
+
+        sgConfig = _sgConfig;
 
         ERC20 token0_ = ERC20(_token0);
         ERC20 token1_ = ERC20(_token1);
@@ -170,18 +169,32 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         uint256 _balance0;
         uint256 _balance1;
         {
-            // scope for _token{0,1}, avoids stack too deep errors
             (address _token0, address _token1) = (token0, token1);
+            _balance0 = ERC20(_token0).balanceOf(address(this));
+            _balance1 = ERC20(_token1).balanceOf(address(this));
+            // scope for _token{0,1}, avoids stack too deep errors
             require(to != _token0 && to != _token1, "IT"); // BaseV1: INVALID_TO
             // optimistically mints vouchers
             if (amount0Out > 0) {
-                voucher0.mint(to, amount0Out);
-                voucher0Delta += amount0Out;
+                // delta is what we have to transfer
+                // difference between our token balance and what user needs
+                (uint256 toSend, uint256 toMint) =
+                    _balance0 >= amount0Out ? (amount0Out, 0) : (_balance0, amount0Out - _balance0);
+                if (toSend > 0) SafeTransferLib.safeTransfer(ERC20(_token0), to, toSend);
+                if (toMint > 0) {
+                    voucher0.mint(to, toMint);
+                    voucher0Delta += toMint;
+                }
             }
             // optimistically mints vouchers
             if (amount1Out > 0) {
-                voucher1.mint(to, amount1Out);
-                voucher1Delta += amount1Out;
+                (uint256 toSend, uint256 toMint) =
+                    _balance1 >= amount1Out ? (amount1Out, 0) : (_balance1, amount1Out - _balance1);
+                if (toSend > 0) SafeTransferLib.safeTransfer(ERC20(_token1), to, toSend);
+                if (toMint > 0) {
+                    voucher1.mint(to, toMint);
+                    voucher1Delta += toMint;
+                }
             }
             //if (data.length > 0) IBaseV1Callee(to).hook(msg.sender, amount0Out, amount1Out, data);
             _balance0 = balance0();
@@ -192,7 +205,6 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         require(amount0In > 0 || amount1In > 0, "IIA"); // BaseV1: INSUFFICIENT_INPUT_AMOUNT
         {
             // scope for reserve{0,1}Adjusted, avoids stack too deep errors
-            (address _token0, address _token1) = (token0, token1);
             if (amount0In > 0) _accumulateFees(token0, amount0In / FEE); // accrue fees for token0 and move them out of pool
             if (amount1In > 0) _accumulateFees(token1, amount1In / FEE); // accrue fees for token1 and move them out of pool
             _balance0 = balance0(); // since we removed tokens, we need to reconfirm balances, can also simply use previous balance - amountIn/ 10000, but doing balanceOf again as safety check
@@ -219,20 +231,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
 
     /// @notice Syncs to the L1.
     /// @dev Dependent on SG.
-    /// @param srcPoolId0 ID of the src pool for token0.
-    /// @param dstPoolId0 ID of the dst pool for token0.
-    /// @param srcPoolId1 ID of the src pool for token1.
-    /// @param dstPoolId1 ID of the dst pool for token1.
-    /// @param sgFee Fee for Stargate bridging.
-    /// @param hyperlaneFee Fee for Hyperlane messaging.
-    function syncToL1(
-        uint256 srcPoolId0,
-        uint256 dstPoolId0,
-        uint256 srcPoolId1,
-        uint256 dstPoolId1,
-        uint256 sgFee,
-        uint256 hyperlaneFee
-    ) external payable {
+    function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable {
         require(msg.value >= (sgFee + hyperlaneFee) * 2, "SG fee + HL fee");
         ERC20 _token0 = ERC20(token0);
         ERC20 _token1 = ERC20(token1);
@@ -241,21 +240,26 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         uint256 _balance1 = _token1.balanceOf(address(this));
         (uint256 fees0, uint256 fees1) = feesAccumulator.take();
 
+        uint32 destDomain = factory.destDomain();
+        uint16 destChainId = factory.destChainId();
+
+        IStargateRouter stargateRouter = IStargateRouter(factory.stargateRouter());
+
         {
             // swap token0
             _token0.approve(address(stargateRouter), _balance0 + fees0);
             stargateRouter.swap{value: sgFee}(
                 destChainId,
-                srcPoolId0,
-                dstPoolId0,
+                sgConfig.srcPoolId0,
+                sgConfig.dstPoolId0,
                 payable(msg.sender),
                 _balance0 + fees0,
                 _balance0,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                "0x1"
+                abi.encodePacked(syncID)
             );
-            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, L1Token0, voucher0Delta, _balance0);
+            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID, L1Token0, voucher0Delta, _balance0);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
         }
@@ -265,16 +269,16 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
             _token1.approve(address(stargateRouter), _balance1 + fees1);
             stargateRouter.swap{value: sgFee}(
                 destChainId,
-                srcPoolId1,
-                dstPoolId1,
+                sgConfig.srcPoolId1,
+                sgConfig.dstPoolId1,
                 payable(msg.sender),
                 _balance1 + fees1,
                 _balance1,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                "0x1"
+                abi.encodePacked(syncID)
             );
-            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, L1Token1, voucher1Delta, _balance1);
+            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID, L1Token1, voucher1Delta, _balance1);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
         }
@@ -285,6 +289,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         ref1 = reserve1;
         voucher0Delta = 0;
         voucher1Delta = 0;
+        syncID++;
     }
 
     /// @notice Allows user to burn his L2 vouchers to get the L1 tokens.
@@ -292,6 +297,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     /// @param amount1 Amount of voucher1 to burn.
     function burnVouchers(uint256 amount0, uint256 amount1) external payable nonReentrant {
         uint256 fee = amount0 > 0 && amount1 > 0 ? msg.value / 2 : msg.value;
+        uint32 destDomain = factory.destDomain();
+
         // tell L1 that vouchers been burned
         require(amount0 > 0 || amount1 > 0, "NO VOUCHERS");
         if (amount0 > 0) voucher0.burn(msg.sender, amount0);
@@ -315,6 +322,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     /// @param sender Address of the message sender.
     /// @param payload Message payload.
     function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
+        uint32 destDomain = factory.destDomain();
         require(origin == destDomain, "WRONG ORIGIN");
         require(TypeCasts.addressToBytes32(L1Target) == sender, "NOT DOVE");
         uint256 messageType = abi.decode(payload, (uint256));

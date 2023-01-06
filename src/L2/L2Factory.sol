@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
+import "./interfaces/IL2Factory.sol";
+
 import "./Pair.sol";
 
 contract L2Factory {
@@ -41,16 +43,14 @@ contract L2Factory {
         return keccak256(type(Pair).creationCode);
     }
 
-    /// @notice Creates a new pair contract and registers it in the factory.
-    /// @param tokenA Address of the first token.
-    /// @param tokenB Address of the second token.
-    /// @param L1TokenA Address of the first token on L1.
-    /// @param L1TokenB Address of the second token on L1.
-    /// @param L1Target Address of the L1 target contract.
-    function createPair(address tokenA, address tokenB, address L1TokenA, address L1TokenB, address L1Target)
-        external
-        returns (address pair)
-    {
+    function createPair(
+        address tokenA,
+        address tokenB,
+        SGConfig calldata sgConfig,
+        address L1TokenA,
+        address L1TokenB,
+        address L1Target
+    ) external returns (address pair) {
         require(tokenA != tokenB, "Factory: IDENTICAL_ADDRESSES");
         // sort tokens
         (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
@@ -58,22 +58,8 @@ contract L2Factory {
         require(token0 != address(0) && token1 != address(0), "Factory: ZERO_ADDRESS");
         require(L1Token0 != address(0) && L1Token1 != address(0), "Factory: ZERO_ADDRESS_ORIGIN");
         // check if pair exists
-        address pairAddress = getPair[token0][token1];
-        require(pairAddress == address(0), "Factory: PAIR_EXISTS"); // single check is sufficient
-        bytes32 salt = keccak256(
-            abi.encodePacked(
-                token0,
-                L1Token0,
-                token1,
-                L1Token1,
-                gasMaster,
-                mailbox,
-                stargateRouter,
-                L1Target,
-                destChainId,
-                destDomain
-            )
-        );
+        require(getPair[token0][token1] == address(0), "Factory: PAIR_EXISTS"); // single check is sufficient
+        bytes32 salt = keccak256(abi.encodePacked(token0, L1Token0, token1, L1Token1, gasMaster, mailbox, L1Target));
         // shitty design, should remove gasMaster,sgRouter, destChainId and destDomain from constructor
         // should query factory
         pair = address(
@@ -82,12 +68,10 @@ contract L2Factory {
                 L1Token0,
                 token1,
                 L1Token1,
+                sgConfig,
                 gasMaster,
                 mailbox,
-                stargateRouter,
-                L1Target,
-                destChainId,
-                destDomain
+                L1Target
             )
         );
 

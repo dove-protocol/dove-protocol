@@ -14,6 +14,7 @@ import {SGHyperlaneConverter} from "./SGHyperlaneConverter.sol";
 import "../hyperlane/TypeCasts.sol";
 
 import "./interfaces/IStargateReceiver.sol";
+import "./interfaces/IL1Factory.sol";
 import "../hyperlane/HyperlaneClient.sol";
 
 import "../MessageType.sol";
@@ -26,8 +27,17 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
     event Claim(address indexed sender, address indexed recipient, uint256 amount0, uint256 amount1);
-    event Sync(uint256 reserve0, uint256 reserve1);
-    event Bridged(address token, uint256 amount);
+    event Updated(uint256 reserve0, uint256 reserve1);
+    event Bridged(uint256 indexed srcChainId, uint256 syncId, address token, uint256 amount);
+    event SyncPending(uint256 indexed srcDomain, uint256 syncID);
+    event SyncFinalized(
+        uint256 indexed srcDomain,
+        uint256 syncID,
+        uint256 pairBalance0,
+        uint256 pairBalance1,
+        uint256 earmarkedAmount0,
+        uint256 earmarkedAmount1
+    );
     /*###############################################################
                             STRUCTS
     ###############################################################*/
@@ -38,13 +48,18 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256 earmarkedAmount; // tokens to earmark
     }
 
+    struct Sync {
+        PartialSync partialSyncA;
+        PartialSync partialSyncB;
+    }
+
     /*###############################################################
                             STORAGE
     ###############################################################*/
 
     uint256 internal constant MINIMUM_LIQUIDITY = 10 ** 3;
 
-    address public stargateRouter;
+    IL1Factory public factory;
 
     address public token0;
     address public token1;
@@ -55,17 +70,16 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     FeesDistributor public feesDistributor;
     Fountain public fountain;
 
-    /// @notice earmarked tokens
+    /// @notice domain id [hyperlane] => earmarked tokens
     mapping(uint32 => uint256) public marked0;
     mapping(uint32 => uint256) public marked1;
-    /// @notice domain id [hyperlane] => PartialSync
-    mapping(uint32 => PartialSync) public partialSyncs;
+    mapping(uint32 => mapping(uint256 => Sync)) public syncs;
 
     mapping(uint32 => bytes32) public trustedRemoteLookup;
     mapping(uint16 => bytes) public sgTrustedBridge;
 
-    mapping(uint32 => uint256) internal lastBridged0;
-    mapping(uint32 => uint256) internal lastBridged1;
+    mapping(uint32 => mapping(uint256 => uint256)) internal lastBridged0;
+    mapping(uint32 => mapping(uint256 => uint256)) internal lastBridged1;
 
     function addTrustedRemote(uint32 origin, bytes32 sender) external onlyOwner {
         trustedRemoteLookup[origin] = sender;
@@ -79,13 +93,14 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                             CONSTRUCTOR
     ###############################################################*/
 
-    constructor(address _token0, address _token1, address _hyperlaneGasMaster, address _mailbox, address _sgRouter)
+    constructor(address _token0, address _token1, address _hyperlaneGasMaster, address _mailbox)
         ERC20("Dove", "DVE", 18)
         HyperlaneClient(_hyperlaneGasMaster, _mailbox, msg.sender)
     {
+        factory = IL1Factory(msg.sender);
+
         token0 = _token0;
         token1 = _token1;
-        stargateRouter = _sgRouter;
 
         feesDistributor = new FeesDistributor(_token0, _token1);
         fountain = new Fountain(_token0, _token1);
@@ -98,7 +113,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     function _update(uint256 balance0, uint256 balance1, uint256 _reserve0, uint256 _reserve1) internal {
         reserve0 = balance0;
         reserve1 = balance1;
-        emit Sync(reserve0, reserve1);
+        emit Updated(reserve0, reserve1);
     }
 
     function mint(address to) external nonReentrant returns (uint256 liquidity) {
@@ -156,35 +171,19 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256, /*_nonce*/
         address _token,
         uint256 _bridgedAmount,
-        bytes calldata
+        bytes calldata data
     ) external override {
+        address stargateRouter = factory.stargateRouter();
         require(msg.sender == stargateRouter, "NOT STARGATE");
         require(keccak256(_srcAddress) == keccak256(sgTrustedBridge[_srcChainId]), "NOT TRUSTED");
+        uint256 syncID = abi.decode(data, (uint256));
         uint32 domain = SGHyperlaneConverter.sgToHyperlane(_srcChainId);
         if (_token == token0) {
-            lastBridged0[domain] = _bridgedAmount;
+            lastBridged0[domain][syncID] = _bridgedAmount;
         } else if (_token == token1) {
-            lastBridged1[domain] = _bridgedAmount;
+            lastBridged1[domain][syncID] = _bridgedAmount;
         }
-        emit Bridged(_token, _bridgedAmount);
-    }
-
-    function syncFromL2(uint32 origin, address token, uint256 earmarkedDelta, uint256 pairBalance) internal {
-        // check if already partial sync
-        // @note Maybe enforce check that second partial sync is "pair" of first one
-        PartialSync memory partialSync = partialSyncs[origin];
-        if (partialSync.token == address(0)) {
-            partialSyncs[origin] = PartialSync(token, pairBalance, earmarkedDelta);
-        } else {
-            // can proceed with full sync
-            if (token == token0) {
-                _syncFromL2(origin, pairBalance, partialSync.pairBalance, earmarkedDelta, partialSync.earmarkedAmount);
-            } else {
-                _syncFromL2(origin, partialSync.pairBalance, pairBalance, partialSync.earmarkedAmount, earmarkedDelta);
-            }
-            // reset
-            delete partialSyncs[origin];
-        }
+        emit Bridged(_srcChainId, syncID, _token, _bridgedAmount);
     }
 
     function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
@@ -195,11 +194,13 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             // receive both amounts and a single address to determine ordering
             (, address user, address token, uint256 amount0, uint256 amount1) =
                 abi.decode(payload, (uint256, address, address, uint256, uint256));
+            (, address user, address token, uint256 amount0, uint256 amount1) =
+                abi.decode(payload, (uint256, address, address, uint256, uint256));
             _completeVoucherBurns(origin, user, token, amount0, amount1);
         } else if (messageType == MessageType.SYNC_TO_L1) {
-            (, address token, uint256 earmarkedDelta, uint256 pairBalance) =
-                abi.decode(payload, (uint256, address, uint256, uint256));
-            syncFromL2(origin, token, earmarkedDelta, pairBalance);
+            (, uint256 syncID, address token, uint256 earmarkedDelta, uint256 pairBalance) =
+                abi.decode(payload, (uint256, uint256, address, uint256, uint256));
+            _syncFromL2(origin, syncID, token, earmarkedDelta, pairBalance);
         }
     }
 
@@ -208,9 +209,17 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     /// @param pair Address of the Pair on the remote chain.
     function syncL2(uint32 destinationDomain, address pair) external payable {
         bytes memory payload = abi.encode(MessageType.SYNC_TO_L2, token0, reserve0, reserve1);
-        bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(pair), payload);
-        // pay for gas
+        bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(amm), payload);
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destinationDomain);
+    }
+
+    function finalizeSyncFromL2(uint32 originDomain, uint256 syncID) external {
+        require(lastBridged0[originDomain][syncID] > 0 && lastBridged1[originDomain][syncID] > 0, "NO SG SWAPS");
+        Sync memory sync = syncs[originDomain][syncID];
+        (PartialSync memory partialSync0, PartialSync memory partialSync1) = sync.partialSyncA.token == token0
+            ? (sync.partialSyncA, sync.partialSyncB)
+            : (sync.partialSyncB, sync.partialSyncA);
+        _finalizeSyncFromL2(originDomain, syncID, partialSync0, partialSync1);
     }
 
     /*###############################################################
@@ -239,41 +248,82 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         }
     }
 
+    function _syncFromL2(uint32 origin, uint256 syncID, address token, uint256 earmarkedDelta, uint256 pairBalance)
+        internal
+    {
+        Sync memory sync = syncs[origin][syncID];
+        // sync.partialSync1 should always be the first one to be set, regardless
+        // if it's token0 or token1 being bridged
+        if (sync.partialSyncA.token == address(0)) {
+            syncs[origin][syncID].partialSyncA = PartialSync(token, pairBalance, earmarkedDelta);
+        } else {
+            // can proceed with full sync since we got the two HyperLane messages
+            // have to check if SG swaps are completed
+            if (lastBridged0[origin][syncID] > 0 && lastBridged1[origin][syncID] > 0) {
+                // if incoming message's token is token0, means partialSyncA is token1
+                if (token == token0) {
+                    _finalizeSyncFromL2(
+                        origin, syncID, PartialSync(token, pairBalance, earmarkedDelta), sync.partialSyncA
+                    );
+                } else {
+                    _finalizeSyncFromL2(
+                        origin, syncID, sync.partialSyncA, PartialSync(token, pairBalance, earmarkedDelta)
+                    );
+                }
+                // reset
+                delete syncs[origin][syncID];
+            } else {
+                // otherwise means there is at least one SG swap that hasn't completed yet
+                // so we need to store the HL data and execute the sync when the SG swap is done
+                syncs[origin][syncID].partialSyncB = PartialSync(token, pairBalance, earmarkedDelta);
+                emit SyncPending(origin, syncID);
+            }
+        }
+    }
+
     /// @notice Syncing implies bridging the tokens from the L2 back to the L1.
     /// @notice These tokens are simply added back to the reserves.
-    /// @dev This should be an authenticated call, only callable by the operator.
-    /// @dev The sync should be followed by a sync on the L2.
+    /// @dev    This should be an authenticated call, only callable by the operator.
+    /// @dev    The sync should be followed by a sync on the L2.
     function _syncFromL2(
         uint32 srcDomain,
-        uint256 pairBalance0,
-        uint256 pairBalance1,
-        uint256 earmarkedDelta0,
-        uint256 earmarkedDelta1
+        uint256 syncID,
+        PartialSync memory partialSync0,
+        PartialSync memory partialSync1
     ) internal {
         (ERC20 _token0, ERC20 _token1) = (ERC20(token0), ERC20(token1));
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         {
-            reserve0 = _reserve0 + pairBalance0 - earmarkedDelta0;
-            reserve1 = _reserve1 + pairBalance1 - earmarkedDelta1;
-            marked0[srcDomain] += earmarkedDelta0;
-            marked1[srcDomain] += earmarkedDelta1;
+            reserve0 = _reserve0 + partialSync0.pairBalance - partialSync0.earmarkedAmount;
+            reserve1 = _reserve1 + partialSync1.pairBalance - partialSync1.earmarkedAmount;
+            marked0[srcDomain] += partialSync0.earmarkedAmount;
+            marked1[srcDomain] += partialSync1.earmarkedAmount;
             // put earmarked tokens on the side
-            SafeTransferLib.safeTransfer(_token0, address(fountain), earmarkedDelta0);
-            SafeTransferLib.safeTransfer(_token1, address(fountain), earmarkedDelta1);
+            SafeTransferLib.safeTransfer(ERC20(partialSync0.token), address(fountain), partialSync0.earmarkedAmount);
+            SafeTransferLib.safeTransfer(ERC20(partialSync1.token), address(fountain), partialSync1.earmarkedAmount);
+
+            emit SyncFinalized(
+                srcDomain,
+                syncID,
+                partialSync0.pairBalance,
+                partialSync1.pairBalance,
+                partialSync0.earmarkedAmount,
+                partialSync1.earmarkedAmount
+                );
         }
-        uint256 balance0 = _token0.balanceOf(address(this));
-        uint256 balance1 = _token1.balanceOf(address(this));
         {
-            uint256 fees0 = lastBridged0[srcDomain] - pairBalance0;
-            uint256 fees1 = lastBridged1[srcDomain] - pairBalance1;
-            emit Fees(srcDomain, fees0, fees1);
-            // uint256 balance0Adjusted = balance0 - fees0;
-            // uint256 balance1Adjusted = balance1 - fees1;
-            // check curve ?????
+            emit Fees(
+                srcDomain,
+                lastBridged0[srcDomain][syncID] - partialSync0.pairBalance,
+                lastBridged1[srcDomain][syncID] - partialSync1.pairBalance
+                );
             // cleanup
             delete lastBridged0[srcDomain];
             delete lastBridged1[srcDomain];
+            
         }
+        uint256 balance0 = ERC20(partialSync0.token).balanceOf(address(this));
+        uint256 balance1 = ERC20(partialSync1.token).balanceOf(address(this));
         _update(balance0, balance1, _reserve0, _reserve1);
     }
 
