@@ -73,10 +73,8 @@ contract DoveSimpleTest is DoveBase {
         //     reserve0[DAI]   = 10**(7+18) + 49970000000000000000000 - 49833330250459178059597
         //                     = 10000136669749540821940403
         // */
-        // // todo : remove magic numbers (which are the fees here)
-        assertEq(dove.reserve0(), L2R1 + 136666666666666666666);
-        // because of swap optimization, we only bridged the fees!
-        assertEq(dove.reserve1(), L2R0 + 166566667);
+        assertEq(dove.reserve0(), L2R1);
+        assertEq(dove.reserve1(), L2R0);
         assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k0);
     }
 
@@ -202,8 +200,8 @@ contract DoveSimpleTest is DoveBase {
         assertEq(dove.marked1(L2_DOMAIN), voucher0Balance);
         assertEq(L1Token0.balanceOf(address(dove.fountain())), voucher1Balance);
         assertEq(L1Token1.balanceOf(address(dove.fountain())), voucher0Balance);
-        assertEq(dove.reserve0(), L2R1 + 136666666666666666666);
-        assertEq(dove.reserve1(), L2R0 + 166566667);
+        assertEq(dove.reserve0(), L2R1);
+        assertEq(dove.reserve1(), L2R0);
     }
 
     function testCannotFinalizeTwice() external {
