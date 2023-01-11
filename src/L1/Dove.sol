@@ -138,6 +138,16 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         emit Claim(recipient, claimed0, claimed1);
     }
 
+    function _transferAllFeesFrom(address from, address to) internal {
+        if (to == address(this)) return;
+        uint256 _fees0 = claimable0[from];
+        uint256 _fees1 = claimable1[from];
+        claimable0[from] = 0;
+        claimable1[from] = 0;
+        claimable0[to] += _fees0;
+        claimable1[to] += _fees1;
+    }
+
     // this function MUST be called on any balance changes, otherwise can be used to infinitely claim fees
     // Fees are segregated from core funds, so fees can never put liquidity at risk
     function _updateFor(address recipient) internal {
@@ -217,6 +227,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     }
 
     function burn(address to) external nonReentrant returns (uint256 amount0, uint256 amount1) {
+        _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         (ERC20 _token0, ERC20 _token1) = (ERC20(token0), ERC20(token1));
         uint256 _balance0 = _token0.balanceOf(address(this));
@@ -389,11 +400,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             uint256 fees1 = lastBridged1[srcDomain][syncID] - partialSync1.pairBalance;
             _update0(fees0);
             _update1(fees1);
-            emit Fees(
-                srcDomain,
-                fees0,
-                fees1
-            );
+            emit Fees(srcDomain, fees0, fees1);
             // cleanup
             delete lastBridged0[srcDomain][syncID];
             delete lastBridged1[srcDomain][syncID];
@@ -406,12 +413,14 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     function transfer(address to, uint256 amount) public override returns (bool) {
         _updateFor(msg.sender);
         _updateFor(to);
+        _transferAllFeesFrom(msg.sender, to);
         return super.transfer(to, amount);
     }
 
     function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
         _updateFor(from);
         _updateFor(to);
+        _transferAllFeesFrom(from, to);
         return super.transferFrom(from, to, amount);
     }
 

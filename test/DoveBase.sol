@@ -32,7 +32,6 @@ import {MailboxMock} from "./mocks/MailboxMock.sol";
     token1      token0+voucher0
     marked0     voucher1
     marked1     voucher0
-
 */
 contract DoveBase is Test, Helper {
     // L1
