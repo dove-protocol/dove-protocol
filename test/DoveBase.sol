@@ -139,6 +139,9 @@ contract DoveBase is Test, Helper {
         L2Token0 = ERC20Mock(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174); // USDC
         L2Token1 = ERC20Mock(0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063); // DAI
 
+        vm.label(address(L2Token0), "USDC");
+        vm.label(address(L2Token1), "DAI");
+
         // deploy factory
         factoryL2 = new L2Factory(address(gasMasterL2), address(mailboxL2), L2SGRouter, L1_CHAIN_ID, L1_DOMAIN);
         // deploy router

@@ -80,61 +80,56 @@ contract DoveSimpleTest is DoveBase {
     /*
         Burning vouchers on L2 should result in the user getting the underlying token on L1.
     */
-    // function testVouchersBurn() external {
-    //     _syncToL2();
-    //     vm.selectFork(L2_FORK_ID);
-    //     _doMoreSwaps();
-    //     _standardSyncToL1();
+    function testVouchersBurnWithPartialFulfillment() external {
+        _syncToL2();
+        vm.selectFork(L2_FORK_ID);
+        _doMoreSwaps();
+        _standardSyncToL1();
 
-    //     vm.selectFork(L1_FORK_ID);
-    //     uint256 L1R0 = dove.reserve0();
-    //     uint256 L1R1 = dove.reserve1();
+        vm.selectFork(L1_FORK_ID);
+        uint256 L1R0 = dove.reserve0();
+        uint256 L1R1 = dove.reserve1();
 
-    //     vm.selectFork(L2_FORK_ID);
+        vm.selectFork(L2_FORK_ID);
 
-    //     uint256 voucher0Supply = pair.voucher0().totalSupply();
-    //     uint256 voucher1Supply = pair.voucher1().totalSupply();
+        uint256 voucher0Supply = pair.voucher0().totalSupply();
+        uint256 voucher1Supply = pair.voucher1().totalSupply();
 
-    //     // dai
-    //     uint256 voucher1BalanceOfBeef = pair.voucher1().balanceOf(address(0xbeef));
+        // dai
+        uint256 voucher1BalanceOfBeef = pair.voucher1().balanceOf(address(0xbeef));
+        uint256 balance1OfBeef = L2Token1.balanceOf(address(0xbeef));
 
-    //     // burn just one voucher for now
-    //     _burnVouchers(address(0xbeef), 0, voucher1BalanceOfBeef);
+        (,uint256 toSend1,, uint256 excess1) = pair.getExcessAfterBurn(0, voucher1BalanceOfBeef);
 
-    //     vm.selectFork(L2_FORK_ID);
-    //     // check vouchers has been burnt
-    //     assertEq(pair.voucher0().totalSupply(), voucher0Supply);
-    //     assertEq(pair.voucher1().balanceOf(address(0xbeef)), 0);
+        // burn just one voucher for now
+        _burnVouchers(address(0xbeef), 0, voucher1BalanceOfBeef);
 
-    //     vm.selectFork(L1_FORK_ID);
+        vm.selectFork(L2_FORK_ID);
+        // check vouchers has been burnt
+        assertEq(pair.voucher0().totalSupply(), voucher0Supply);
+        assertEq(pair.voucher1().balanceOf(address(0xbeef)), 0);
 
-    //     assertEq(dove.marked1(L2_DOMAIN), voucher0Supply);
-    //     assertEq(dove.marked0(L2_DOMAIN), voucher1Supply - voucher1BalanceOfBeef);
-    //     // reserves should not have changed
-    //     assertEq(dove.reserve0(), L1R0);
-    //     assertEq(dove.reserve1(), L1R1);
-    //     // correctly transfered tokens to user
-    //     assertEq(L1Token0.balanceOf(address(0xbeef)), voucher1BalanceOfBeef);
+        // check amount of tokens sent to user
+        assertEq(L1Token1.balanceOf(address(0xbeef)), balance1OfBeef + toSend1);
 
-    //     vm.selectFork(L2_FORK_ID);
-    //     // nothing should have happened
-    //     assertEq(pair.voucher1().totalSupply(), voucher1Supply - voucher1BalanceOfBeef);
-    //     assertEq(pair.voucher0().balanceOf(address(0xbeef)), 3082);
-    //     assertEq(pair.voucher1().balanceOf(address(0xcafe)), 0);
+        vm.selectFork(L1_FORK_ID);
 
-    //     vm.selectFork(L1_FORK_ID);
+        assertEq(dove.marked1(L2_DOMAIN), voucher0Supply);
+        assertEq(dove.marked0(L2_DOMAIN), voucher1Supply - voucher1BalanceOfBeef);
+        // reserves should not have changed
+        assertEq(dove.reserve0(), L1R0);
+        assertEq(dove.reserve1(), L1R1);
+        // correctly transfered tokens to user
+        assertEq(L1Token0.balanceOf(address(0xbeef)), voucher1BalanceOfBeef);
 
-    //     assertEq(dove.marked1(L2_DOMAIN), voucher0Supply);
-    //     assertEq(dove.marked0(L2_DOMAIN), voucher1Supply - voucher1BalanceOfBeef);
-    //     // reserves should not have changed
-    //     assertEq(dove.reserve0(), L1R0);
-    //     assertEq(dove.reserve1(), L1R1);
-    //     // correctly transfered tokens to user
-    //     assertEq(L1Token0.balanceOf(address(0xbeef)), voucher1BalanceOfBeef);
-    //     assertEq(L1Token0.balanceOf(address(0xcafe)), 0);
-    // }
+        vm.selectFork(L2_FORK_ID);
+        // nothing should have happened
+        assertEq(pair.voucher1().totalSupply(), voucher1Supply - voucher1BalanceOfBeef);
+        assertEq(pair.voucher0().balanceOf(address(0xbeef)), voucher1BalanceOfBeef);
+        assertEq(pair.voucher1().balanceOf(address(0xcafe)), 0);
+    }
 
-      function testVouchersBurnWhenEnoughLiquidity() external {
+    function testVouchersBurnWithFullFullfillment() external {
         _syncToL2();
         vm.selectFork(L2_FORK_ID);
         _doMoreSwaps();
@@ -152,26 +147,20 @@ contract DoveSimpleTest is DoveBase {
         // dai
         uint256 voucher1BalanceOfBeef = pair.voucher1().balanceOf(address(0xbeef));
 
-        uint256 balance0 = L2Token0.balanceOf(address(0xbeef));
-
-        // burn just one voucher for now
+        // burn just one voucher for now (10 ** 3 is random amount lower than L2 balance)
         vm.broadcast(address(0xbeef));
-        pair.burnVouchers(0, voucher1BalanceOfBeef);
+        pair.burnVouchers(0, 10 ** 3);
 
         // check vouchers has been burnt
         assertEq(pair.voucher0().totalSupply(), voucher0Supply);
-        assertEq(pair.voucher1().balanceOf(address(0xbeef)), 0);
+        assertEq(pair.voucher1().balanceOf(address(0xbeef)), voucher1BalanceOfBeef - 10 ** 3);
 
-        assertEq(pair.voucher1().totalSupply(), voucher1Supply - voucher1BalanceOfBeef);
+        assertEq(pair.voucher1().totalSupply(), voucher1Supply - 10 ** 3);
         assertEq(pair.voucher0().balanceOf(address(0xbeef)), 3082);
         assertEq(pair.voucher1().balanceOf(address(0xcafe)), 0);
 
-
-        // check user received tokens
-        assertEq(L2Token0.balanceOf(address(0xbeef)), balance0 + voucher1BalanceOfBeef);
-        emit log_named_uint("balance0", balance0);
-        emit log_named_uint("voucher1BalanceOfBeef", voucher1BalanceOfBeef);
-        emit log_named_uint("L2Token0.balanceOf(address(0xbeef))", L2Token0.balanceOf(address(0xbeef)));
+        // check user received tokens on L2
+        assertEq(L2Token1.balanceOf(address(0xbeef)), 10 ** 3);
     }
 
     function testVouchersMath() external {
