@@ -23,6 +23,7 @@ contract DoveFeesTest is DoveBase {
         _doSomeSwaps();
         _standardSyncToL1();
 
+
         (uint256 amount0, uint256 amount1) =
             routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xfab)));
 
@@ -107,5 +108,31 @@ contract DoveFeesTest is DoveBase {
 
         assertEq(L1Token0.balanceOf(address(0xfefe)), 0);
         assertEq(L1Token1.balanceOf(address(0xfefe)), 0);
+    }
+
+    function testAdjustedFeesOnLPTransfer() external {
+        
+        vm.selectFork(L1_FORK_ID);
+        // send the LP tokens before the sync so fees go to proper users
+        uint256 balance = dove.balanceOf(address(this));
+        dove.transfer(address(0xfab), balance / 3);
+        dove.transfer(address(0xbaf), balance / 3);
+        dove.transfer(address(0xbef), balance / 3);
+
+        _syncToL2();
+        vm.selectFork(L2_FORK_ID);
+        _doSomeSwaps();
+        _standardSyncToL1();
+
+        vm.selectFork(L1_FORK_ID);
+        uint256 expectedFees0 = L1Token0.balanceOf(address(dove.feesDistributor())) / 3;
+
+        vm.startBroadcast(address(0xfab));
+        dove.transfer(address(0xfafa), dove.balanceOf(address(0xfab)));
+        vm.stopBroadcast();
+
+        // equivalent to 1e-9 error tolerance
+        assertApproxEqAbs(dove.claimable0(address(0xfab)), expectedFees0, 10**9);
+        assertEq(dove.claimable0(address(0xfafa)), 0);
     }
 }
