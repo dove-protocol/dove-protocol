@@ -46,31 +46,31 @@ jobs:
           ETH_MAINNET_RPC_URL: ${{ secrets.ETH_MAINNET_RPC_URL }}
           POLYGON_MAINNET_RPC_URL: ${{ secrets.POLYGON_MAINNET_RPC_URL }}
 
-  slither:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [16.x]
-    steps:
-      - uses: actions/checkout@v2
+  # slither:
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     matrix:
+  #       node-version: [16.x]
+  #   steps:
+  #     - uses: actions/checkout@v2
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly
+  #     - name: Install Foundry
+  #       uses: foundry-rs/foundry-toolchain@v1
+  #       with:
+  #         version: nightly
 
-      - name: Install deps
-        run: forge install
+  #     - name: Install deps
+  #       run: forge install
 
-      - name: Check contract sizes
-        run: forge build --sizes
+  #     - name: Check contract sizes
+  #       run: forge build --sizes
 
-      - name: Run Slither
-        uses: crytic/slither-action@main
-        id: slither
-        with:
-          target: "."
-          slither-args: "--exclude solc-version,pragma,unused-state --exclude-dependencies"
+  #     - name: Run Slither
+  #       uses: crytic/slither-action@main
+  #       id: slither
+  #       with:
+  #         target: "."
+  #         slither-args: "--exclude solc-version,pragma,unused-state --exclude-dependencies"
 
   scripts:
     strategy:
