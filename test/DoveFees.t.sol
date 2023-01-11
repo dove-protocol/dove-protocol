@@ -125,10 +125,10 @@ contract DoveFeesTest is DoveBase {
 
         // transfer LP tokens and try to claim fees
         vm.startBroadcast(address(0xfab));
-        dove.transfer(address(0xbaf),  dove.balanceOf(address(0xfab)));
+        dove.transfer(address(0xbaf), dove.balanceOf(address(0xfab)));
         vm.stopBroadcast();
 
-        assertEq(dove.claimable0(address(0xfab)),0);
+        assertEq(dove.claimable0(address(0xfab)), 0);
         assertEq(dove.claimable1(address(0xfab)), 0);
     }
 

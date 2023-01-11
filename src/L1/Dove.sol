@@ -139,13 +139,17 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     }
 
     function _transferAllFeesFrom(address from, address to) internal {
-        if (to == address(this)) return;
-        uint256 _fees0 = claimable0[from];
-        uint256 _fees1 = claimable1[from];
-        claimable0[from] = 0;
-        claimable1[from] = 0;
-        claimable0[to] += _fees0;
-        claimable1[to] += _fees1;
+        // if fees are being sent to self (when burning LP), don't transfer fees
+        if (to == address(this)) {
+            return;
+        } else {
+            uint256 _fees0 = claimable0[from];
+            uint256 _fees1 = claimable1[from];
+            claimable0[from] = 0;
+            claimable1[from] = 0;
+            claimable0[to] += _fees0;
+            claimable1[to] += _fees1;
+        }
     }
 
     // this function MUST be called on any balance changes, otherwise can be used to infinitely claim fees
