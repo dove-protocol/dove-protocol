@@ -396,11 +396,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             uint256 fees1 = lastBridged1[srcDomain][syncID] - partialSync1.pairBalance;
             _update0(fees0);
             _update1(fees1);
-            emit Fees(
-                srcDomain,
-                fees0,
-                fees1
-            );
+            emit Fees(srcDomain, fees0, fees1);
             // cleanup
             delete lastBridged0[srcDomain][syncID];
             delete lastBridged1[srcDomain][syncID];

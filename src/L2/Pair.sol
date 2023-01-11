@@ -242,6 +242,33 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
     }
 
+    // burns all vouchers on L2 for underlying tokens if possible and return excess amount to trigger burn
+    function _tryBurnVouchersLocal(uint256 voucher0Amount, uint256 voucher1Amount) public
+        returns (uint256 excess0, uint256 excess1)
+    {
+        uint256 _balance0 = ERC20(token0).balanceOf(address(this));
+        uint256 _balance1 = ERC20(token1).balanceOf(address(this));
+
+        if (voucher0Amount > 0) {
+            (uint256 toSend, uint256 _excess0) =
+                _balance0 >= voucher0Amount ? (voucher0Amount, 0) : (_balance0, voucher0Amount - _balance0);
+            excess0 = _excess0;
+            if (toSend > 0) {
+                voucher0.burn(msg.sender, voucher0Amount);
+                SafeTransferLib.safeTransfer(ERC20(token0), msg.sender, toSend);
+            }
+        }
+        if (voucher1Amount > 0) {
+            (uint256 toSend, uint256 _excess1) =
+                _balance1 >= voucher1Amount ? (voucher1Amount, 0) : (_balance1, voucher1Amount - _balance1);
+            excess1 = _excess1;
+            if (toSend > 0) {
+                voucher1.burn(msg.sender, voucher1Amount);
+                SafeTransferLib.safeTransfer(ERC20(token1), msg.sender, toSend);
+            }
+        }
+    }
+
     // force balances to match reserves
     // function skim(address to) external nonReentrant {
     //     (address _token0, address _token1) = (token0, token1);
@@ -386,11 +413,16 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
 
         // tell L1 that vouchers been burned
         require(amount0 > 0 || amount1 > 0, "NO VOUCHERS");
-        if (amount0 > 0) voucher0.burn(msg.sender, amount0);
-        if (amount1 > 0) voucher1.burn(msg.sender, amount1);
-        bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, msg.sender, L1Token0, amount0, amount1);
-        bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-        hyperlaneGasMaster.payGasFor{value: fee}(id, destDomain);
+        (uint256 excess0, uint256 excess1) = _tryBurnVouchersLocal(amount0, amount1);
+
+        // if all vouchers are burned, no need to send message to L1, return msg.value
+        if (excess0 == 0 && excess1 == 0) {
+            payable(msg.sender).transfer(msg.value);
+        } else {
+            bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, msg.sender, L1Token0, excess0, excess1);
+            bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
+            hyperlaneGasMaster.payGasFor{value: fee}(id, destDomain);
+        }
     }
 
     function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
