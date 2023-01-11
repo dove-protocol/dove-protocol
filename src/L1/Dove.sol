@@ -82,8 +82,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
 
     // index0 and index1 are used to accumulate fees, this is split out from normal trades to keep the swap "clean"
     // this further allows LP holders to easily claim fees for tokens they have/staked
-    uint256 public index0 = 0;
-    uint256 public index1 = 0;
+    uint256 public index0;
+    uint256 public index1;
 
     // position assigned to each LP to track their current index0 & index1 vs the global position
     mapping(address => uint256) public supplyIndex0;
@@ -123,11 +123,6 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     ###############################################################*/
 
     function claimFeesFor(address recipient) public nonReentrant returns (uint256 claimed0, uint256 claimed1) {
-        return _claimFees(recipient);
-    }
-
-    function updateAndClaimFeesFor(address recipient) external returns (uint256 claimed0, uint256 claimed1) {
-        _updateFor(recipient);
         return _claimFees(recipient);
     }
 
@@ -198,7 +193,6 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     }
 
     function mint(address to) external nonReentrant returns (uint256 liquidity) {
-        _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         uint256 _balance0 = ERC20(token0).balanceOf(address(this));
         uint256 _balance1 = ERC20(token1).balanceOf(address(this));
@@ -223,7 +217,6 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     }
 
     function burn(address to) external nonReentrant returns (uint256 amount0, uint256 amount1) {
-        _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         (ERC20 _token0, ERC20 _token1) = (ERC20(token0), ERC20(token1));
         uint256 _balance0 = _token0.balanceOf(address(this));
