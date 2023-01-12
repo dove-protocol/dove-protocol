@@ -4,7 +4,6 @@ pragma solidity ^0.8.15;
 import "./DoveBase.sol";
 
 contract DoveSimpleTest is DoveBase {
-
     function setUp() external {
         _setUp();
     }
@@ -225,5 +224,4 @@ contract DoveSimpleTest is DoveBase {
         vm.expectRevert();
         dove.finalizeSyncFromL2(L2_DOMAIN, 0);
     }
-
 }

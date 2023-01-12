@@ -4,13 +4,11 @@ pragma solidity ^0.8.15;
 import "./DoveBase.sol";
 
 contract DoveFeesTest is DoveBase {
-
     function setUp() external {
         _setUp();
     }
 
     function testFeesClaiming() external {
-
         vm.selectFork(L1_FORK_ID);
         // send the LP tokens before the sync so fees go to proper users
         uint256 balance = dove.balanceOf(address(this));
@@ -22,7 +20,6 @@ contract DoveFeesTest is DoveBase {
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
         _standardSyncToL1();
-
 
         (uint256 amount0, uint256 amount1) =
             routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xfab)));
@@ -103,7 +100,6 @@ contract DoveFeesTest is DoveBase {
             type(uint256).max
         );
         vm.stopBroadcast();
-        
         dove.claimFeesFor(address(0xfefe));
 
         assertEq(L1Token0.balanceOf(address(0xfefe)), 0);
@@ -111,7 +107,6 @@ contract DoveFeesTest is DoveBase {
     }
 
     function testAdjustedFeesOnLPTransfer() external {
-        
         vm.selectFork(L1_FORK_ID);
         // send the LP tokens before the sync so fees go to proper users
         uint256 balance = dove.balanceOf(address(this));
@@ -124,15 +119,56 @@ contract DoveFeesTest is DoveBase {
         _doSomeSwaps();
         _standardSyncToL1();
 
-        vm.selectFork(L1_FORK_ID);
-        uint256 expectedFees0 = L1Token0.balanceOf(address(dove.feesDistributor())) / 3;
-
+        // transfer LP tokens and try to claim fees
         vm.startBroadcast(address(0xfab));
-        dove.transfer(address(0xfafa), dove.balanceOf(address(0xfab)));
+        dove.transfer(address(0xbaf), dove.balanceOf(address(0xfab)));
         vm.stopBroadcast();
 
-        // equivalent to 1e-9 error tolerance
-        assertApproxEqAbs(dove.claimable0(address(0xfab)), expectedFees0, 10**9);
-        assertEq(dove.claimable0(address(0xfafa)), 0);
+        assertEq(dove.claimable0(address(0xfab)), 0);
+        assertEq(dove.claimable1(address(0xfab)), 0);
+    }
+
+    function testFeesClaimingAfterLPTransferFrom() external {
+        vm.selectFork(L1_FORK_ID);
+        // send the LP tokens before the sync so fees go to proper users
+        uint256 balance = dove.balanceOf(address(this));
+        dove.transfer(address(0xfab), balance / 3);
+        dove.transfer(address(0xbaf), balance / 3);
+        dove.transfer(address(0xbef), balance / 3);
+
+        _syncToL2();
+        vm.selectFork(L2_FORK_ID);
+        _doSomeSwaps();
+        _standardSyncToL1();
+
+        // transfer LP tokens and try to claim fees
+        vm.startBroadcast(address(0xfab));
+        dove.approve(address(0xbaf), dove.balanceOf(address(0xfab)));
+        vm.stopBroadcast();
+
+        vm.startBroadcast(address(0xbaf));
+        dove.transferFrom(address(0xfab), address(0xbef), dove.balanceOf(address(0xbaf)));
+        vm.stopBroadcast();
+
+        (uint256 amount0, uint256 amount1) =
+            routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xbef)));
+
+        vm.startBroadcast(address(0xbef));
+        dove.approve(address(routerL1), dove.balanceOf(address(0xbef)));
+        routerL1.removeLiquidity(
+            dove.token0(),
+            dove.token1(),
+            dove.balanceOf(address(0xbef)),
+            amount0,
+            amount1,
+            address(0xbef),
+            block.timestamp + 1
+        );
+        vm.stopBroadcast();
+
+        assertEq(dove.claimable0(address(0xfab)), 0);
+        assertEq(dove.claimable1(address(0xfab)), 0);
+        assertTrue(L1Token0.balanceOf(address(0xbef)) > initialLiquidity0 * 2 / 3);
+        assertTrue(L1Token1.balanceOf(address(0xbef)) > initialLiquidity1 * 2 / 3);
     }
 }
