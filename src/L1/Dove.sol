@@ -7,7 +7,6 @@ import {Owned} from "solmate/auth/Owned.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 
-import {FeesDistributor} from "./FeesDistributor.sol";
 import {Fountain} from "./Fountain.sol";
 import {SGHyperlaneConverter} from "./SGHyperlaneConverter.sol";
 
@@ -26,7 +25,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     event Fees(uint256 indexed srcDomain, uint256 amount0, uint256 amount1);
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
-    event Claim(address indexed sender, address indexed recipient, uint256 amount0, uint256 amount1);
+    event Claim(address indexed recipient, uint256 amount0, uint256 amount1);
     event Updated(uint256 reserve0, uint256 reserve1);
     event Bridged(uint256 indexed srcChainId, uint256 syncId, address token, uint256 amount);
     event SyncPending(uint256 indexed srcDomain, uint256 syncID);
@@ -67,7 +66,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     uint256 public reserve0;
     uint256 public reserve1;
 
-    FeesDistributor public feesDistributor;
+    Fountain public feesDistributor;
     Fountain public fountain;
 
     /// @notice domain id [hyperlane] => earmarked tokens
@@ -80,6 +79,19 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
 
     mapping(uint32 => mapping(uint256 => uint256)) internal lastBridged0;
     mapping(uint32 => mapping(uint256 => uint256)) internal lastBridged1;
+
+    // index0 and index1 are used to accumulate fees, this is split out from normal trades to keep the swap "clean"
+    // this further allows LP holders to easily claim fees for tokens they have/staked
+    uint256 public index0;
+    uint256 public index1;
+
+    // position assigned to each LP to track their current index0 & index1 vs the global position
+    mapping(address => uint256) public supplyIndex0;
+    mapping(address => uint256) public supplyIndex1;
+
+    // tracks the amount of unclaimed, but claimable tokens off of fees for token0 and token1
+    mapping(address => uint256) public claimable0;
+    mapping(address => uint256) public claimable1;
 
     function addTrustedRemote(uint32 origin, bytes32 sender) external onlyOwner {
         trustedRemoteLookup[origin] = sender;
@@ -102,8 +114,86 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         token0 = _token0;
         token1 = _token1;
 
-        feesDistributor = new FeesDistributor(_token0, _token1);
+        feesDistributor = new Fountain(_token0, _token1);
         fountain = new Fountain(_token0, _token1);
+    }
+
+    /*###############################################################
+                            FEES LOGIC
+    ###############################################################*/
+
+    function claimFeesFor(address recipient) public nonReentrant returns (uint256 claimed0, uint256 claimed1) {
+        return _claimFees(recipient);
+    }
+
+    function _claimFees(address recipient) internal returns (uint256 claimed0, uint256 claimed1) {
+        claimed0 = claimable0[recipient];
+        claimed1 = claimable1[recipient];
+
+        claimable0[recipient] = 0;
+        claimable1[recipient] = 0;
+
+        feesDistributor.squirt(recipient, claimed0, claimed1);
+
+        emit Claim(recipient, claimed0, claimed1);
+    }
+
+    function _transferAllFeesFrom(address from, address to) internal {
+        // if fees are being sent to self (when burning LP), don't transfer fees
+        if (to == address(this)) {
+            return;
+        } else {
+            uint256 _fees0 = claimable0[from];
+            uint256 _fees1 = claimable1[from];
+            claimable0[from] = 0;
+            claimable1[from] = 0;
+            claimable0[to] += _fees0;
+            claimable1[to] += _fees1;
+        }
+    }
+
+    // this function MUST be called on any balance changes, otherwise can be used to infinitely claim fees
+    // Fees are segregated from core funds, so fees can never put liquidity at risk
+    function _updateFor(address recipient) internal {
+        uint256 _supplied = balanceOf[recipient]; // get LP balance of `recipient`
+        if (_supplied > 0) {
+            uint256 _supplyIndex0 = supplyIndex0[recipient]; // get last adjusted index0 for recipient
+            uint256 _supplyIndex1 = supplyIndex1[recipient];
+            uint256 _index0 = index0; // get global index0 for accumulated fees
+            uint256 _index1 = index1;
+            supplyIndex0[recipient] = _index0; // update user current position to global position
+            supplyIndex1[recipient] = _index1;
+            uint256 _delta0 = _index0 - _supplyIndex0; // see if there is any difference that need to be accrued
+            uint256 _delta1 = _index1 - _supplyIndex1;
+            if (_delta0 > 0) {
+                uint256 _share = _supplied * _delta0 / 1e18; // add accrued difference for each supplied token
+                claimable0[recipient] += _share;
+            }
+            if (_delta1 > 0) {
+                uint256 _share = _supplied * _delta1 / 1e18;
+                claimable1[recipient] += _share;
+            }
+        } else {
+            supplyIndex0[recipient] = index0; // new users are set to the default global state
+            supplyIndex1[recipient] = index1;
+        }
+    }
+
+    function _update0(uint256 amount) internal {
+        SafeTransferLib.safeTransfer(ERC20(token0), address(feesDistributor), amount);
+        uint256 _ratio = amount * 1e18 / totalSupply; // 1e18 adjustment is removed during claim
+        if (_ratio > 0) {
+            index0 += _ratio;
+        }
+    }
+
+    // Accrue fees on token1
+    function _update1(uint256 amount) internal {
+        SafeTransferLib.safeTransfer(ERC20(token1), address(feesDistributor), amount);
+        uint256 _ratio = amount * 1e18 / totalSupply;
+        if (_ratio > 0) {
+            index1 += _ratio;
+        }
     }
 
     /*###############################################################
@@ -133,6 +223,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             liquidity = a < b ? a : b;
         }
         require(liquidity > 0, "ILM");
+        _updateFor(to);
         _mint(to, liquidity);
 
         _update(_balance0, _balance1, _reserve0, _reserve1);
@@ -140,6 +231,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     }
 
     function burn(address to) external nonReentrant returns (uint256 amount0, uint256 amount1) {
+        _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         (ERC20 _token0, ERC20 _token1) = (ERC20(token0), ERC20(token1));
         uint256 _balance0 = _token0.balanceOf(address(this));
@@ -150,6 +242,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         amount0 = _liquidity * _balance0 / _totalSupply; // using balances ensures pro-rata distribution
         amount1 = _liquidity * _balance1 / _totalSupply; // using balances ensures pro-rata distribution
         require(amount0 > 0 && amount1 > 0, "ILB"); // BaseV1: INSUFFICIENT_LIQUIDITY_BURNED
+        _updateFor(to);
         _burn(address(this), _liquidity);
 
         SafeTransferLib.safeTransfer(_token0, to, amount0);
@@ -307,11 +400,11 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                 );
         }
         {
-            emit Fees(
-                srcDomain,
-                lastBridged0[srcDomain][syncID] - partialSync0.pairBalance,
-                lastBridged1[srcDomain][syncID] - partialSync1.pairBalance
-                );
+            uint256 fees0 = lastBridged0[srcDomain][syncID] - partialSync0.pairBalance;
+            uint256 fees1 = lastBridged1[srcDomain][syncID] - partialSync1.pairBalance;
+            _update0(fees0);
+            _update1(fees1);
+            emit Fees(srcDomain, fees0, fees1);
             // cleanup
             delete lastBridged0[srcDomain][syncID];
             delete lastBridged1[srcDomain][syncID];
@@ -322,10 +415,16 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     }
 
     function transfer(address to, uint256 amount) public override returns (bool) {
+        _updateFor(msg.sender);
+        _updateFor(to);
+        _transferAllFeesFrom(msg.sender, to);
         return super.transfer(to, amount);
     }
 
     function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
+        _updateFor(from);
+        _updateFor(to);
+        _transferAllFeesFrom(from, to);
         return super.transferFrom(from, to, amount);
     }
 
