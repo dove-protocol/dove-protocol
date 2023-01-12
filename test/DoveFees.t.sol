@@ -100,7 +100,6 @@ contract DoveFeesTest is DoveBase {
             type(uint256).max
         );
         vm.stopBroadcast();
-
         dove.claimFeesFor(address(0xfefe));
 
         assertEq(L1Token0.balanceOf(address(0xfefe)), 0);
