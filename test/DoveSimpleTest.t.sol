@@ -95,11 +95,12 @@ contract DoveSimpleTest is DoveBase {
         uint256 voucher0Supply = pair.voucher0().totalSupply();
         uint256 voucher1Supply = pair.voucher1().totalSupply();
 
+        uint256 voucher0BalanceOfBeef = pair.voucher0().balanceOf(address(0xbeef));
         // dai
         uint256 voucher1BalanceOfBeef = pair.voucher1().balanceOf(address(0xbeef));
         uint256 balance1OfBeef = L2Token1.balanceOf(address(0xbeef));
 
-        (,uint256 toSend1,, uint256 excess1) = pair.getExcessAfterBurn(0, voucher1BalanceOfBeef);
+        (, uint256 toSend1,, uint256 excess1) = pair.getExcessAfterBurn(0, voucher1BalanceOfBeef);
 
         // burn just one voucher for now
         _burnVouchers(address(0xbeef), 0, voucher1BalanceOfBeef);
@@ -110,22 +111,22 @@ contract DoveSimpleTest is DoveBase {
         assertEq(pair.voucher1().balanceOf(address(0xbeef)), 0);
 
         // check amount of tokens sent to user
-        assertEq(L1Token1.balanceOf(address(0xbeef)), balance1OfBeef + toSend1);
+        assertEq(L2Token1.balanceOf(address(0xbeef)), balance1OfBeef + toSend1);
 
         vm.selectFork(L1_FORK_ID);
 
         assertEq(dove.marked1(L2_DOMAIN), voucher0Supply);
-        assertEq(dove.marked0(L2_DOMAIN), voucher1Supply - voucher1BalanceOfBeef);
+        assertEq(dove.marked0(L2_DOMAIN), voucher1Supply - excess1);
         // reserves should not have changed
         assertEq(dove.reserve0(), L1R0);
         assertEq(dove.reserve1(), L1R1);
-        // correctly transfered tokens to user
-        assertEq(L1Token0.balanceOf(address(0xbeef)), voucher1BalanceOfBeef);
+        // correctly transfered tokens to user on L1
+        assertEq(L1Token0.balanceOf(address(0xbeef)), voucher1BalanceOfBeef - toSend1);
 
         vm.selectFork(L2_FORK_ID);
         // nothing should have happened
         assertEq(pair.voucher1().totalSupply(), voucher1Supply - voucher1BalanceOfBeef);
-        assertEq(pair.voucher0().balanceOf(address(0xbeef)), voucher1BalanceOfBeef);
+        assertEq(pair.voucher0().balanceOf(address(0xbeef)), voucher0BalanceOfBeef);
         assertEq(pair.voucher1().balanceOf(address(0xcafe)), 0);
     }
 

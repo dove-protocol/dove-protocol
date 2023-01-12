@@ -263,7 +263,10 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         }
     }
 
-    function getExcessAfterBurn(uint256 voucher0Amount, uint256 voucher1Amount) external returns (uint256, uint256, uint256, uint256) {
+    function getExcessAfterBurn(uint256 voucher0Amount, uint256 voucher1Amount)
+        external
+        returns (uint256, uint256, uint256, uint256)
+    {
         return _getExcessAfterBurn(voucher0Amount, voucher1Amount);
     }
 
@@ -429,7 +432,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
 
         // tell L1 that vouchers been burned
         require(amount0 > 0 || amount1 > 0, "NO VOUCHERS");
-        (,,uint256 excess0, uint256 excess1) = _tryBurnVouchersLocal(amount0, amount1);
+        (,, uint256 excess0, uint256 excess1) = _tryBurnVouchersLocal(amount0, amount1);
 
         // if all vouchers are burned, no need to send message to L1, return msg.value
         if (excess0 == 0 && excess1 == 0) {

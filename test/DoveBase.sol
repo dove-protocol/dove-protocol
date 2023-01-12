@@ -90,6 +90,9 @@ contract DoveBase is Test, Helper {
         L1Token0 = ERC20Mock(0x6B175474E89094C44Da98b954EedeAC495271d0F); // DAI
         L1Token1 = ERC20Mock(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48); // USDC
 
+        vm.label(address(L1Token0), "L1-DAI");
+        vm.label(address(L1Token1), "L1-USDC");
+
         // deploy factory
         factoryL1 = new L1Factory(address(gasMasterL1), address(mailboxL1), L1SGRouter);
         // deploy router
@@ -139,8 +142,8 @@ contract DoveBase is Test, Helper {
         L2Token0 = ERC20Mock(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174); // USDC
         L2Token1 = ERC20Mock(0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063); // DAI
 
-        vm.label(address(L2Token0), "USDC");
-        vm.label(address(L2Token1), "DAI");
+        vm.label(address(L2Token0), "L2-USDC");
+        vm.label(address(L2Token1), "L2-DAI");
 
         // deploy factory
         factoryL2 = new L2Factory(address(gasMasterL2), address(mailboxL2), L2SGRouter, L1_CHAIN_ID, L1_DOMAIN);
@@ -177,7 +180,7 @@ contract DoveBase is Test, Helper {
         pair.burnVouchers(amount0, amount1);
         Vm.Log[] memory logs = vm.getRecordedLogs();
         // should be second long
-        (address sender, bytes memory HLpayload) = abi.decode(logs[1].data, (address, bytes));
+        (address sender, bytes memory HLpayload) = abi.decode(logs[2].data, (address, bytes));
         vm.selectFork(L1_FORK_ID);
         vm.broadcast(address(mailboxL1));
         dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender), HLpayload);
