@@ -130,6 +130,11 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         claimed0 = claimable0[recipient];
         claimed1 = claimable1[recipient];
 
+        // early exit
+        if (claimed0 == 0 && claimed1 == 0) {
+            return (0, 0);
+        }
+
         claimable0[recipient] = 0;
         claimable1[recipient] = 0;
 
@@ -207,6 +212,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     }
 
     function mint(address to) external nonReentrant returns (uint256 liquidity) {
+        _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         uint256 _balance0 = ERC20(token0).balanceOf(address(this));
         uint256 _balance1 = ERC20(token1).balanceOf(address(this));
