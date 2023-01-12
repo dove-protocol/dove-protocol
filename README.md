@@ -29,6 +29,12 @@ The interface is deployed [here](https://dove.whitenoise.rs/).
 [key2]: https://goerli.arbiscan.io/address/0xe7b3cceb43b247664784836572af31dac522e148
 [key3]: https://mumbai.polygonscan.com/address/0xC51eFC8C3E3b8708c6f496FDa57ac33931CDB0c8
 
+## Diagram
+
+<img src="./assets/diagram.png">
+
+For full quality diagram, please check [here](./assets/diagram.png).
+
 ## Warning
 
 This is a very very rough MVP. It is **not** gas-optimized, it is **not** 100% safe, it is **incomplete**.
