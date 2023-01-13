@@ -164,4 +164,26 @@ contract DoveFeesTest is DoveBase {
 
         vm.stopBroadcast();
     }
+
+    // burn message sent from L2 ; not enough earmarked tokens on L1 ; burn is saved
+    function testBurnClaim() external {
+        _syncToL2();
+        vm.selectFork(L2_FORK_ID);
+        _doMoreSwaps();
+        vm.selectFork(L2_FORK_ID);
+
+        uint256 voucher1BalanceOfBeef = pair.voucher1().balanceOf(address(0xbeef));
+
+        // 0xbeef wants to burn his DAI vouchers, but he hasn't synced yet, so it should result in a claim
+        _burnVouchers(address(0xbeef), 0, pair.voucher1().balanceOf(address(0xbeef)));
+        // sync to L1
+        _standardSyncToL1();
+        vm.selectFork(L1_FORK_ID);
+        dove.claimBurn(L2_DOMAIN, address(0xbeef));
+        // check that the burn was successful
+        assertEq(L1Token0.balanceOf(address(0xbeef)), voucher1BalanceOfBeef);
+        // trying again the burn would result in no change
+        dove.claimBurn(L2_DOMAIN, address(0xbeef));
+        assertEq(L1Token0.balanceOf(address(0xbeef)), voucher1BalanceOfBeef);
+    }
 }

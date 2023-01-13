@@ -326,6 +326,19 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         SafeTransferLib.safeTransfer(ERC20(token1), msg.sender, amount1);
     }
 
+    function burnVouchersHeldByPair() external payable {
+        uint32 destDomain = factory.destDomain();
+        uint256 amount0 = voucher0.balanceOf(address(this));
+        uint256 amount1 = voucher1.balanceOf(address(this));
+        // tell L1 that vouchers been burned
+        require(amount0 > 0 || amount1 > 0, "NO VOUCHERS");
+        if (amount0 > 0) voucher0.burn(address(this), amount0);
+        if (amount1 > 0) voucher1.burn(address(this), amount1);
+        bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, L1Target, L1Token0, amount0, amount1);
+        bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
+        hyperlaneGasMaster.payGasFor{value: msg.value}(id, destDomain);
+    }
+
     /// @notice Syncs to the L1.
     /// @dev Dependent on SG.
     function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable {
@@ -393,7 +406,6 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     /// @param amount0 The amount of voucher0 to burn.
     /// @param amount1 The amount of voucher1 to burn.
     function burnVouchers(uint256 amount0, uint256 amount1) external payable nonReentrant {
-        uint256 fee = amount0 > 0 && amount1 > 0 ? msg.value / 2 : msg.value;
         uint32 destDomain = factory.destDomain();
 
         // tell L1 that vouchers been burned
@@ -402,7 +414,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         if (amount1 > 0) voucher1.burn(msg.sender, amount1);
         bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, msg.sender, L1Token0, amount0, amount1);
         bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-        hyperlaneGasMaster.payGasFor{value: fee}(id, destDomain);
+        hyperlaneGasMaster.payGasFor{value: msg.value}(id, destDomain);
     }
 
     function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
