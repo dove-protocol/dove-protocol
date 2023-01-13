@@ -56,11 +56,12 @@ contract DoveFeesTest is DoveBase {
         _burnVouchers(address(0xbeef), 0, voucher1BalanceOfBeef);
 
         vm.selectFork(L2_FORK_ID);
-        // check vouchers has been burnt
+        // voucher0 supply doesn't change because we didn't burn it
         assertEq(pair.voucher0().totalSupply(), voucher0Supply);
         assertEq(pair.voucher1().balanceOf(address(0xbeef)), 0);
 
         vm.selectFork(L1_FORK_ID);
+
 
         assertEq(dove.marked1(L2_DOMAIN), voucher0Supply);
         assertEq(dove.marked0(L2_DOMAIN), voucher1Supply - voucher1BalanceOfBeef);

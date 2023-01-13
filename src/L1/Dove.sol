@@ -18,8 +18,6 @@ import "../hyperlane/HyperlaneClient.sol";
 
 import "../MessageType.sol";
 
-import "forge-std/console.sol";
-
 contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGuard {
     /*###############################################################
                             EVENTS
@@ -352,27 +350,23 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     function _completeVoucherBurns(uint32 srcDomain, address user, address token, uint256 amount0, uint256 amount1)
         internal
     {
-        // if noy enough to satisfy, just save the claim
-        if (amount0 > marked0[srcDomain] || amount1 > marked1[srcDomain]) {
-            uint256 _amount0 = token == token0 ? amount0 : amount1;
-            uint256 _amount1 = _amount0 == amount0 ? amount1 : amount0;
+        uint256 _amount0 = token == token0 ? amount0 : amount1;
+        uint256 _amount1 = _amount0 == amount0 ? amount1 : amount0;
+        // if not enough to satisfy, just save the claim
+        if (_amount0 > marked0[srcDomain] || _amount1 > marked1[srcDomain]) {
+            // cumulate burns
+            BurnClaim memory burnClaim = burnClaims[srcDomain][user];
             burnClaims[srcDomain][user] = BurnClaim(
-                _amount0,
-                _amount1
+                burnClaim.amount0 + _amount0,
+                burnClaim.amount1 + _amount1
             );
             emit BurnClaimCreated(srcDomain, user, _amount0, _amount1);
             return;
         }
         // update earmarked tokens
-        if (token == token0) {
-            marked0[srcDomain] -= amount0;
-            marked1[srcDomain] -= amount1;
-            fountain.squirt(user, amount0, amount1);
-        } else {
-            marked0[srcDomain] -= amount1;
-            marked1[srcDomain] -= amount0;
-            fountain.squirt(user, amount1, amount0);
-        }
+        marked0[srcDomain] -= _amount0;
+        marked1[srcDomain] -= _amount1;
+        fountain.squirt(user, _amount0, _amount1);
     }
 
     function _syncFromL2(uint32 origin, uint256 syncID, address token, uint256 earmarkedDelta, uint256 pairBalance)
