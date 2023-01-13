@@ -8,6 +8,31 @@ contract DoveFeesTest is DoveBase {
         _setUp();
     }
 
+
+
+        /*
+            Napkin math
+            Expected balances (after fees) after _doMoreSwaps() :
+
+            erc20       pair                        0xfeeb  
+            DAI         45148999999641686690942     0
+            USDC        4684333334                  299000000     
+            vDAI        0                           0
+            vUSDC       0                           0
+            ---------------------------------------------------
+                        0xcafe  
+            DAI         4983333333691646642392
+            USDC        0     
+            vDAI        0
+            vUSDC       0
+            ---------------------------------------------------
+                        0xbeef  
+            DAI         0
+            USDC        49833333334     
+            vDAI        49833330250459178059597
+            vUSDC       3082
+        */
+
     // Burning vouchers on L2 should result in the user getting the underlying token on L1.
     function testVouchersBurn() external {
         _syncToL2();
@@ -97,5 +122,46 @@ contract DoveFeesTest is DoveBase {
         assertEq(L2Token1.balanceOf(address(0xfeeb)), 0);
         assertEq(pair.voucher0().balanceOf(address(0xfeeb)), 0);
         assertEq(pair.voucher1().balanceOf(address(0xfeeb)), 0);
+    }
+
+    function testYeetVouchers() external {
+        _syncToL2();
+        vm.selectFork(L2_FORK_ID);
+        _doMoreSwaps();
+        vm.selectFork(L2_FORK_ID);
+
+        vm.startBroadcast(address(0xbeef));
+        uint256 token0BalanceOfBeefBefore = L2Token0.balanceOf(address(0xbeef));
+        uint256 token1BalanceOfBeefBefore = L2Token1.balanceOf(address(0xbeef));
+        uint256 token0BalanceOfPairBefore = L2Token0.balanceOf(address(pair));
+        uint256 token1BalanceOfPairBefore = L2Token1.balanceOf(address(pair));
+
+        uint256 voucher0BalanceOfBeefBefore = pair.voucher0().balanceOf(address(0xbeef));
+        uint256 voucher1BalanceOfBeefBefore = pair.voucher1().balanceOf(address(0xbeef));
+        uint256 voucher0BalanceOfPairBefore = pair.voucher0().balanceOf(address(pair));
+        uint256 voucher1BalanceOfPairBefore = pair.voucher1().balanceOf(address(pair));
+
+        uint256 amount0BeefYeeting = pair.voucher0().balanceOf(address(0xbeef));
+        uint256 amount1BeefYeeting = L2Token1.balanceOf(address(pair));
+        pair.voucher0().approve(address(pair), type(uint256).max);
+        pair.voucher1().approve(address(pair), type(uint256).max);
+        // because 0xbeef has more vouchers than pair has of dai, we only yeet the pair's balance equivalent
+        pair.yeetVouchers(amount0BeefYeeting, amount1BeefYeeting);
+
+        // pair holding of vouchers should have increased by what beef swapped in
+        assertEq(pair.voucher0().balanceOf(address(pair)), voucher0BalanceOfPairBefore + amount0BeefYeeting);
+        assertEq(pair.voucher1().balanceOf(address(pair)), voucher1BalanceOfPairBefore + amount1BeefYeeting);
+        // inverse for beef
+        assertEq(pair.voucher0().balanceOf(address(0xbeef)), voucher0BalanceOfBeefBefore - amount0BeefYeeting);
+        assertEq(pair.voucher1().balanceOf(address(0xbeef)), voucher1BalanceOfBeefBefore - amount1BeefYeeting);
+
+        // inversely, beef tokens holding increase by the same amount of vouchers he yeeted
+        assertEq(L2Token0.balanceOf(address(0xbeef)), token0BalanceOfBeefBefore + amount0BeefYeeting);
+        assertEq(L2Token1.balanceOf(address(0xbeef)), token1BalanceOfBeefBefore + amount1BeefYeeting);
+        // inverse for pair
+        assertEq(L2Token0.balanceOf(address(pair)), token0BalanceOfPairBefore - amount0BeefYeeting);
+        assertEq(L2Token1.balanceOf(address(pair)), token1BalanceOfPairBefore - amount1BeefYeeting);
+
+        vm.stopBroadcast();
     }
 }
