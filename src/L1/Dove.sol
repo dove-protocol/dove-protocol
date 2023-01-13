@@ -308,9 +308,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         }
     }
 
-    function syncL2(uint32 destinationDomain, address amm) external payable {
+    function syncL2(uint32 destinationDomain, address pair) external payable {
         bytes memory payload = abi.encode(MessageType.SYNC_TO_L2, token0, reserve0, reserve1);
-        bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(amm), payload);
+        bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(pair), payload);
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destinationDomain);
     }
 
