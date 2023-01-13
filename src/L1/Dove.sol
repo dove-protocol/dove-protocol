@@ -334,6 +334,10 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         marked0[srcDomain] -= amount0;
         marked1[srcDomain] -= amount1;
         fountain.squirt(user, amount0, amount1);
+
+        if (user == address(this)) {
+            _update(ERC20(token0).balanceOf(address(this)), ERC20(token1).balanceOf(address(this)), reserve0, reserve1);
+        }
     }
 
     /*###############################################################
