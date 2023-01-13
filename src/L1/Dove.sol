@@ -72,6 +72,10 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     /// @notice domain id [hyperlane] => earmarked tokens
     mapping(uint32 => uint256) public marked0;
     mapping(uint32 => uint256) public marked1;
+    /// @notice domain id [hyperlane] => user => earmarked tokens
+    // this occurs when the voucher burn fails (insufficient earmarked) and the user must be reimbursed
+    mapping(uint32 => mapping(address => uint256)) claimableToken0;
+    mapping(uint32 => mapping(address => uint256)) claimableToken1;
     mapping(uint32 => mapping(uint256 => Sync)) public syncs;
 
     mapping(uint32 => bytes32) public trustedRemoteLookup;
@@ -260,6 +264,25 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         emit Burn(msg.sender, amount0, amount1, to);
     }
 
+    function claimReimbursements(uint256) external nonReentrant returns (uint256 amount0, uint256 amount1) {}
+
+    function _claimReimbursement(address recipient) internal returns (uint256 claimed0, uint256 claimed1) {
+        claimed0 = claimableTokens0[recipient];
+        claimed1 = claimableTokens1[recipient];
+
+        // early exit
+        if (claimed0 == 0 && claimed1 == 0) {
+            return (0, 0);
+        }
+
+        claimable0[recipient] = 0;
+        claimable1[recipient] = 0;
+
+        feesDistributor.squirt(recipient, claimed0, claimed1);
+
+        emit Claim(recipient, claimed0, claimed1);
+    }
+
     /*###############################################################
                             SYNCING LOGIC
     ###############################################################*/
@@ -332,13 +355,23 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     {
         // update earmarked tokens
         if (token == token0) {
-            marked0[srcDomain] -= amount0;
-            marked1[srcDomain] -= amount1;
-            fountain.squirt(user, amount0, amount1);
+            if (marked0[srcDomain] < amount0 || marked1[srcDomain] < amount1) {
+                claimableToken0[srcDomain][user] += amount0;
+                claimableToken1[srcDomain][user] += amount1;
+            } else {
+                marked0[srcDomain] -= amount0;
+                marked1[srcDomain] -= amount1;
+                fountain.squirt(user, amount0, amount1);
+            }
         } else {
-            marked0[srcDomain] -= amount1;
-            marked1[srcDomain] -= amount0;
-            fountain.squirt(user, amount1, amount0);
+            if (marked0[srcDomain] < amount1 || marked1[srcDomain] < amount0) {
+                claimableToken0[srcDomain][user] += amount1;
+                claimableToken1[srcDomain][user] += amount0;
+            } else {
+                marked0[srcDomain] -= amount1;
+                marked1[srcDomain] -= amount0;
+                fountain.squirt(user, amount1, amount0);
+            }
         }
     }
 
