@@ -314,6 +314,18 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         return (_a * _b) / 1e18; // x3y+y3x >= k
     }
 
+    /*###############################################################
+                            CROSS-CHAIN LOGIC
+    ###############################################################*/
+
+    function yeetVouchers(uint256 amount0, uint256 amount1) external nonReentrant {
+        voucher0.transferFrom(msg.sender, address(this), amount0);
+        voucher1.transferFrom(msg.sender, address(this), amount1);
+        
+        SafeTransferLib.safeTransfer(ERC20(token0), msg.sender, amount0);
+        SafeTransferLib.safeTransfer(ERC20(token1), msg.sender, amount1);
+    }
+
     /// @notice Syncs to the L1.
     /// @dev Dependent on SG.
     function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable {
