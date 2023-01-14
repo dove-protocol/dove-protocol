@@ -37,6 +37,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256 earmarkedAmount0,
         uint256 earmarkedAmount1
     );
+    event BurnClaimCreated(uint256 indexed srcDomain, address indexed user, uint256 amount0, uint256 amount1);
     /*###############################################################
                             STRUCTS
     ###############################################################*/
@@ -50,6 +51,11 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     struct Sync {
         PartialSync partialSyncA;
         PartialSync partialSyncB;
+    }
+
+    struct BurnClaim {
+        uint256 amount0;
+        uint256 amount1;
     }
 
     /*###############################################################
@@ -73,6 +79,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     mapping(uint32 => uint256) public marked0;
     mapping(uint32 => uint256) public marked1;
     mapping(uint32 => mapping(uint256 => Sync)) public syncs;
+    mapping(uint32 => mapping(address => BurnClaim)) public burnClaims;
 
     mapping(uint32 => bytes32) public trustedRemoteLookup;
     mapping(uint16 => bytes) public sgTrustedBridge;
@@ -301,9 +308,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         }
     }
 
-    function syncL2(uint32 destinationDomain, address amm) external payable {
+    function syncL2(uint32 destinationDomain, address pair) external payable {
         bytes memory payload = abi.encode(MessageType.SYNC_TO_L2, token0, reserve0, reserve1);
-        bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(amm), payload);
+        bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(pair), payload);
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destinationDomain);
     }
 
@@ -314,6 +321,23 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             ? (sync.partialSyncA, sync.partialSyncB)
             : (sync.partialSyncB, sync.partialSyncA);
         _finalizeSyncFromL2(originDomain, syncID, partialSync0, partialSync1);
+    }
+
+    function claimBurn(uint32 srcDomain, address user) external {
+        BurnClaim memory burnClaim = burnClaims[srcDomain][user];
+
+        uint256 amount0 = burnClaim.amount0;
+        uint256 amount1 = burnClaim.amount1;
+
+        delete burnClaims[srcDomain][user];
+
+        marked0[srcDomain] -= amount0;
+        marked1[srcDomain] -= amount1;
+        fountain.squirt(user, amount0, amount1);
+
+        if (user == address(this)) {
+            _update(ERC20(token0).balanceOf(address(this)), ERC20(token1).balanceOf(address(this)), reserve0, reserve1);
+        }
     }
 
     /*###############################################################
@@ -330,16 +354,23 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     function _completeVoucherBurns(uint32 srcDomain, address user, address token, uint256 amount0, uint256 amount1)
         internal
     {
-        // update earmarked tokens
-        if (token == token0) {
-            marked0[srcDomain] -= amount0;
-            marked1[srcDomain] -= amount1;
-            fountain.squirt(user, amount0, amount1);
-        } else {
-            marked0[srcDomain] -= amount1;
-            marked1[srcDomain] -= amount0;
-            fountain.squirt(user, amount1, amount0);
+        uint256 _amount0 = token == token0 ? amount0 : amount1;
+        uint256 _amount1 = _amount0 == amount0 ? amount1 : amount0;
+        // if not enough to satisfy, just save the claim
+        if (_amount0 > marked0[srcDomain] || _amount1 > marked1[srcDomain]) {
+            // cumulate burns
+            BurnClaim memory burnClaim = burnClaims[srcDomain][user];
+            burnClaims[srcDomain][user] = BurnClaim(
+                burnClaim.amount0 + _amount0,
+                burnClaim.amount1 + _amount1
+            );
+            emit BurnClaimCreated(srcDomain, user, _amount0, _amount1);
+            return;
         }
+        // update earmarked tokens
+        marked0[srcDomain] -= _amount0;
+        marked1[srcDomain] -= _amount1;
+        fountain.squirt(user, _amount0, _amount1);
     }
 
     function _syncFromL2(uint32 origin, uint256 syncID, address token, uint256 earmarkedDelta, uint256 pairBalance)
