@@ -166,6 +166,21 @@ contract DoveFeesTest is DoveBase {
         vm.stopBroadcast();
     }
 
+    function testCannotYeetMoreThanOwned() external {
+        _syncToL2();
+        vm.selectFork(L2_FORK_ID);
+        _doMoreSwaps();
+        vm.selectFork(L2_FORK_ID);
+
+        vm.startBroadcast(address(0xbeef));
+        pair.voucher0().approve(address(pair), type(uint256).max);
+        pair.voucher1().approve(address(pair), type(uint256).max);
+        uint256 amount0BeefYeeting = L2Token0.balanceOf(address(pair));
+        vm.expectRevert();
+        pair.yeetVouchers(amount0BeefYeeting, 0);
+        vm.stopBroadcast();
+    }
+
     // burn message sent from L2 ; not enough earmarked tokens on L1 ; burn is saved
     function testBurnClaim() external {
         _syncToL2();
