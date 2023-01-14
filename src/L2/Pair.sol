@@ -243,11 +243,10 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     }
 
     // force balances to match reserves
-    // function skim(address to) external nonReentrant {
-    //     (address _token0, address _token1) = (token0, token1);
-    //     _safeTransfer(_token0, to, ???);
-    //     _safeTransfer(_token1, to, ???);
-    // }
+    function skim(address to) external nonReentrant {
+        if(balance0() > reserve0) SafeTransferLib.safeTransfer(ERC20(token0), to, balance0() - reserve0);
+        if(balance1() > reserve1) SafeTransferLib.safeTransfer(ERC20(token1), to, balance1() - reserve1);
+    }
 
     // force reserves to match balances
     function sync() external nonReentrant {
@@ -321,7 +320,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     function yeetVouchers(uint256 amount0, uint256 amount1) external nonReentrant {
         voucher0.transferFrom(msg.sender, address(this), amount0);
         voucher1.transferFrom(msg.sender, address(this), amount1);
-        
+
         SafeTransferLib.safeTransfer(ERC20(token0), msg.sender, amount0);
         SafeTransferLib.safeTransfer(ERC20(token1), msg.sender, amount1);
     }

@@ -212,12 +212,6 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                             LIQUIDITY LOGIC
     ###############################################################*/
 
-    function _update(uint256 balance0, uint256 balance1, uint256 _reserve0, uint256 _reserve1) internal {
-        reserve0 = balance0;
-        reserve1 = balance1;
-        emit Updated(reserve0, reserve1);
-    }
-
     function mint(address to) external nonReentrant returns (uint256 liquidity) {
         _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
@@ -265,6 +259,12 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
 
         _update(_balance0, _balance1, _reserve0, _reserve1);
         emit Burn(msg.sender, amount0, amount1, to);
+    }
+
+    function _update(uint256 balance0, uint256 balance1, uint256 _reserve0, uint256 _reserve1) internal {
+        reserve0 = balance0;
+        reserve1 = balance1;
+        emit Updated(reserve0, reserve1);
     }
 
     /*###############################################################
@@ -339,6 +339,23 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             _update(ERC20(token0).balanceOf(address(this)), ERC20(token1).balanceOf(address(this)), reserve0, reserve1);
         }
     }
+    
+    // force balances to match reserves by sending excess to the caller
+    function skim() external nonReentrant {
+        if(ERC20(token0).balanceOf(address(this)) > reserve0) {
+            SafeTransferLib.safeTransfer(token0, msg.sender, ERC20(token0).balanceOf(address(this)) - reserve0);
+        }
+        if(ERC20(token1).balanceOf(address(this)) > reserve1) {
+            SafeTransferLib.safeTransfer(token1, msg.sender, ERC20(token1).balanceOf(address(this)) - reserve1);
+        }
+    }
+
+    // force reserves to match balances
+    function sync() external nonReentrant {
+        _update(ERC20(token0).balanceOf(address(this)), ERC20(token1).balanceOf(address(this)), reserve0, reserve1);
+    }
+
+
 
     /*###############################################################
                             INTERNAL FUNCTIONS
@@ -360,10 +377,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         if (_amount0 > marked0[srcDomain] || _amount1 > marked1[srcDomain]) {
             // cumulate burns
             BurnClaim memory burnClaim = burnClaims[srcDomain][user];
-            burnClaims[srcDomain][user] = BurnClaim(
-                burnClaim.amount0 + _amount0,
-                burnClaim.amount1 + _amount1
-            );
+            burnClaims[srcDomain][user] = BurnClaim(burnClaim.amount0 + _amount0, burnClaim.amount1 + _amount1);
             emit BurnClaimCreated(srcDomain, user, _amount0, _amount1);
             return;
         }
