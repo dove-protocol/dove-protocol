@@ -298,9 +298,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256 messageType = abi.decode(payload, (uint256));
         if (messageType == MessageType.BURN_VOUCHERS) {
             // receive both amounts and a single address to determine ordering
-            (, address user, address token, uint256 amount0, uint256 amount1) =
-                abi.decode(payload, (uint256, address, address, uint256, uint256));
-            _completeVoucherBurns(origin, user, token, amount0, amount1);
+            (, address user, uint256 amount0, uint256 amount1) =
+                abi.decode(payload, (uint256, address, uint256, uint256));
+            _completeVoucherBurns(origin, user, amount0, amount1);
         } else if (messageType == MessageType.SYNC_TO_L1) {
             (, uint256 syncID, address token, uint256 earmarkedDelta, uint256 pairBalance) =
                 abi.decode(payload, (uint256, uint256, address, uint256, uint256));
@@ -348,29 +348,26 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     /// @dev Checks if user is able to burn or not should be done on L2 beforehand.
     /// @param srcDomain The domain id of the remote chain.
     /// @param user The user who initiated the burn.
-    /// @param token The address of the token0 for reference in ordering.
     /// @param amount0 The quantity of local token0 tokens.
     /// @param amount1 The quantity of local token1 tokens.
-    function _completeVoucherBurns(uint32 srcDomain, address user, address token, uint256 amount0, uint256 amount1)
+    function _completeVoucherBurns(uint32 srcDomain, address user, uint256 amount0, uint256 amount1)
         internal
     {
-        uint256 _amount0 = token == token0 ? amount0 : amount1;
-        uint256 _amount1 = _amount0 == amount0 ? amount1 : amount0;
         // if not enough to satisfy, just save the claim
-        if (_amount0 > marked0[srcDomain] || _amount1 > marked1[srcDomain]) {
+        if (amount0 > marked0[srcDomain] || amount1 > marked1[srcDomain]) {
             // cumulate burns
             BurnClaim memory burnClaim = burnClaims[srcDomain][user];
             burnClaims[srcDomain][user] = BurnClaim(
-                burnClaim.amount0 + _amount0,
-                burnClaim.amount1 + _amount1
+                burnClaim.amount0 + amount0,
+                burnClaim.amount1 + amount1
             );
-            emit BurnClaimCreated(srcDomain, user, _amount0, _amount1);
+            emit BurnClaimCreated(srcDomain, user, amount0, amount1);
             return;
         }
         // update earmarked tokens
-        marked0[srcDomain] -= _amount0;
-        marked1[srcDomain] -= _amount1;
-        fountain.squirt(user, _amount0, _amount1);
+        marked0[srcDomain] -= amount0;
+        marked1[srcDomain] -= amount1;
+        fountain.squirt(user, amount0, amount1);
     }
 
     function _syncFromL2(uint32 origin, uint256 syncID, address token, uint256 earmarkedDelta, uint256 pairBalance)

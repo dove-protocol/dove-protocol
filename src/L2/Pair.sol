@@ -334,7 +334,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         require(amount0 > 0 || amount1 > 0, "NO VOUCHERS");
         if (amount0 > 0) voucher0.burn(address(this), amount0);
         if (amount1 > 0) voucher1.burn(address(this), amount1);
-        bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, L1Target, L1Token0, amount0, amount1);
+        (amount0, amount1) = _getL1Ordering(amount0, amount1);
+        bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, L1Target, amount0, amount1);
         bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destDomain);
     }
@@ -412,7 +413,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         require(amount0 > 0 || amount1 > 0, "NO VOUCHERS");
         if (amount0 > 0) voucher0.burn(msg.sender, amount0);
         if (amount1 > 0) voucher1.burn(msg.sender, amount1);
-        bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, msg.sender, L1Token0, amount0, amount1);
+        (amount0, amount1) = _getL1Ordering(amount0, amount1);
+        bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, msg.sender, amount0, amount1);
         bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destDomain);
     }
@@ -433,5 +435,14 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         (reserve0, reserve1) = _L1Token0 == L1Token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
         ref0 = reserve0;
         ref1 = reserve1;
+    }
+
+
+    function _getL1Ordering(uint256 amount0, uint256 amount1) internal view returns (uint256, uint256) {
+        if (L1Token0 < L1Token1) {
+            return (amount0, amount1);
+        } else {
+            return (amount1, amount0);
+        }
     }
 }
