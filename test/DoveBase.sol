@@ -199,18 +199,6 @@ contract DoveBase is Test, Helper {
         dove.handle(forkToDomain[fromFork], TypeCasts.addressToBytes32(sender), HLpayload);
     }
 
-    function _burnVouchersHeldByPair(uint256 fromFork) internal {
-        vm.selectFork(fromFork);
-        vm.recordLogs();
-        Pair(forkToPair[fromFork]).burnVouchersHeldByPair();
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        // should be second long
-        (address sender, bytes memory HLpayload) = abi.decode(logs[2].data, (address, bytes));
-        vm.selectFork(L1_FORK_ID);
-        vm.broadcast(address(mailboxL1));
-        dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender), HLpayload);
-    }
-
     function _syncToL2(uint256 toFork) internal {
         vm.selectFork(L1_FORK_ID);
         vm.recordLogs();
@@ -313,6 +301,16 @@ contract DoveBase is Test, Helper {
     }
     
     function _yeetVouchers(address user, uint256 amount0, uint256 amount1) internal {
+        /*
+            Napkin math
+            Balances after yeeting [doSomeSwaps]
+
+            erc20       pair                        0xbeef  
+            DAI         3082874155273737            49833330250459178059597
+            USDC        0                           49833333334     
+            vDAI        49833330250459178059597     0
+            vUSDC       0                           3082
+        */
         vm.startBroadcast(user);
         Pair _pair = Pair(forkToPair[vm.activeFork()]);
         _pair.voucher0().approve(address(_pair), type(uint256).max);

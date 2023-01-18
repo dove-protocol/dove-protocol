@@ -203,7 +203,7 @@ contract DoveVouchersTest is DoveBase {
         assertEq(L1Token0.balanceOf(address(0xbeef)), voucher1BalanceOfBeef);
     }
 
-    function testYeetVouchersAndPairBurnsThem() external {
+    function testYeetVouchersAndSync() external {
         _syncToL2(L2_FORK_ID);
         vm.selectFork(L2_FORK_ID);
         _doMoreSwaps();
@@ -220,25 +220,13 @@ contract DoveVouchersTest is DoveBase {
 
         vm.stopBroadcast();
 
-        // burn vouchers
-        vm.recordLogs();
-        pair.burnVouchersHeldByPair();
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        // should be second long
-        (address sender, bytes memory HLpayload) = abi.decode(logs[2].data, (address, bytes));
         vm.selectFork(L1_FORK_ID);
-        vm.broadcast(address(mailboxL1));
-        dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender), HLpayload);
-
         uint256 k0 = _k(dove.reserve0(), dove.reserve1());
 
         // sync to L1
         _standardSyncToL1(L2_FORK_ID);
+        
         vm.selectFork(L1_FORK_ID);
-        // claiming the burn for dove should result in the tokens
-        // added to the reserves
-        dove.claimBurn(L2_DOMAIN, address(dove));
-
         assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k0);
 
     }

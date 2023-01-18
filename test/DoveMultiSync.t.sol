@@ -105,13 +105,18 @@ contract DoveMultiSyncTest is DoveBase {
         _doSomeSwapsOnL3();
         // same exact state as on the first L2
         _yeetVouchers(address(0xbeef), 0, pair2.voucher1().balanceOf(address(0xbeef)));
-        uint256 expectedMarked0 = pair2.voucher1().totalSupply();
-        uint256 expectedMarked1 = pair2.voucher0().totalSupply();
+        
+        uint256 expectedMarked0 = pair2.voucher1().totalSupply() - pair2.voucher1().balanceOf(address(pair2));
+        uint256 expectedMarked1 = pair2.voucher0().totalSupply() - pair2.voucher0().balanceOf(address(pair2));
+
         _standardSyncToL1(L2_FORK_ID);
+
         vm.selectFork(L1_FORK_ID);
         assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k, "F for curve");
         k = _k(dove.reserve0(), dove.reserve1());
+
         _standardSyncToL1(L3_FORK_ID);
+
         // Reminder that both L2s underwent same exact changes
         // check # of earmarked tokens in both Dove and the fountain
         vm.selectFork(L1_FORK_ID);
