@@ -5,13 +5,13 @@ library SGHyperlaneConverter {
     function sgToHyperlane(uint16 sgIdentifier) internal pure returns (uint32 domain) {
         if (sgIdentifier == 110) {
             // arbi
-            return 0x617262;
+            return 42161;
         } else if (sgIdentifier == 111) {
             // optimism
-            return 0x6f70;
+            return 10;
         } else if (sgIdentifier == 109) {
             /// polygon
-            return 0x706f6c79;
+            return 137;
         }
     }
 }

@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 
 import "./DoveBase.sol";
 
-contract DoveSimpleTest is DoveBase {
+contract DoveSyncTest is DoveBase {
     function setUp() external {
         _setUp();
     }
@@ -25,7 +25,7 @@ contract DoveSimpleTest is DoveBase {
         uint256 doveReserve0 = dove.reserve0();
         uint256 doveReserve1 = dove.reserve1();
 
-        _syncToL2();
+        _syncToL2(L2_FORK_ID);
 
         vm.selectFork(L2_FORK_ID);
         // have compare L2R0 to L1R1 because the ordering of the tokens on L2
@@ -40,7 +40,7 @@ contract DoveSimpleTest is DoveBase {
     */
     function testSyncingToL1() external {
         uint256 k0 = _k(initialLiquidity0, initialLiquidity1);
-        _syncToL2();
+        _syncToL2(L2_FORK_ID);
 
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
@@ -50,7 +50,7 @@ contract DoveSimpleTest is DoveBase {
         uint256 L2R0 = pair.reserve0(); // USDC virtual reserve
         uint256 L2R1 = pair.reserve1(); // DAI virtual reserve
 
-        _standardSyncToL1();
+        _standardSyncToL1(L2_FORK_ID);
 
         vm.selectFork(L1_FORK_ID);
 
@@ -78,7 +78,7 @@ contract DoveSimpleTest is DoveBase {
     }
 
     function testSyncingToL1_withSGSwapsProcessedLast() external {
-        _syncToL2();
+        _syncToL2(L2_FORK_ID);
 
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
@@ -93,7 +93,7 @@ contract DoveSimpleTest is DoveBase {
         order[1] = 3;
         order[2] = 0;
         order[3] = 1;
-        _syncToL1(order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
         // given messages weren't in expected order, sync should still be pending
@@ -111,7 +111,7 @@ contract DoveSimpleTest is DoveBase {
     }
 
     function testCannotFinalizeTwice() external {
-        _syncToL2();
+        _syncToL2(L2_FORK_ID);
 
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
@@ -124,7 +124,7 @@ contract DoveSimpleTest is DoveBase {
         order[1] = 3;
         order[2] = 0;
         order[3] = 1;
-        _syncToL1(order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
         dove.finalizeSyncFromL2(L2_DOMAIN, 0);
