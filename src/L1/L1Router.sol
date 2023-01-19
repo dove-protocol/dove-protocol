@@ -40,6 +40,26 @@ library Math {
 }
 
 contract L1Router {
+
+    /*###############################################################
+                            ERRORS
+    ###############################################################*/
+    error Expired();
+    error IdenticalAddress();
+    error ZeroAddress();
+    error InsuffcientAmountForQuote();
+    error InsufficientLiquidity();
+    error BelowMinimumAmount();
+    error PairDoesNotExist();
+    error InsufficientAmountA();
+    error InsufficientAmountB();
+    error TransferLiqToPairFailed();
+    error CodeLength();
+    error TransferFailed();
+
+    /*###############################################################
+                            STORAGE
+    ###############################################################*/
     struct route {
         address from;
         address to;
@@ -50,20 +70,25 @@ contract L1Router {
     uint256 internal constant MINIMUM_LIQUIDITY = 10 ** 3;
     bytes32 immutable pairCodeHash;
 
-    modifier ensure(uint256 deadline) {
-        require(deadline >= block.timestamp, "BaseV1Router: EXPIRED");
-        _;
-    }
-
+    /*###############################################################
+                            CONSTRUCTOR
+    ###############################################################*/
     constructor(address _factory) {
         factory = _factory;
         pairCodeHash = IFactory(_factory).pairCodeHash();
     }
 
+    /*###############################################################
+                            ROUTER
+    ###############################################################*/
     function sortTokens(address tokenA, address tokenB) public pure returns (address token0, address token1) {
-        require(tokenA != tokenB, "BaseV1Router: IDENTICAL_ADDRESSES");
+        if(tokenA == tokenB){
+            revert IdenticalAddress();
+        }
         (token0, token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-        require(token0 != address(0), "BaseV1Router: ZERO_ADDRESS");
+        if(token0 == address(0)) {
+            revert ZeroAddress();
+        }
     }
 
     // calculates the CREATE2 address for a pair without making any external calls
@@ -91,8 +116,12 @@ contract L1Router {
         pure
         returns (uint256 amountB)
     {
-        require(amountA > 0, "BaseV1Router: INSUFFICIENT_AMOUNT");
-        require(reserveA > 0 && reserveB > 0, "BaseV1Router: INSUFFICIENT_LIQUIDITY");
+        if(!(amountA > 0)) {
+            revert InsuffcientAmountForQuote();
+        }
+        if(!(reserveA > 0 && reserveB > 0)) {
+            revert InsufficientLiquidity();
+        }
         amountB = amountA * reserveB / reserveA;
     }
 
@@ -163,23 +192,30 @@ contract L1Router {
         uint256 amountAMin,
         uint256 amountBMin
     ) internal returns (uint256 amountA, uint256 amountB) {
-        require(amountADesired >= amountAMin);
-        require(amountBDesired >= amountBMin);
+        if(!(amountADesired >= amountAMin && amountBDesired >= amountBMin)) {
+            revert BelowMinimumAmount();
+        }
         // create the pair if it doesn't exist yet
         address _pair = IFactory(factory).getPair(tokenA, tokenB);
-        require(_pair != address(0), "BaseV1Router: PAIR_NOT_EXIST");
+        if(_pair == address(0)) {
+            revert PairDoesNotExist();
+        }
         (uint256 reserveA, uint256 reserveB) = getReserves(tokenA, tokenB);
         if (reserveA == 0 && reserveB == 0) {
             (amountA, amountB) = (amountADesired, amountBDesired);
         } else {
             uint256 amountBOptimal = quoteLiquidity(amountADesired, reserveA, reserveB);
             if (amountBOptimal <= amountBDesired) {
-                require(amountBOptimal >= amountBMin, "BaseV1Router: INSUFFICIENT_B_AMOUNT");
+                if(amountBOptimal < amountBMin) {
+                    revert InsufficientAmountB();
+                }
                 (amountA, amountB) = (amountADesired, amountBOptimal);
             } else {
                 uint256 amountAOptimal = quoteLiquidity(amountBDesired, reserveB, reserveA);
                 assert(amountAOptimal <= amountADesired);
-                require(amountAOptimal >= amountAMin, "BaseV1Router: INSUFFICIENT_A_AMOUNT");
+                if(amountBOptimal < amountBMin) {
+                    revert InsufficientAmountA();
+                }
                 (amountA, amountB) = (amountAOptimal, amountBDesired);
             }
         }
@@ -194,7 +230,10 @@ contract L1Router {
         uint256 amountBMin,
         address to,
         uint256 deadline
-    ) external ensure(deadline) returns (uint256 amountA, uint256 amountB, uint256 liquidity) {
+    ) external returns (uint256 amountA, uint256 amountB, uint256 liquidity) {
+        if(deadline < block.timestamp) {
+            revert Expired();
+        }
         (amountA, amountB) = _addLiquidity(tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin);
         address pair = IFactory(factory).getPair(tokenA, tokenB);
         _safeTransferFrom(tokenA, msg.sender, pair, amountA);
@@ -211,14 +250,23 @@ contract L1Router {
         uint256 amountBMin,
         address to,
         uint256 deadline
-    ) public ensure(deadline) returns (uint256 amountA, uint256 amountB) {
+    ) public returns (uint256 amountA, uint256 amountB) {
+        if(deadline < block.timestamp) {
+            revert Expired();
+        }
         address pair = IFactory(factory).getPair(tokenA, tokenB);
-        require(IDove(pair).transferFrom(msg.sender, pair, liquidity)); // send liquidity to pair
+        if(!(IDove(pair).transferFrom(msg.sender, pair, liquidity))) {
+            revert TransferLiqToPairFailed();
+        }
         (uint256 amount0, uint256 amount1) = IDove(pair).burn(to);
         (address token0,) = sortTokens(tokenA, tokenB);
         (amountA, amountB) = tokenA == token0 ? (amount0, amount1) : (amount1, amount0);
-        require(amountA >= amountAMin, "BaseV1Router: INSUFFICIENT_A_AMOUNT");
-        require(amountB >= amountBMin, "BaseV1Router: INSUFFICIENT_B_AMOUNT");
+        if(amountA < amountAMin) {
+            revert InsufficientAmountA();
+        }
+        if(amountB < amountBMin) {
+            revert InsufficientAmountB();
+        }
     }
 
     function removeLiquidityWithPermit(
@@ -244,15 +292,23 @@ contract L1Router {
     }
 
     function _safeTransfer(address token, address to, uint256 value) internal {
-        require(token.code.length > 0);
+        if(!(token.code.length > 0)) {
+            revert CodeLength();
+        }
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(ERC20.transfer.selector, to, value));
-        require(success && (data.length == 0 || abi.decode(data, (bool))));
+        if(!(success && (data.length == 0 || abi.decode(data, (bool))))) {
+            revert TransferFailed();
+        }
     }
 
     function _safeTransferFrom(address token, address from, address to, uint256 value) internal {
-        require(token.code.length > 0);
+        if(!(token.code.length > 0)) {
+            revert CodeLength();
+        }
         (bool success, bytes memory data) =
             token.call(abi.encodeWithSelector(ERC20.transferFrom.selector, from, to, value));
-        require(success && (data.length == 0 || abi.decode(data, (bool))));
+        if(!(success && (data.length == 0 || abi.decode(data, (bool))))) {
+            revert TransferFailed();
+        }
     }
 }

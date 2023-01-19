@@ -38,6 +38,16 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256 earmarkedAmount1
     );
     event BurnClaimCreated(uint256 indexed srcDomain, address indexed user, uint256 amount0, uint256 amount1);
+
+    /*###############################################################
+                            ERRORS
+    ###############################################################*/
+    error InsuffcientLiquidityMinted();
+    error InsuffcientLiquidityBurned();
+    error NotStargate();
+    error NotTrusted();
+    error NoStargateSwaps();
+    
     /*###############################################################
                             STRUCTS
     ###############################################################*/
@@ -235,7 +245,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             uint256 b = _amount1 * _totalSupply / _reserve1;
             liquidity = a < b ? a : b;
         }
-        require(liquidity > 0, "ILM");
+        if(!(liquidity > 0)) {
+            revert InsuffcientLiquidityMinted();
+        }
         _updateFor(to);
         _mint(to, liquidity);
 
@@ -254,7 +266,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256 _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
         amount0 = _liquidity * _balance0 / _totalSupply; // using balances ensures pro-rata distribution
         amount1 = _liquidity * _balance1 / _totalSupply; // using balances ensures pro-rata distribution
-        require(amount0 > 0 && amount1 > 0, "ILB"); // BaseV1: INSUFFICIENT_LIQUIDITY_BURNED
+        if(!(amount0 > 0 && amount1 > 0)) {
+            revert InsuffcientLiquidityBurned();
+        }
         _updateFor(to);
         _burn(address(this), _liquidity);
 
@@ -280,8 +294,12 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         bytes calldata data
     ) external override {
         address stargateRouter = factory.stargateRouter();
-        require(msg.sender == stargateRouter, "NOT STARGATE");
-        require(keccak256(_srcAddress) == keccak256(sgTrustedBridge[_srcChainId]), "NOT TRUSTED");
+        if(msg.sender != stargateRouter) {
+            revert NotStargate();
+        }
+        if(keccak256(_srcAddress) != keccak256(sgTrustedBridge[_srcChainId])) {
+            revert NotTrusted();
+        }
         uint256 syncID = abi.decode(data, (uint256));
         uint32 domain = SGHyperlaneConverter.sgToHyperlane(_srcChainId);
         if (_token == token0) {
@@ -294,7 +312,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
 
     function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
         // check if message is from trusted remote
-        require(trustedRemoteLookup[origin] == sender, "NOT TRUSTED");
+        if(trustedRemoteLookup[origin] != sender) {
+            revert NotTrusted();
+        }
         uint256 messageType = abi.decode(payload, (uint256));
         if (messageType == MessageType.BURN_VOUCHERS) {
             // receive both amounts and a single address to determine ordering
@@ -315,7 +335,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     }
 
     function finalizeSyncFromL2(uint32 originDomain, uint256 syncID) external {
-        require(lastBridged0[originDomain][syncID] > 0 && lastBridged1[originDomain][syncID] > 0, "NO SG SWAPS");
+        if(!(lastBridged0[originDomain][syncID] > 0 && lastBridged1[originDomain][syncID] > 0)) {
+            revert NoStargateSwaps();
+        }
         Sync memory sync = syncs[originDomain][syncID];
         (PartialSync memory partialSync0, PartialSync memory partialSync1) = sync.partialSyncA.token == token0
             ? (sync.partialSyncA, sync.partialSyncB)
