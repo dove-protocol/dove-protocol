@@ -20,6 +20,9 @@ import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {InterchainGasPaymasterMock} from "./mocks/InterchainGasPaymasterMock.sol";
 import {MailboxMock} from "./mocks/MailboxMock.sol";
 
+import {HyperlaneHelper} from "pigeon/hyperlane/HyperlaneHelper.sol";
+import {LayerZeroHelper} from "pigeon/layerzero/LayerZeroHelper.sol";
+
 /*
     Some of the calculations rely on the state of SG pools at the hardcoded fork blocks.
 
@@ -31,8 +34,7 @@ import {MailboxMock} from "./mocks/MailboxMock.sol";
     token0      token1+voucher1
     token1      token0+voucher0
     marked0     voucher1
-    marked1     voucher0
-*/
+    marked1     voucher0*/
 contract DoveBase is Test, Helper {
     // L1
     address constant L1SGRouter = 0x8731d54E9D02c286767d56ac03e8037C07e01e98;
@@ -61,6 +63,9 @@ contract DoveBase is Test, Helper {
 
     // Misc
 
+    HyperlaneHelper hyperlaneHelper;
+    LayerZeroHelper layerZeroHelper;
+
     uint256 L1_FORK_ID;
     uint256 L2_FORK_ID;
     uint16 constant L1_CHAIN_ID = 101;
@@ -77,6 +82,9 @@ contract DoveBase is Test, Helper {
     uint256 constant initialLiquidity1 = 10 ** 13;
 
     function _setUp() internal {
+        hyperlaneHelper = new HyperlaneHelper();
+        layerZeroHelper = new LayerZeroHelper();
+
         vm.makePersistent(address(this));
         L1_FORK_ID = vm.createSelectFork(RPC_ETH_MAINNET, 16299272);
 
@@ -174,11 +182,7 @@ contract DoveBase is Test, Helper {
         vm.broadcast(user);
         pair.burnVouchers(amount0, amount1);
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        // should be second long
-        (address sender, bytes memory HLpayload) = abi.decode(logs[1].data, (address, bytes));
-        vm.selectFork(L1_FORK_ID);
-        vm.broadcast(address(mailboxL1));
-        dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender), HLpayload);
+        hyperlaneHelper.help(address(mailboxL1), L1_FORK_ID, logs);
     }
 
     function _syncToL2() internal {
@@ -186,13 +190,7 @@ contract DoveBase is Test, Helper {
         vm.recordLogs();
         dove.syncL2{value: 1 ether}(L2_CHAIN_ID, address(pair));
         Vm.Log[] memory logs = vm.getRecordedLogs();
-
-        // Packet event with payload should be the last one
-        (address sender, bytes memory payload) = abi.decode(logs[logs.length - 1].data, (address, bytes));
-        // switch fork
-        vm.selectFork(L2_FORK_ID);
-        vm.broadcast(address(mailboxL2));
-        pair.handle(L1_DOMAIN, TypeCasts.addressToBytes32(sender), payload);
+        hyperlaneHelper.help(address(mailboxL2), L2_FORK_ID, logs);
     }
 
     function _standardSyncToL1() internal {

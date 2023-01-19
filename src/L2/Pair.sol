@@ -321,7 +321,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     function yeetVouchers(uint256 amount0, uint256 amount1) external nonReentrant {
         voucher0.transferFrom(msg.sender, address(this), amount0);
         voucher1.transferFrom(msg.sender, address(this), amount1);
-        
+
         SafeTransferLib.safeTransfer(ERC20(token0), msg.sender, amount0);
         SafeTransferLib.safeTransfer(ERC20(token1), msg.sender, amount1);
     }
@@ -436,7 +436,6 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         ref0 = reserve0;
         ref1 = reserve1;
     }
-
 
     function _getL1Ordering(uint256 amount0, uint256 amount1) internal view returns (uint256, uint256) {
         if (L1Token0 < L1Token1) {

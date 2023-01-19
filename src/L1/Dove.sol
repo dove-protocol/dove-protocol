@@ -350,17 +350,12 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     /// @param user The user who initiated the burn.
     /// @param amount0 The quantity of local token0 tokens.
     /// @param amount1 The quantity of local token1 tokens.
-    function _completeVoucherBurns(uint32 srcDomain, address user, uint256 amount0, uint256 amount1)
-        internal
-    {
+    function _completeVoucherBurns(uint32 srcDomain, address user, uint256 amount0, uint256 amount1) internal {
         // if not enough to satisfy, just save the claim
         if (amount0 > marked0[srcDomain] || amount1 > marked1[srcDomain]) {
             // cumulate burns
             BurnClaim memory burnClaim = burnClaims[srcDomain][user];
-            burnClaims[srcDomain][user] = BurnClaim(
-                burnClaim.amount0 + amount0,
-                burnClaim.amount1 + amount1
-            );
+            burnClaims[srcDomain][user] = BurnClaim(burnClaim.amount0 + amount0, burnClaim.amount1 + amount1);
             emit BurnClaimCreated(srcDomain, user, amount0, amount1);
             return;
         }
