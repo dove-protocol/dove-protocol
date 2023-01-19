@@ -368,7 +368,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 _balance0,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                abi.encodePacked(syncID)
+                "1"
             );
             bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID, L1Token0, voucher0Delta, _balance0);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
@@ -387,7 +387,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 _balance1,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                abi.encodePacked(syncID)
+                "1"
             );
             bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID, L1Token1, voucher1Delta, _balance1);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
