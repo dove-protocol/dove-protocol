@@ -412,6 +412,10 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         require(origin == destDomain, "WRONG ORIGIN");
         require(TypeCasts.addressToBytes32(L1Target) == sender, "NOT DOVE");
         uint256 messageType = abi.decode(payload, (uint256));
+        _handle(messageType, payload);
+    }
+
+    function _handle(uint256 messageType, bytes calldata payload) internal {
         if (messageType == MessageType.SYNC_TO_L2) {
             _syncFromL1(payload);
         }

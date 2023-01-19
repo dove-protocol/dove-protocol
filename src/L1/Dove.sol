@@ -297,6 +297,10 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         // check if message is from trusted remote
         require(trustedRemoteLookup[origin] == sender, "NOT TRUSTED");
         uint256 messageType = abi.decode(payload, (uint256));
+        _handle(origin, messageType, payload);
+    }
+
+    function _handle(uint32 origin, uint256 messageType, bytes calldata payload) internal {
         if (messageType == MessageType.BURN_VOUCHERS) {
             // receive both amounts and a single address to determine ordering
             (, address user, uint256 amount0, uint256 amount1) =
