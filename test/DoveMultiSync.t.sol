@@ -105,7 +105,8 @@ contract DoveMultiSyncTest is DoveBase {
         _doSomeSwapsOnL3();
         // same exact state as on the first L2
         _yeetVouchers(address(0xbeef), 0, pair2.voucher1().balanceOf(address(0xbeef)));
-        
+
+        // "pre-swap" for L1
         uint256 expectedMarked0 = pair2.voucher1().totalSupply() - pair2.voucher1().balanceOf(address(pair2));
         uint256 expectedMarked1 = pair2.voucher0().totalSupply() - pair2.voucher0().balanceOf(address(pair2));
 
@@ -141,6 +142,50 @@ contract DoveMultiSyncTest is DoveBase {
         assertEq(dove.reserve1(), initialR1 + (2*pairBalance1) - (2*expectedMarked1));
     }
 
+    function testSyncsWithVouchers() external {
+        vm.selectFork(L1_FORK_ID);
+        uint256 initialR0 = dove.reserve0();
+        uint256 initialR1 = dove.reserve1();
+        uint256 k = _k(initialR0, initialR1);
+
+        _syncToL2(L2_FORK_ID);
+        _syncToL2(L3_FORK_ID);
+        _doSomeSwaps();
+        _doSomeSwapsOnL3();        
+        uint256 expectedMarked0 = pair2.voucher1().totalSupply();
+        uint256 expectedMarked1 = pair2.voucher0().totalSupply();
+
+        _standardSyncToL1(L2_FORK_ID);
+
+        vm.selectFork(L1_FORK_ID);
+        assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k, "F for curve");
+        k = _k(dove.reserve0(), dove.reserve1());
+
+        _standardSyncToL1(L3_FORK_ID);
+
+        // Reminder that both L2s underwent same exact changes
+        // check # of earmarked tokens in both Dove and the fountain
+        vm.selectFork(L1_FORK_ID);
+        assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k, "F for curve");
+
+        assertEq(dove.marked0(L2_DOMAIN), expectedMarked0);
+        assertEq(dove.marked1(L2_DOMAIN), expectedMarked1);
+        assertEq(dove.marked0(L3_DOMAIN), expectedMarked0);
+        assertEq(dove.marked1(L3_DOMAIN), expectedMarked1);
+
+        // todo : remove magic numbers and find out amounts by parsing logs
+        // bridged0 = 49833333333333333333334
+        // bridged1 = 0
+        // fees0    = 136666666666666666666
+        // fees1    = 166566667
+
+        uint256 pairBalance0 = 49833333333333333333334;
+        uint256 pairBalance1 = 0;
+
+        // check that reserves were impacted properly
+        assertEq(dove.reserve0(), initialR0 + (2*pairBalance0) - (2*expectedMarked0));
+        assertEq(dove.reserve1(), initialR1 + (2*pairBalance1) - (2*expectedMarked1));
+    }
 
     function _doSomeSwapsOnL3() internal {
         vm.selectFork(L3_FORK_ID);
