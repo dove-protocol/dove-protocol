@@ -241,16 +241,6 @@ contract DoveBase is Test, Helper {
         three(payloads[order[2]]);
         four(payloads[order[3]]);
 
-        // (,address token0,uint256 marked0, uint256 pairBalance0) = abi.decode(HLpayload1, (uint,address,uint,uint));
-        // (,address token1,uint256 marked1, uint256 pairBalance1) = abi.decode(HLpayload2, (uint,address,uint,uint));
-        // console.log("Hyperlane payload0...");
-        // console.log("token", token0);
-        // console.log("marked", marked0);
-        // console.log("pairBalance", pairBalance0);
-        // console.log("Hyperlane payload1...");
-        // console.log("token", token1);
-        // console.log("marked", marked1);
-        // console.log("pairBalance", pairBalance1);
     }
 
     function _handleSGMessage(bytes memory payload) internal {

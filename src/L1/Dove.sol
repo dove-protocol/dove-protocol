@@ -267,6 +267,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         emit Burn(msg.sender, amount0, amount1, to);
     }
 
+    function sync() external nonReentrant {
+        _update(ERC20(token0).balanceOf(address(this)), ERC20(token1).balanceOf(address(this)), reserve0, reserve1);
+    }
     /*###############################################################
                             SYNCING LOGIC
     ###############################################################*/
@@ -464,6 +467,11 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256 balance1 = ERC20(partialSync1.token).balanceOf(address(this));
         _update(balance0, balance1, _reserve0, _reserve1);
     }
+
+
+    /*###############################################################
+                            ERC20 FUNCTIONS
+    ###############################################################*/ 
 
     function transfer(address to, uint256 amount) public override returns (bool) {
         _updateFor(msg.sender);

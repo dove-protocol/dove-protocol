@@ -266,6 +266,62 @@ contract DoveSimpleTest is DoveBase {
 
     }
 
+    function testSyncWithWorstOrderAndSyncBeforeHLComesThrough() external {
+        vm.selectFork(L1_FORK_ID);
+        uint256 k = _k(dove.reserve0(), dove.reserve1());
+
+        _syncToL2();
+
+        vm.selectFork(L2_FORK_ID);
+        _doSomeSwaps();
+
+        // pre-sync values to compare to post-sync
+        uint256 voucher0Delta = uint256(vm.load(address(pair), bytes32(uint256(21))));
+        uint256 voucher1Delta = uint256(vm.load(address(pair), bytes32(uint256(22))));
+        uint256 balance0OfPair = L2Token0.balanceOf(address(pair));
+        uint256 balance1OfPair = L2Token1.balanceOf(address(pair));
+        vm.selectFork(L1_FORK_ID);
+        uint256 marked0 = dove.marked0(L2_DOMAIN);
+        uint256 marked1 = dove.marked1(L2_DOMAIN);
+        uint256 balance0OfFountain = L1Token0.balanceOf(address(dove.fountain()));
+        uint256 balance1OfFountain = L1Token1.balanceOf(address(dove.fountain()));
+        uint256 reserve0 = dove.reserve0();
+        uint256 reserve1 = dove.reserve1();
+
+        // ######## SYNCING TO L1 ########
+        vm.selectFork(L2_FORK_ID);
+        vm.recordLogs();
+        pair.syncToL1{value: 800 ether}(200 ether, 200 ether);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes[] memory payloads = new bytes[](4);
+        payloads[0] = abi.decode(logs[10].data, (bytes));
+        payloads[1] = abi.decode(logs[21].data, (bytes));
+        payloads[2] = logs[12].data;
+        payloads[3] = logs[23].data;
+
+        _handleSGMessage(payloads[0]);
+        _handleSGMessage(payloads[1]);
+        dove.sync();
+        _handleHLMessage(payloads[2]);
+        _handleHLMessage(payloads[3]);
+
+        // ################################
+
+        vm.selectFork(L1_FORK_ID);
+        // At this point, both HL messages went through and even though we called `sync` with the newly
+        // updated tokens balances due to SG swaps, it shouldn't change the behavior of the sync!
+        assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k);
+
+        // the equivalent of L2 token0/1 on L1 is the opposite due to the
+        // addresses
+        assertEq(dove.marked0(L2_DOMAIN), marked1 + voucher1Delta);
+        assertEq(dove.marked1(L2_DOMAIN), marked0 + voucher0Delta);
+        assertEq(L1Token0.balanceOf(address(dove.fountain())), balance0OfFountain + voucher1Delta);
+        assertEq(L1Token1.balanceOf(address(dove.fountain())), balance1OfFountain + voucher0Delta);
+        assertEq(dove.reserve0(), reserve0 + balance1OfPair - voucher1Delta);
+        assertEq(dove.reserve1(), reserve1 + balance0OfPair - voucher0Delta);
+    }
+
     function _findOneLog(Vm.Log[] memory logs, bytes32 topic) internal returns (Vm.Log memory) {
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == topic) {
