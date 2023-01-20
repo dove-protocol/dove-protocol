@@ -153,7 +153,7 @@ contract DoveSimpleTest is DoveBase {
         vm.deal(address(attacker), 1000 ether);
         // credit attacker with USDC
         vm.startBroadcast(0xF977814e90dA44bFA03b6295A0616a897441aceC);
-        ERC20(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174).transfer(address(attacker), 100 * 10**6);
+        ERC20(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174).transfer(address(attacker), 100 * 10 ** 6);
         vm.stopBroadcast();
 
         vm.recordLogs();
@@ -163,7 +163,7 @@ contract DoveSimpleTest is DoveBase {
             1,
             1,
             0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174,
-            100 * 10**6,
+            100 * 10 ** 6,
             address(dove)
         );
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -196,7 +196,7 @@ contract DoveSimpleTest is DoveBase {
         vm.deal(address(attacker), 1000 ether);
         // credit attacker with USDC
         vm.startBroadcast(0xF977814e90dA44bFA03b6295A0616a897441aceC);
-        ERC20(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174).transfer(address(attacker), 100 * 10**6);
+        ERC20(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174).transfer(address(attacker), 100 * 10 ** 6);
         vm.stopBroadcast();
 
         vm.recordLogs();
@@ -206,7 +206,7 @@ contract DoveSimpleTest is DoveBase {
             1,
             1,
             0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174,
-            100 * 10**6,
+            100 * 10 ** 6,
             address(dove)
         );
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -218,7 +218,7 @@ contract DoveSimpleTest is DoveBase {
         vm.selectFork(L2_FORK_ID);
         // credit attacker with DAI
         vm.startBroadcast(0x27F8D03b3a2196956ED754baDc28D73be8830A6e);
-        ERC20(0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063).transfer(address(attacker), 100 * 10**18);
+        ERC20(0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063).transfer(address(attacker), 100 * 10 ** 18);
         vm.stopBroadcast();
 
         vm.recordLogs();
@@ -228,7 +228,7 @@ contract DoveSimpleTest is DoveBase {
             3,
             3,
             0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063,
-            100 * 10**18,
+            100 * 10 ** 18,
             address(dove)
         );
         logs = vm.getRecordedLogs();
@@ -260,10 +260,8 @@ contract DoveSimpleTest is DoveBase {
         Vm.Log memory feesLog = _findOneLog(logs, feesTopic);
         (uint256 fees0, uint256 fees1) = abi.decode(feesLog.data, (uint256, uint256));
         // todo : actually retrieved bridged amounts and not use a margin error
-        assertApproxEqAbs(fees0, 136666666666666666666 + 10**20, 10**18);
-        assertApproxEqAbs(fees1, 166566667 + 10**8, 10**6);
-
-
+        assertApproxEqAbs(fees0, 136666666666666666666 + 10 ** 20, 10 ** 18);
+        assertApproxEqAbs(fees1, 166566667 + 10 ** 8, 10 ** 6);
     }
 
     function testSyncWithWorstOrderAndSyncBeforeHLComesThrough() external {

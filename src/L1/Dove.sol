@@ -353,17 +353,12 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     /// @param user The user who initiated the burn.
     /// @param amount0 The quantity of local token0 tokens.
     /// @param amount1 The quantity of local token1 tokens.
-    function _completeVoucherBurns(uint32 srcDomain, address user, uint256 amount0, uint256 amount1)
-        internal
-    {
+    function _completeVoucherBurns(uint32 srcDomain, address user, uint256 amount0, uint256 amount1) internal {
         // if not enough to satisfy, just save the claim
         if (amount0 > marked0[srcDomain] || amount1 > marked1[srcDomain]) {
             // cumulate burns
             BurnClaim memory burnClaim = burnClaims[srcDomain][user];
-            burnClaims[srcDomain][user] = BurnClaim(
-                burnClaim.amount0 + amount0,
-                burnClaim.amount1 + amount1
-            );
+            burnClaims[srcDomain][user] = BurnClaim(burnClaim.amount0 + amount0, burnClaim.amount1 + amount1);
             emit BurnClaimCreated(srcDomain, user, amount0, amount1);
             return;
         }
@@ -461,17 +456,16 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             partialSync1.pairBalance,
             partialSync0.earmarkedAmount,
             partialSync1.earmarkedAmount
-        );
+            );
         localSyncID[srcDomain]++;
         uint256 balance0 = ERC20(partialSync0.token).balanceOf(address(this));
         uint256 balance1 = ERC20(partialSync1.token).balanceOf(address(this));
         _update(balance0, balance1, _reserve0, _reserve1);
     }
 
-
     /*###############################################################
                             ERC20 FUNCTIONS
-    ###############################################################*/ 
+    ###############################################################*/
 
     function transfer(address to, uint256 amount) public override returns (bool) {
         _updateFor(msg.sender);
