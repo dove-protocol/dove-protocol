@@ -31,8 +31,7 @@ import {MailboxMock} from "./mocks/MailboxMock.sol";
     token0      token1+voucher1
     token1      token0+voucher0
     marked0     voucher1
-    marked1     voucher0
-*/
+    marked1     voucher0*/
 contract DoveBase is Test, Helper {
     // L1
     address constant L1SGRouter = 0x8731d54E9D02c286767d56ac03e8037C07e01e98;
@@ -240,17 +239,6 @@ contract DoveBase is Test, Helper {
         two(payloads[order[1]]);
         three(payloads[order[2]]);
         four(payloads[order[3]]);
-
-        // (,address token0,uint256 marked0, uint256 pairBalance0) = abi.decode(HLpayload1, (uint,address,uint,uint));
-        // (,address token1,uint256 marked1, uint256 pairBalance1) = abi.decode(HLpayload2, (uint,address,uint,uint));
-        // console.log("Hyperlane payload0...");
-        // console.log("token", token0);
-        // console.log("marked", marked0);
-        // console.log("pairBalance", pairBalance0);
-        // console.log("Hyperlane payload1...");
-        // console.log("token", token1);
-        // console.log("marked", marked1);
-        // console.log("pairBalance", pairBalance1);
     }
 
     function _handleSGMessage(bytes memory payload) internal {

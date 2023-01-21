@@ -321,7 +321,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     function yeetVouchers(uint256 amount0, uint256 amount1) external nonReentrant {
         voucher0.transferFrom(msg.sender, address(this), amount0);
         voucher1.transferFrom(msg.sender, address(this), amount1);
-        
+
         SafeTransferLib.safeTransfer(ERC20(token0), msg.sender, amount0);
         SafeTransferLib.safeTransfer(ERC20(token1), msg.sender, amount1);
     }
@@ -368,7 +368,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 _balance0,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                abi.encodePacked(syncID)
+                "1"
             );
             bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID, L1Token0, voucher0Delta, _balance0);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
@@ -387,7 +387,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 _balance1,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                abi.encodePacked(syncID)
+                "1"
             );
             bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID, L1Token1, voucher1Delta, _balance1);
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
@@ -436,7 +436,6 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         ref0 = reserve0;
         ref1 = reserve1;
     }
-
 
     function _getL1Ordering(uint256 amount0, uint256 amount1) internal view returns (uint256, uint256) {
         if (L1Token0 < L1Token1) {
