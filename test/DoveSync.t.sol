@@ -141,7 +141,11 @@ contract DoveSyncTest is DoveBase {
         vm.selectFork(L2_FORK_ID);
         SGAttacker attacker = new SGAttacker();
 
+<<<<<<< HEAD
         _syncToL2(L2_FORK_ID);
+=======
+        _syncToL2();
+>>>>>>> origin/main
 
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
@@ -168,9 +172,15 @@ contract DoveSyncTest is DoveBase {
         );
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bytes memory attackPayload = abi.decode(_findOneLog(logs, LZTopic).data, (bytes));
+<<<<<<< HEAD
         _handleSGMessage(L2_FORK_ID, attackPayload);
 
         _standardSyncToL1(L2_FORK_ID);
+=======
+        _handleSGMessage(attackPayload);
+
+        _standardSyncToL1();
+>>>>>>> origin/main
 
         vm.selectFork(L1_FORK_ID);
         assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k);
@@ -184,7 +194,11 @@ contract DoveSyncTest is DoveBase {
         vm.selectFork(L2_FORK_ID);
         SGAttacker attacker = new SGAttacker();
 
+<<<<<<< HEAD
         _syncToL2(L2_FORK_ID);
+=======
+        _syncToL2();
+>>>>>>> origin/main
 
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
