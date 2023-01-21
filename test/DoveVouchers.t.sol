@@ -8,9 +8,7 @@ contract DoveVouchersTest is DoveBase {
         _setUp();
     }
 
-
-
-        /*
+    /*
             Napkin math
             Expected balances (after fees) after _doMoreSwaps() :
 
@@ -61,7 +59,6 @@ contract DoveVouchersTest is DoveBase {
         assertEq(pair.voucher1().balanceOf(address(0xbeef)), 0);
 
         vm.selectFork(L1_FORK_ID);
-
 
         assertEq(dove.marked1(L2_DOMAIN), voucher0Supply);
         assertEq(dove.marked0(L2_DOMAIN), voucher1Supply - voucher1BalanceOfBeef);
@@ -225,9 +222,8 @@ contract DoveVouchersTest is DoveBase {
 
         // sync to L1
         _standardSyncToL1(L2_FORK_ID);
-        
+
         vm.selectFork(L1_FORK_ID);
         assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k0);
-
     }
 }

@@ -196,13 +196,13 @@ contract DoveFeesTest is DoveBase {
         );
         vm.stopBroadcast();
 
-        // make sure from isn't mistaken by msg.sender 
+        // make sure from isn't mistaken by msg.sender
         assertEq(dove.claimable0(address(0xbaf)), claimableBefore0);
         assertEq(dove.claimable1(address(0xbaf)), claimableBefore1);
         assertEq(dove.balanceOf(address(0xbaf)), balance / 3);
         assertEq(L1Token0.balanceOf(address(0xbaf)), 0);
         assertEq(L1Token1.balanceOf(address(0xbaf)), 0);
-        
+
         assertTrue(L1Token0.balanceOf(address(0xbef)) > initialLiquidity0 * 2 / 3);
         assertTrue(L1Token1.balanceOf(address(0xbef)) > initialLiquidity1 * 2 / 3);
     }

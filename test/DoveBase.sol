@@ -32,10 +32,8 @@ import {MailboxMock} from "./mocks/MailboxMock.sol";
     token0      token1+voucher1
     token1      token0+voucher0
     marked0     voucher1
-    marked1     voucher0
-*/
+    marked1     voucher0*/
 contract DoveBase is Test, Helper {
-
     mapping(uint256 => uint32) forkToDomain;
     mapping(uint256 => uint16) forkToChainId;
     mapping(uint256 => address) forkToPair;
@@ -132,7 +130,6 @@ contract DoveBase is Test, Helper {
         dove.addStargateTrustedBridge(
             109, 0x9d1B1669c73b033DFe47ae5a0164Ab96df25B944, 0x296F55F8Fb28E498B858d0BcDA06D955B2Cb3f97
         );
-
 
         forkToDomain[L1_FORK_ID] = L1_DOMAIN;
         forkToChainId[L1_FORK_ID] = L1_CHAIN_ID;
@@ -243,9 +240,11 @@ contract DoveBase is Test, Helper {
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         // to find LZ events
-        uint256[2] memory LZEventsIndexes = _findSyncingEvents(logs, 0xe9bded5f24a4168e4f3bf44e00298c993b22376aad8c58c7dda9718a54cbea82);
+        uint256[2] memory LZEventsIndexes =
+            _findSyncingEvents(logs, 0xe9bded5f24a4168e4f3bf44e00298c993b22376aad8c58c7dda9718a54cbea82);
         // to find mock mailbox events
-        uint256[2] memory HLEventsIndexes = _findSyncingEvents(logs, 0x3b31784f245377d844a88ed832a668978c700fd9d25d80e8bf5ef168c6bffa20);
+        uint256[2] memory HLEventsIndexes =
+            _findSyncingEvents(logs, 0x3b31784f245377d844a88ed832a668978c700fd9d25d80e8bf5ef168c6bffa20);
 
         // first two payloads are LZ
         // last two are HL
@@ -299,7 +298,7 @@ contract DoveBase is Test, Helper {
             }
         }
     }
-    
+
     function _yeetVouchers(address user, uint256 amount0, uint256 amount1) internal {
         /*
             Napkin math

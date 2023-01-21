@@ -7,9 +7,9 @@ import "./DoveBase.sol";
 contract DoveMultiSyncTest is DoveBase {
     // L3 = Optimism
     /**
-        Important note :
-        When we say "L3", it's synonymous with *another* L2.
-    */
+     * Important note :
+     *     When we say "L3", it's synonymous with *another* L2.
+     */
     address constant L3SGRouter = 0xB0D502E938ed5f4df2E681fE6E419ff29631d62b;
     InterchainGasPaymasterMock gasMasterL3;
     MailboxMock mailboxL3;
@@ -33,7 +33,6 @@ contract DoveMultiSyncTest is DoveBase {
 
     function setUp() external {
         _setUp();
-
 
         // L1
         vm.broadcast(address(factoryL1));
@@ -138,8 +137,8 @@ contract DoveMultiSyncTest is DoveBase {
         uint256 pairBalance1 = 166566667 - 166566667;
 
         // check that reserves were impacted properly
-        assertEq(dove.reserve0(), initialR0 + (2*pairBalance0) - (2*expectedMarked0));
-        assertEq(dove.reserve1(), initialR1 + (2*pairBalance1) - (2*expectedMarked1));
+        assertEq(dove.reserve0(), initialR0 + (2 * pairBalance0) - (2 * expectedMarked0));
+        assertEq(dove.reserve1(), initialR1 + (2 * pairBalance1) - (2 * expectedMarked1));
     }
 
     function testSyncsWithVouchers() external {
@@ -151,7 +150,7 @@ contract DoveMultiSyncTest is DoveBase {
         _syncToL2(L2_FORK_ID);
         _syncToL2(L3_FORK_ID);
         _doSomeSwaps();
-        _doSomeSwapsOnL3();        
+        _doSomeSwapsOnL3();
         uint256 expectedMarked0 = pair2.voucher1().totalSupply();
         uint256 expectedMarked1 = pair2.voucher0().totalSupply();
 
@@ -183,8 +182,8 @@ contract DoveMultiSyncTest is DoveBase {
         uint256 pairBalance1 = 0;
 
         // check that reserves were impacted properly
-        assertEq(dove.reserve0(), initialR0 + (2*pairBalance0) - (2*expectedMarked0));
-        assertEq(dove.reserve1(), initialR1 + (2*pairBalance1) - (2*expectedMarked1));
+        assertEq(dove.reserve0(), initialR0 + (2 * pairBalance0) - (2 * expectedMarked0));
+        assertEq(dove.reserve1(), initialR1 + (2 * pairBalance1) - (2 * expectedMarked1));
     }
 
     function _doSomeSwapsOnL3() internal {
