@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 
 import "./DoveBase.sol";
 
-contract DoveFeesTest is DoveBase {
+contract DoveVouchersTest is DoveBase {
     function setUp() external {
         _setUp();
     }
@@ -33,10 +33,10 @@ contract DoveFeesTest is DoveBase {
 
     // Burning vouchers on L2 should result in the user getting the underlying token on L1.
     function testVouchersBurn() external {
-        _syncToL2();
+        _syncToL2(L2_FORK_ID);
         vm.selectFork(L2_FORK_ID);
         _doMoreSwaps();
-        _standardSyncToL1();
+        _standardSyncToL1(L2_FORK_ID);
 
         vm.selectFork(L1_FORK_ID);
         uint256 L1R0 = dove.reserve0();
@@ -51,7 +51,7 @@ contract DoveFeesTest is DoveBase {
         uint256 voucher1BalanceOfBeef = pair.voucher1().balanceOf(address(0xbeef));
 
         // burn just one voucher for now
-        _burnVouchers(address(0xbeef), 0, voucher1BalanceOfBeef);
+        _burnVouchers(L2_FORK_ID, address(0xbeef), 0, voucher1BalanceOfBeef);
 
         vm.selectFork(L2_FORK_ID);
         // voucher0 supply doesn't change because we didn't burn it
@@ -87,7 +87,7 @@ contract DoveFeesTest is DoveBase {
     }
 
     function testVouchersMath() external {
-        _syncToL2();
+        _syncToL2(L2_FORK_ID);
         vm.selectFork(L2_FORK_ID);
         _doMoreSwaps();
 
@@ -97,7 +97,7 @@ contract DoveFeesTest is DoveBase {
         assertEq(pair.voucher0().balanceOf(address(pair)), 0);
         assertEq(pair.voucher1().balanceOf(address(pair)), 0);
 
-        _standardSyncToL1();
+        _standardSyncToL1(L2_FORK_ID);
 
         vm.selectFork(L1_FORK_ID);
         uint256 L1R0 = dove.reserve0();
@@ -123,7 +123,7 @@ contract DoveFeesTest is DoveBase {
     }
 
     function testYeetVouchers() external {
-        _syncToL2();
+        _syncToL2(L2_FORK_ID);
         vm.selectFork(L2_FORK_ID);
         _doMoreSwaps();
         vm.selectFork(L2_FORK_ID);
@@ -164,7 +164,7 @@ contract DoveFeesTest is DoveBase {
     }
 
     function testCannotYeetMoreThanOwned() external {
-        _syncToL2();
+        _syncToL2(L2_FORK_ID);
         vm.selectFork(L2_FORK_ID);
         _doMoreSwaps();
         vm.selectFork(L2_FORK_ID);
@@ -180,7 +180,7 @@ contract DoveFeesTest is DoveBase {
 
     // burn message sent from L2 ; not enough earmarked tokens on L1 ; burn is saved
     function testBurnClaim() external {
-        _syncToL2();
+        _syncToL2(L2_FORK_ID);
         vm.selectFork(L2_FORK_ID);
         _doMoreSwaps();
         vm.selectFork(L2_FORK_ID);
@@ -188,9 +188,9 @@ contract DoveFeesTest is DoveBase {
         uint256 voucher1BalanceOfBeef = pair.voucher1().balanceOf(address(0xbeef));
 
         // 0xbeef wants to burn his DAI vouchers, but he hasn't synced yet, so it should result in a claim
-        _burnVouchers(address(0xbeef), 0, pair.voucher1().balanceOf(address(0xbeef)));
+        _burnVouchers(L2_FORK_ID, address(0xbeef), 0, pair.voucher1().balanceOf(address(0xbeef)));
         // sync to L1
-        _standardSyncToL1();
+        _standardSyncToL1(L2_FORK_ID);
         vm.selectFork(L1_FORK_ID);
         dove.claimBurn(L2_DOMAIN, address(0xbeef));
         // check that the burn was successful
@@ -200,8 +200,8 @@ contract DoveFeesTest is DoveBase {
         assertEq(L1Token0.balanceOf(address(0xbeef)), voucher1BalanceOfBeef);
     }
 
-    function testYeetVouchersAndPairBurnsThem() external {
-        _syncToL2();
+    function testYeetVouchersAndSync() external {
+        _syncToL2(L2_FORK_ID);
         vm.selectFork(L2_FORK_ID);
         _doMoreSwaps();
         vm.selectFork(L2_FORK_ID);
@@ -217,25 +217,13 @@ contract DoveFeesTest is DoveBase {
 
         vm.stopBroadcast();
 
-        // burn vouchers
-        vm.recordLogs();
-        pair.burnVouchersHeldByPair();
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        // should be second long
-        (address sender, bytes memory HLpayload) = abi.decode(logs[2].data, (address, bytes));
         vm.selectFork(L1_FORK_ID);
-        vm.broadcast(address(mailboxL1));
-        dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender), HLpayload);
-
         uint256 k0 = _k(dove.reserve0(), dove.reserve1());
 
         // sync to L1
-        _standardSyncToL1();
-        vm.selectFork(L1_FORK_ID);
-        // claiming the burn for dove should result in the tokens
-        // added to the reserves
-        dove.claimBurn(L2_DOMAIN, address(dove));
+        _standardSyncToL1(L2_FORK_ID);
 
+        vm.selectFork(L1_FORK_ID);
         assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k0);
     }
 }
