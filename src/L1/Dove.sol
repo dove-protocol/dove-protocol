@@ -84,7 +84,6 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
 
     mapping(uint32 => bytes32) public trustedRemoteLookup;
     mapping(uint16 => bytes) public sgTrustedBridge;
-    mapping(address => uint256) public lockedUntil;
 
     mapping(uint32 => mapping(uint256 => uint256)) internal lastBridged0;
     mapping(uint32 => mapping(uint256 => uint256)) internal lastBridged1;
@@ -221,7 +220,6 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     }
 
     function mint(address to) external nonReentrant returns (uint256 liquidity) {
-        lockedUntil[to] = block.timestamp + 30 days;
         _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         uint256 _balance0 = ERC20(token0).balanceOf(address(this));
@@ -480,20 +478,14 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                             ERC20 FUNCTIONS
     ###############################################################*/
 
-    modifier isUnlocked(address from) {
-        uint256 unlockedAt = lockedUntil[from];
-        require(block.timestamp >= unlockedAt, "LOCKED_LIQUIDITY");
-        _;
-    }
-
-    function transfer(address to, uint256 amount) public override isUnlocked(msg.sender) returns (bool) {
+    function transfer(address to, uint256 amount) public override returns (bool) {
         _updateFor(msg.sender);
         _updateFor(to);
         _transferAllFeesFrom(msg.sender, to);
         return super.transfer(to, amount);
     }
 
-    function transferFrom(address from, address to, uint256 amount) public override isUnlocked(from) returns (bool) {
+    function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
         _updateFor(from);
         _updateFor(to);
         _transferAllFeesFrom(from, to);
