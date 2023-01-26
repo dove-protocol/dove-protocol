@@ -10,6 +10,7 @@ contract DoveFeesTest is DoveBase {
 
     function testFeesClaiming() external {
         vm.selectFork(L1_FORK_ID);
+        vm.warp(block.timestamp + 31 days);
         // send the LP tokens before the sync so fees go to proper users
         uint256 balance = dove.balanceOf(address(this));
         dove.transfer(address(0xfab), balance / 3);
@@ -108,6 +109,7 @@ contract DoveFeesTest is DoveBase {
 
     function testAdjustedFeesOnLPTransfer() external {
         vm.selectFork(L1_FORK_ID);
+        vm.warp(block.timestamp + 31 days);
         // send the LP tokens before the sync so fees go to proper users
         uint256 balance = dove.balanceOf(address(this));
         dove.transfer(address(0xfab), balance / 3);
@@ -146,6 +148,7 @@ contract DoveFeesTest is DoveBase {
 
     function testFeesClaimingAfterLPTransferFrom() external {
         vm.selectFork(L1_FORK_ID);
+        vm.warp(block.timestamp + 31 days);
         // send the LP tokens before the sync so fees go to proper users
         uint256 balance = dove.balanceOf(address(this));
         dove.transfer(address(0xfab), balance / 3);
