@@ -64,6 +64,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     ###############################################################*/
 
     uint256 internal constant MINIMUM_LIQUIDITY = 10 ** 3;
+    uint256 internal constant LIQUIDITY_LOCK_PERIOD = 7 days;
+    uint256 internal constant LIQUIDITY_UNLOCK_PERIOD = 1 days;
 
     IL1Factory public factory;
 
@@ -113,6 +115,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                             CONSTRUCTOR
     ###############################################################*/
 
+    uint256 internal startEpoch;
+
     constructor(address _token0, address _token1, address _hyperlaneGasMaster, address _mailbox)
         ERC20("Dove", "DVE", 18)
         HyperlaneClient(_hyperlaneGasMaster, _mailbox, msg.sender)
@@ -124,6 +128,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
 
         feesDistributor = new Fountain(_token0, _token1);
         fountain = new Fountain(_token0, _token1);
+
+        startEpoch = block.timestamp;
     }
 
     /*###############################################################
@@ -213,6 +219,13 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                             LIQUIDITY LOGIC
     ###############################################################*/
 
+    function isLiquidityLocked() external view returns (bool) {
+        // compute # of epochs so far
+        uint256 epochs = (block.timestamp - startEpoch) / (LIQUIDITY_LOCK_PERIOD + LIQUIDITY_UNLOCK_PERIOD);
+        uint256 t0 = startEpoch + epochs * (LIQUIDITY_LOCK_PERIOD + LIQUIDITY_UNLOCK_PERIOD);
+        return block.timestamp > t0 && block.timestamp < t0 + LIQUIDITY_LOCK_PERIOD;
+    }
+
     function _update(uint256 balance0, uint256 balance1, uint256 _reserve0, uint256 _reserve1) internal {
         reserve0 = balance0;
         reserve1 = balance1;
@@ -220,6 +233,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     }
 
     function mint(address to) external nonReentrant returns (uint256 liquidity) {
+        require(!this.isLiquidityLocked(), "Liquidity locked");
         _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         uint256 _balance0 = ERC20(token0).balanceOf(address(this));
@@ -245,6 +259,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     }
 
     function burn(address to) external nonReentrant returns (uint256 amount0, uint256 amount1) {
+        require(!this.isLiquidityLocked(), "Liquidity locked");
         _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         (ERC20 _token0, ERC20 _token1) = (ERC20(token0), ERC20(token1));
