@@ -1,7 +1,7 @@
 DoveFeesTest:testAdjustedFeesOnLPTransfer() (gas: 2266930)
 DoveFeesTest:testFeesClaiming() (gas: 2509937)
 DoveFeesTest:testFeesClaimingAfterLPTransferFrom() (gas: 2298384)
-DoveFeesTest:testNoFeesIfAddLiquidityAfterSync() (gas: 2121555)
+DoveFeesTest:testNoFeesIfAddLiquidityAfterSync() (gas: 2118184)
 DoveLiquidityTest:testCanRemoveLiquidityWhenUnlocked() (gas: 165989)
 DoveLiquidityTest:testCannotWithdrawDuringLock() (gas: 116726)
 DoveMultiSyncTest:testSyncsWithVouchers() (gas: 3374592)

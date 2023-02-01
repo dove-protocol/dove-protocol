@@ -233,7 +233,6 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     }
 
     function mint(address to) external nonReentrant returns (uint256 liquidity) {
-        require(!this.isLiquidityLocked(), "Liquidity locked");
         _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         uint256 _balance0 = ERC20(token0).balanceOf(address(this));
