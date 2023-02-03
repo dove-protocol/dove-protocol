@@ -26,7 +26,7 @@ contract DoveSyncTest is DoveBase {
         uint256 doveReserve0 = dove.reserve0();
         uint256 doveReserve1 = dove.reserve1();
 
-        _syncToL2(L2_FORK_ID);
+        _syncToL2(L2_FORK_ID); // dove.syncL2 then pair.handle, reserves updated
 
         vm.selectFork(L2_FORK_ID);
         // have compare L2R0 to L1R1 because the ordering of the tokens on L2
@@ -41,7 +41,7 @@ contract DoveSyncTest is DoveBase {
     */
     function testSyncingToL1() external {
         uint256 k0 = _k(initialLiquidity0, initialLiquidity1);
-        _syncToL2(L2_FORK_ID);
+        _syncToL2(L2_FORK_ID); // update reserves so they reflect on L2
 
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
@@ -51,7 +51,7 @@ contract DoveSyncTest is DoveBase {
         uint256 L2R0 = pair.reserve0(); // USDC virtual reserve
         uint256 L2R1 = pair.reserve1(); // DAI virtual reserve
 
-        _standardSyncToL1(L2_FORK_ID);
+        _standardSyncToL1(L2_FORK_ID); // SG0, SG1, HL2, HL3
 
         vm.selectFork(L1_FORK_ID);
 

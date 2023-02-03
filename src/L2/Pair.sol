@@ -232,8 +232,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
             // scope for reserve{0,1}Adjusted, avoids stack too deep errors
             if (amount0In > 0) _update0(amount0In / FEE); // accrue fees for token0 and move them out of pool
             if (amount1In > 0) _update1(amount1In / FEE); // accrue fees for token1 and move them out of pool
-            _balance0 = balance0(); // since we removed tokens, we need to reconfirm balances, can also simply use previous balance - amountIn/ 10000, but doing balanceOf again as safety check
-            _balance1 = balance1();
+            _balance0 = balance0(); // since we removed tokens, we need to reconfirm balances, can also simply use previous balance - amountIn/ 10000,
+            _balance1 = balance1(); // but doing balanceOf again as safety check
             // The curve, either x3y+y3x for stable pools, or x*y for volatile pools
             require(_k(_balance0, _balance1) >= _k(_reserve0, _reserve1), "K"); // BaseV1: K
         }
@@ -363,7 +363,9 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 L1Token0,
                 pairVoucher0Balance,
                 voucher0Delta - pairVoucher0Balance,
-                _balance0
+                _balance0,
+                msg.sender,
+                uint64(block.timestamp)
             );
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
@@ -391,7 +393,9 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 L1Token1,
                 pairVoucher1Balance,
                 voucher1Delta - pairVoucher1Balance,
-                _balance1
+                _balance1,
+                msg.sender,
+                uint64(block.timestamp)
             );
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
