@@ -29,7 +29,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     event Updated(uint256 reserve0, uint256 reserve1);
     event Bridged(uint256 indexed srcChainId, uint256 syncId, address token, uint256 amount);
     event SyncPending(uint256 indexed srcDomain, uint256 syncID);
-    event SyncReward(uint256 syncID, address rewardRecipient, uint256 token0Amount, uint256 token1Amount);
+    event SyncRewardSent(uint256 syncID, address token, address rewardRecipient, uint256 tokenAmount);
     event SyncFinalized(
         uint256 indexed srcDomain,
         uint256 syncID,
@@ -328,6 +328,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         }
     }
 
+    //handle2 function here
+
     function syncL2(uint32 destinationDomain, address pair) external payable {
         bytes memory payload = abi.encode(MessageType.SYNC_TO_L2, token0, reserve0, reserve1);
         bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(pair), payload);
@@ -342,6 +344,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             : (sync.partialSyncB, sync.partialSyncA);
         _finalizeSyncFromL2(originDomain, syncID, partialSync0, partialSync1, msg.sender);
     }
+
+    //finalizeSyncFromL22 function here
 
     function claimBurn(uint32 srcDomain, address user) external {
         BurnClaim memory burnClaim = burnClaims[srcDomain][user];
@@ -437,6 +441,121 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         }
     }
 
+    function _syncPartialSync0(
+        uint32 srcDomain,
+        uint256 syncID,
+        PartialSync memory partialSync0,
+        address syncRewardRecipient
+    ) internal returns(uint256 bridgedBalanceForLPs) {
+        (ERC20 _token0, ERC20 _token1) = (ERC20(token0), ERC20(token1));
+        (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
+        
+        // calc bridge balance
+        bridgedBalanceForLPs = lastBridged0[srcDomain][syncID] - partialSync0.pairBalance;
+
+        // calc total sync rewards
+        uint256 syncRewardTotal = bridgedBalanceForLPs / 2;
+
+        // Time Delta for partial sync
+        uint64 delta = uint64(block.timestamp) - partialSync0.initTimestamp;
+
+        // below, the sync reward is being handled based on how long it takes for finalization,
+        // and who makes the call to finalize the sync originating from the Pair contract on L2
+
+        // if the total elapsed time to finalize a given sync is more than 4 hrs, the sync reward reaches its maximum payout
+        // syncRewardTotal = bridgedBalance / 2; (this equates to ~50% of all fees made from trades)
+
+        // if the total elapsed time to finalize a given sync is less than 4 hrs, the sync reward is calculated based on...
+        // time differential "ΔT" between the block.timestamp of this function call and the timestamp stored upon the call made on L2 to
+        // pair.syncToL1() which is relayed to L1 in the hyperlane message
+        // ΔT / 4 hrs * syncRewardTotal = sync reward sent to syncRewardRecipient; (equates to 0-50% of all fees made from trades)
+
+        if(delta >= 14400) {
+            //update bridge balance
+            bridgedBalanceForLPs -= syncRewardTotal;
+
+            // call _update0 with updated bridged balance
+            _update0(bridgedBalanceForLPs);
+
+            // send reward to syncRewardRecipient
+            SafeTransferLib.safeTransfer(ERC20(partialSync0.token), syncRewardRecipient, syncRewardTotal);
+            emit SyncRewardSent(syncID, partialSync0.token, syncRewardRecipient, syncRewardTotal);
+        } 
+        else if(delta < 14400) {
+            // calc sync reward
+            uint256 syncReward = delta / 14400 * syncRewardTotal;
+
+            //update bridge balance
+            bridgedBalanceForLPs -= syncReward;
+
+            // call _update0 with updated bridged balance
+            _update0(bridgedBalanceForLPs);
+
+            // send reward to syncRewardRecipient
+            SafeTransferLib.safeTransfer(ERC20(partialSync0.token), syncRewardRecipient, syncReward);
+            emit SyncRewardSent(syncID, partialSync0.token, syncRewardRecipient, syncReward);
+        }
+        // cleanup
+        delete lastBridged0[srcDomain][syncID];
+    }
+
+    function _syncPartialSync1(
+        uint32 srcDomain,
+        uint256 syncID,
+        PartialSync memory partialSync1,
+        address syncRewardRecipient
+    ) internal returns (uint256 bridgedBalanceForLPs) {
+        (ERC20 _token0, ERC20 _token1) = (ERC20(token0), ERC20(token1));
+        (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
+
+        bridgedBalanceForLPs = lastBridged1[srcDomain][syncID] - partialSync1.pairBalance;
+
+        // calc total sync rewards
+        uint256 syncRewardTotal = bridgedBalanceForLPs / 2;
+
+        // Time Delta for partial sync
+        uint64 delta = uint64(block.timestamp) - partialSync1.initTimestamp;
+
+        // below, the sync reward is being handled based on how long it takes for finalization,
+        // and who makes the call to finalize the sync originating from the Pair contract on L2
+
+        // if the total elapsed time to finalize a given sync is more than 4 hrs, the sync reward reaches its maximum payout
+        // syncRewardTotal = bridgedBalance / 2; (this equates to ~50% of all fees made from trades)
+
+        // if the total elapsed time to finalize a given sync is less than 4 hrs, the sync reward is calculated based on...
+        // time differential "ΔT" between the block.timestamp of this function call and the timestamp stored upon the call made on L2 to
+        // pair.syncToL1() which is relayed to L1 in the hyperlane message
+        // ΔT / 4 hrs * syncRewardTotal = sync reward sent to syncRewardRecipient; (equates to 0-50% of all fees made from trades)
+
+        if(delta >= 14400) {
+            //update bridge balance
+            bridgedBalanceForLPs -= syncRewardTotal;
+
+            // call _update0 with updated bridged balance
+            _update1(bridgedBalanceForLPs);
+
+            // send reward to syncRewardRecipient
+            SafeTransferLib.safeTransfer(ERC20(partialSync1.token), syncRewardRecipient, syncRewardTotal);
+            emit SyncRewardSent(syncID, partialSync1.token, syncRewardRecipient, syncRewardTotal);
+        } 
+        else if(delta < 14400) {
+            // calc sync reward
+            uint256 syncReward = delta / 14400 * syncRewardTotal;
+
+            //update bridge balance
+            bridgedBalanceForLPs -= syncReward;
+
+            // call _update0 with updated bridged balance
+            _update1(bridgedBalanceForLPs);
+
+            // send reward to syncRewardRecipient
+            SafeTransferLib.safeTransfer(ERC20(partialSync1.token), syncRewardRecipient, syncReward);
+            emit SyncRewardSent(syncID, partialSync1.token, syncRewardRecipient, syncReward);
+        }
+        // cleanup
+        delete lastBridged1[srcDomain][syncID];
+    }
+
     /// @notice Syncing implies bridging the tokens from the L2 back to the L1.
     /// @notice These tokens are simply added back to the reserves.
     /// @dev    This should be an authenticated call, only callable by the operator.
@@ -460,80 +579,10 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                 // early exit
                 return true;
             }
-            uint256 bridgedBalance0 = LB0 - partialSync0.pairBalance;
-            uint256 bridgedBalance1 = LB1 - partialSync1.pairBalance;
 
-            // calc total sync rewards
-            uint256 syncRewardTotal0 = bridgedBalance0 / 2;
-            uint256 syncRewardTotal1 = bridgedBalance1 / 2;
-
-            // below, the sync reward is being handled based on how long it takes for finalization,
-            // and who makes the call to finalize the sync originating from the Pair contract on L2
-
-            // if the total elapsed time to finalize a given sync is more than 4 hrs, the sync reward reaches its maximum payout
-            // syncRewardTotal = bridgedBalance / 2; (this equates to ~50% of all fees made from trades)
-
-            // if the total elapsed time to finalize a given sync is less than 4 hrs, the sync reward is calculated based on...
-            // time differential "ΔT" between the block.timestamp of this function call and the timestamp stored upon the call made on L2 to
-            // pair.syncToL1() which is relayed to L1 in the hyperlane message
-            // ΔT / 4 hrs * syncRewardTotal = sync reward sent to syncRewardRecipient; (equates to 0-50% of all fees made from trades)
-
-            // Time Delta for partial syncs
-            uint64 delta0 = uint64(block.timestamp) - partialSync0.initTimestamp;
-            uint64 delta1 = uint64(block.timestamp) - partialSync1.initTimestamp;
-
-            // sync time differential for both token 1 & 0 is greater than 4 hrs
-            if(delta0 > 14400 && delta1 > 14400) {
-                //update bridge balances
-                bridgedBalance0 -= syncRewardTotal0;
-                bridgedBalance1 -= syncRewardTotal1;
-
-                // call _update0 and _update1 with updated bridged balances
-                _update0(bridgedBalance0);
-                _update1(bridgedBalance1);
-
-                // use syncRewardTotal0 and syncRewardTotal1 to send reward to syncRewardRecipient
-                SafeTransferLib.safeTransfer(ERC20(partialSync0.token), syncRewardRecipient, syncRewardTotal0);
-                SafeTransferLib.safeTransfer(ERC20(partialSync1.token), syncRewardRecipient, syncRewardTotal1);
-                emit SyncReward(syncID, syncRewardRecipient, syncRewardTotal0, syncRewardTotal1);
-
-                // emit Fees wit new values
-                emit Fees(srcDomain, bridgedBalance0, bridgedBalance1);
-                // cleanup
-                delete lastBridged0[srcDomain][syncID];
-                delete lastBridged1[srcDomain][syncID];
-            }
-            // sync time differential for both token 1 & 0 is less than 4 hrs
-            else if(delta0 < 14400 && delta1 < 14400) {
-                // calc sync reward
-                uint256 syncReward0 = delta0 / 14400 * syncRewardTotal0;
-                uint256 syncReward1 = delta1 / 14400 * syncRewardTotal1;
-
-                // update bridge balances
-                bridgedBalance0 -= syncReward0;
-                bridgedBalance1 -= syncReward1;
-
-                // call _update0 and _update1 with updated bridged balances
-                _update0(bridgedBalance0);
-                _update1(bridgedBalance1);
-
-                // gib sync reward
-                SafeTransferLib.safeTransfer(ERC20(partialSync0.token), syncRewardRecipient, syncReward0);
-                SafeTransferLib.safeTransfer(ERC20(partialSync1.token), syncRewardRecipient, syncReward1);
-                emit SyncReward(syncID, syncRewardRecipient, syncReward0, syncReward1);
-
-                // emit Fees wit new values
-                emit Fees(srcDomain, bridgedBalance0, bridgedBalance1);
-                // cleanup
-                delete lastBridged0[srcDomain][syncID];
-                delete lastBridged1[srcDomain][syncID];
-            }
-            else {
-                // unexpected behavior, early exit
-                // token 1 and 0 for the pair are out of sync in terms of their recorded timestamp
-                // where token 1 & 0 are not both exclusively past or before the 4 hr differential
-                return true;
-            }
+            uint256 fees0 = _syncPartialSync0(srcDomain, syncID, partialSync0, syncRewardRecipient);
+            uint256 fees1 = _syncPartialSync1(srcDomain, syncID, partialSync1, syncRewardRecipient);
+            emit Fees(srcDomain, fees0, fees1);
         }
         {
             reserve0 = _reserve0 + partialSync0.pairBalance - partialSync0.earmarkedAmount;
