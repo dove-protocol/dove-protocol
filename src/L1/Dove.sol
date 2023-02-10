@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
+import "forge-std/console.sol";
+
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {Owned} from "solmate/auth/Owned.sol";
@@ -48,7 +50,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256 pairBalance; // L2 pair balance
         uint256 tokensForDove; // tokens to send to dove
         uint256 earmarkedAmount; // tokens to earmark
-        uint64  initTimestamp; // timestamp at which a sync was initiated on L2
+        uint64 initTimestamp; // timestamp at which a sync was initiated on L2
     }
 
     struct Sync {
@@ -322,8 +324,16 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                 abi.decode(payload, (uint256, address, uint256, uint256));
             _completeVoucherBurns(origin, user, amount0, amount1);
         } else if (messageType == MessageType.SYNC_TO_L1) {
-            (, uint256 syncID, address token, uint256 tokensForDove, uint256 earmarkedDelta, uint256 pairBalance, address l2caller, uint64 ts) =
-                abi.decode(payload, (uint256, uint256, address, uint256, uint256, uint256, address, uint64));
+            (
+                ,
+                uint256 syncID,
+                address token,
+                uint256 tokensForDove,
+                uint256 earmarkedDelta,
+                uint256 pairBalance,
+                address l2caller,
+                uint64 ts
+            ) = abi.decode(payload, (uint256, uint256, address, uint256, uint256, uint256, address, uint64));
             _syncFromL2(origin, syncID, token, tokensForDove, earmarkedDelta, pairBalance, l2caller, ts);
         }
     }
@@ -399,7 +409,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         // sync.partialSync1 should always be the first one to be set, regardless
         // if it's token0 or token1 being bridged
         if (sync.partialSyncA.token == address(0)) {
-            syncs[origin][syncID].partialSyncA = PartialSync(token, pairBalance, tokensForDove, earmarkedDelta, startTimestamp);
+            syncs[origin][syncID].partialSyncA =
+                PartialSync(token, pairBalance, tokensForDove, earmarkedDelta, startTimestamp);
         } else {
             // can proceed with full sync since we got the two HyperLane messages
             // have to check if SG swaps are completed
@@ -429,29 +440,35 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                 } else {
                     // has failed, means there were tokens sent from same L2
                     // but NOT from the Pair!
-                    syncs[origin][syncID].partialSyncB = PartialSync(token, pairBalance, tokensForDove, earmarkedDelta, startTimestamp);
+                    syncs[origin][syncID].partialSyncB =
+                        PartialSync(token, pairBalance, tokensForDove, earmarkedDelta, startTimestamp);
                     emit SyncPending(origin, syncID);
                 }
             } else {
                 // otherwise means there is at least one SG swap that hasn't completed yet
                 // so we need to store the HL data and execute the sync when the SG swap is done
-                syncs[origin][syncID].partialSyncB = PartialSync(token, pairBalance, tokensForDove, earmarkedDelta, startTimestamp);
+                syncs[origin][syncID].partialSyncB =
+                    PartialSync(token, pairBalance, tokensForDove, earmarkedDelta, startTimestamp);
                 emit SyncPending(origin, syncID);
             }
         }
     }
 
     function _syncPartialSync0(
+        uint256 lastBridged,
         uint32 srcDomain,
         uint256 syncID,
         PartialSync memory partialSync0,
         address syncRewardRecipient
-    ) internal returns(uint256 bridgedBalanceForLPs) {
+    ) internal returns (uint256 bridgedBalanceForLPs) {
         (ERC20 _token0, ERC20 _token1) = (ERC20(token0), ERC20(token1));
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
-        
+
+        console.log("initTimestamp", partialSync0.initTimestamp);
+        console.log("currentTimestamp", block.timestamp);
+
         // calc bridge balance
-        bridgedBalanceForLPs = lastBridged0[srcDomain][syncID] - partialSync0.pairBalance;
+        bridgedBalanceForLPs = lastBridged - partialSync0.pairBalance;
 
         // calc total sync rewards
         uint256 syncRewardTotal = bridgedBalanceForLPs / 2;
@@ -470,7 +487,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         // pair.syncToL1() which is relayed to L1 in the hyperlane message
         // ΔT / 4 hrs * syncRewardTotal = sync reward sent to syncRewardRecipient; (equates to 0-50% of all fees made from trades)
 
-        if(delta >= 14400) {
+        if (delta >= 14400) {
             //update bridge balance
             bridgedBalanceForLPs -= syncRewardTotal;
 
@@ -480,8 +497,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             // send reward to syncRewardRecipient
             SafeTransferLib.safeTransfer(ERC20(partialSync0.token), syncRewardRecipient, syncRewardTotal);
             emit SyncRewardSent(syncID, partialSync0.token, syncRewardRecipient, syncRewardTotal);
-        } 
-        else if(delta < 14400) {
+        } else if (delta < 14400) {
             // calc sync reward
             uint256 syncReward = delta / 14400 * syncRewardTotal;
 
@@ -500,6 +516,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     }
 
     function _syncPartialSync1(
+        uint256 lastBridged,
         uint32 srcDomain,
         uint256 syncID,
         PartialSync memory partialSync1,
@@ -508,7 +525,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         (ERC20 _token0, ERC20 _token1) = (ERC20(token0), ERC20(token1));
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
 
-        bridgedBalanceForLPs = lastBridged1[srcDomain][syncID] - partialSync1.pairBalance;
+        bridgedBalanceForLPs = lastBridged - partialSync1.pairBalance;
 
         // calc total sync rewards
         uint256 syncRewardTotal = bridgedBalanceForLPs / 2;
@@ -527,7 +544,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         // pair.syncToL1() which is relayed to L1 in the hyperlane message
         // ΔT / 4 hrs * syncRewardTotal = sync reward sent to syncRewardRecipient; (equates to 0-50% of all fees made from trades)
 
-        if(delta >= 14400) {
+        if (delta >= 14400) {
             //update bridge balance
             bridgedBalanceForLPs -= syncRewardTotal;
 
@@ -537,8 +554,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             // send reward to syncRewardRecipient
             SafeTransferLib.safeTransfer(ERC20(partialSync1.token), syncRewardRecipient, syncRewardTotal);
             emit SyncRewardSent(syncID, partialSync1.token, syncRewardRecipient, syncRewardTotal);
-        } 
-        else if(delta < 14400) {
+        } else if (delta < 14400) {
             // calc sync reward
             uint256 syncReward = delta / 14400 * syncRewardTotal;
 
@@ -580,8 +596,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                 return true;
             }
 
-            uint256 fees0 = _syncPartialSync0(srcDomain, syncID, partialSync0, syncRewardRecipient);
-            uint256 fees1 = _syncPartialSync1(srcDomain, syncID, partialSync1, syncRewardRecipient);
+            uint256 fees0 = _syncPartialSync0(LB0, srcDomain, syncID, partialSync0, syncRewardRecipient);
+            uint256 fees1 = _syncPartialSync1(LB1, srcDomain, syncID, partialSync1, syncRewardRecipient);
             emit Fees(srcDomain, fees0, fees1);
 
             // cleanup

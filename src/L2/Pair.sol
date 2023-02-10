@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
+import "forge-std/console.sol";
+
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
@@ -340,6 +342,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         uint32 destDomain = factory.destDomain();
         uint16 destChainId = factory.destChainId();
 
+        console.log("l2timestamp", block.timestamp);
+
         IStargateRouter stargateRouter = IStargateRouter(factory.stargateRouter());
 
         {
@@ -367,6 +371,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 msg.sender,
                 uint64(block.timestamp)
             );
+
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
             reserve0 = ref0 + _balance0 - (voucher0Delta - pairVoucher0Balance);
