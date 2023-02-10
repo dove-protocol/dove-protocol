@@ -466,7 +466,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
 
         if(delta == uint64(block.timestamp)) { // standard sync
             // calc reward
-            uint256 syncReward = bridgedBalanceForLPs / (reserve0 * 2) * syncRewardTotal;
+            uint256 syncReward = syncRewardTotal / (reserve0 * 2) * syncRewardTotal;
 
             // update bridge balance
             bridgedBalanceForLPs -= syncReward;
@@ -533,7 +533,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
 
         if(delta == uint64(block.timestamp)) { // standard sync
             // calc reward
-            uint256 syncReward = bridgedBalanceForLPs / (reserve1 * 2) * syncRewardTotal;
+            uint256 syncReward = syncRewardTotal / (reserve1 * 2) * syncRewardTotal;
 
             // update bridge balance
             bridgedBalanceForLPs -= syncReward;
