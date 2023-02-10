@@ -16,10 +16,10 @@ contract DoveFeesTest is DoveBase {
         dove.transfer(address(0xbaf), balance / 3);
         dove.transfer(address(0xbef), balance / 3);
 
-        _syncToL2(L2_FORK_ID);
+        _syncToL2(L2_FORK_ID); // L1 reserves updated
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
-        _standardSyncToL1(L2_FORK_ID);
+        _standardSyncToL1(L2_FORK_ID); // fees sent to L1
 
         (uint256 amount0, uint256 amount1) =
             routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xfab)));

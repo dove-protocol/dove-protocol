@@ -364,8 +364,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 pairVoucher0Balance,
                 voucher0Delta - pairVoucher0Balance,
                 _balance0,
-                msg.sender,
-                uint64(block.timestamp)
+                msg.sender
             );
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
@@ -394,8 +393,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 pairVoucher1Balance,
                 voucher1Delta - pairVoucher1Balance,
                 _balance1,
-                msg.sender,
-                uint64(block.timestamp)
+                msg.sender
             );
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
