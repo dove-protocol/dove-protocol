@@ -48,7 +48,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256 pairBalance; // L2 pair balance
         uint256 tokensForDove; // tokens to send to dove
         uint256 earmarkedAmount; // tokens to earmark
-        uint64  initTimestamp; // timestamp at which a sync was initiated on L2
+        uint64 initTimestamp; // timestamp at which a sync was initiated on L2
         address l2Caller; // caller from L2 pair.syncToL1()
     }
 
@@ -323,8 +323,15 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                 abi.decode(payload, (uint256, address, uint256, uint256));
             _completeVoucherBurns(origin, user, amount0, amount1);
         } else if (messageType == MessageType.SYNC_TO_L1) {
-            (, uint256 syncID, address token, uint256 tokensForDove, uint256 earmarkedDelta, uint256 pairBalance, address l2caller) =
-                abi.decode(payload, (uint256, uint256, address, uint256, uint256, uint256, address));
+            (
+                ,
+                uint256 syncID,
+                address token,
+                uint256 tokensForDove,
+                uint256 earmarkedDelta,
+                uint256 pairBalance,
+                address l2caller
+            ) = abi.decode(payload, (uint256, uint256, address, uint256, uint256, uint256, address));
             _syncFromL2(origin, syncID, token, tokensForDove, earmarkedDelta, pairBalance, l2caller);
         }
     }
@@ -395,7 +402,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         // sync.partialSync1 should always be the first one to be set, regardless
         // if it's token0 or token1 being bridged
         if (sync.partialSyncA.token == address(0)) {
-            syncs[origin][syncID].partialSyncA = PartialSync(token, pairBalance, tokensForDove, earmarkedDelta, uint64(block.timestamp), l2caller);
+            syncs[origin][syncID].partialSyncA =
+                PartialSync(token, pairBalance, tokensForDove, earmarkedDelta, uint64(block.timestamp), l2caller);
         } else {
             // can proceed with full sync since we got the two HyperLane messages
             // have to check if SG swaps are completed
@@ -406,7 +414,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                     hasFailed = _finalizeSyncFromL2(
                         origin,
                         syncID,
-                        PartialSync(token, pairBalance, tokensForDove, earmarkedDelta, uint64(block.timestamp), l2caller),
+                        PartialSync(
+                            token, pairBalance, tokensForDove, earmarkedDelta, uint64(block.timestamp), l2caller
+                        ),
                         sync.partialSyncA,
                         l2caller
                     );
@@ -415,7 +425,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                         origin,
                         syncID,
                         sync.partialSyncA,
-                        PartialSync(token, pairBalance, tokensForDove, earmarkedDelta, uint64(block.timestamp), l2caller),
+                        PartialSync(
+                            token, pairBalance, tokensForDove, earmarkedDelta, uint64(block.timestamp), l2caller
+                        ),
                         l2caller
                     );
                 }
@@ -425,13 +437,16 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                 } else {
                     // has failed, means there were tokens sent from same L2
                     // but NOT from the Pair!
-                    syncs[origin][syncID].partialSyncB = PartialSync(token, pairBalance, tokensForDove, earmarkedDelta, uint64(block.timestamp), l2caller);
+                    syncs[origin][syncID].partialSyncB = PartialSync(
+                        token, pairBalance, tokensForDove, earmarkedDelta, uint64(block.timestamp), l2caller
+                    );
                     emit SyncPending(origin, syncID);
                 }
             } else {
                 // otherwise means there is at least one SG swap that hasn't completed yet
                 // so we need to store the HL data and execute the sync when the SG swap is done
-                syncs[origin][syncID].partialSyncB = PartialSync(token, pairBalance, tokensForDove, earmarkedDelta, uint64(block.timestamp), l2caller);
+                syncs[origin][syncID].partialSyncB =
+                    PartialSync(token, pairBalance, tokensForDove, earmarkedDelta, uint64(block.timestamp), l2caller);
                 emit SyncPending(origin, syncID);
             }
         }
@@ -442,7 +457,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         uint256 syncID,
         PartialSync memory partialSync0,
         address syncRewardRecipient
-    ) internal returns(uint256 bridgedBalanceForLPs) {
+    ) internal returns (uint256 bridgedBalanceForLPs) {
         // calc bridge balance
         bridgedBalanceForLPs = lastBridged0[srcDomain][syncID] - partialSync0.pairBalance;
 
@@ -464,27 +479,24 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         // time differential "ΔT" between the block.timestamp of this function call and the timestamp stored upon the call made on L2 to
         // pair.syncToL1() which is relayed to L1 in the hyperlane message
         // ΔT / 4 hrs * syncRewardTotal = sync reward sent to syncRewardRecipient; (equates to 0-50% of all fees made from trades in this sync)
-
-        if(delta == uint64(block.timestamp)) { // standard sync
+        if (delta == 0) {
+            // standard sync
             // calc reward
-            uint256 syncReward = syncRewardTotal / (reserve0 * 2) * syncRewardTotal;
+            uint256 syncReward = syncRewardTotal * syncRewardTotal / (reserve0 * 2);
 
             // update bridge balance
             bridgedBalanceForLPs -= syncReward;
 
-            // call _update0 with updated bridged balance
-            _update0(bridgedBalanceForLPs);
-
             // send reward to syncRewardRecipient
             SafeTransferLib.safeTransfer(ERC20(partialSync0.token), syncRewardRecipient, syncReward);
-            emit SyncRewardSent(syncID, partialSync0.token, syncRewardRecipient, syncReward);
-        }
-        else if(delta >= 14400) { // non-standard sync greater than 4 hours
-            // update bridge balance
-            bridgedBalanceForLPs -= syncRewardTotal;
 
             // call _update0 with updated bridged balance
             _update0(bridgedBalanceForLPs);
+            emit SyncRewardSent(syncID, partialSync0.token, syncRewardRecipient, syncReward);
+        } else if (delta >= 14400) {
+            // non-standard sync greater than 4 hours
+            // update bridge balance
+            bridgedBalanceForLPs -= syncRewardTotal;
 
             // send reward to syncRewardRecipient
             SafeTransferLib.safeTransfer(ERC20(partialSync0.token), syncRewardRecipient, syncRewardTotal / 2);
@@ -492,16 +504,16 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             // send reward to L2 caller
             SafeTransferLib.safeTransfer(ERC20(partialSync0.token), partialSync0.l2Caller, syncRewardTotal / 2);
             emit SyncRewardSent(syncID, partialSync0.token, partialSync0.l2Caller, syncRewardTotal / 2);
-        } 
-        else if(delta < 14400) { // non-standard sync less than 4 hours
-            // calc sync reward
-            uint256 syncReward = delta / 14400 * syncRewardTotal;
-
-            // update bridge balance
-            bridgedBalanceForLPs -= syncReward;
 
             // call _update0 with updated bridged balance
             _update0(bridgedBalanceForLPs);
+        } else if (delta < 14400) {
+            // non-standard sync less than 4 hours
+            // calc sync reward
+            uint256 syncReward = delta * syncRewardTotal / 14400;
+
+            // update bridge balance
+            bridgedBalanceForLPs -= syncReward;
 
             // send reward to syncRewardRecipient
             SafeTransferLib.safeTransfer(ERC20(partialSync0.token), syncRewardRecipient, syncReward / 2);
@@ -509,6 +521,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             // send reward to L2 caller
             SafeTransferLib.safeTransfer(ERC20(partialSync0.token), partialSync0.l2Caller, syncReward / 2);
             emit SyncRewardSent(syncID, partialSync0.token, partialSync0.l2Caller, syncReward / 2);
+
+            // call _update0 with updated bridged balance
+            _update0(bridgedBalanceForLPs);
         }
         // cleanup
         delete lastBridged0[srcDomain][syncID];
@@ -542,43 +557,40 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         // pair.syncToL1() which is relayed to L1 in the hyperlane message
         // ΔT / 4 hrs * syncRewardTotal = sync reward sent to syncRewardRecipient; (equates to 0-50% of all fees made from trades)
 
-        if(delta == uint64(block.timestamp)) { // standard sync
+        if (delta == 0) {
+            // standard sync
             // calc reward
-            uint256 syncReward = syncRewardTotal / (reserve1 * 2) * syncRewardTotal;
+            uint256 syncReward = syncRewardTotal * syncRewardTotal / (reserve1 * 2);
 
             // update bridge balance
             bridgedBalanceForLPs -= syncReward;
 
-            // call _update0 with updated bridged balance
-            _update0(bridgedBalanceForLPs);
-
-             // send reward to syncRewardRecipient
+            // send reward to syncRewardRecipient
             SafeTransferLib.safeTransfer(ERC20(partialSync1.token), syncRewardRecipient, syncReward);
             emit SyncRewardSent(syncID, partialSync1.token, syncRewardRecipient, syncReward);
-        }
-        if(delta >= 14400) {
-            //update bridge balance
-            bridgedBalanceForLPs -= syncRewardTotal;
 
             // call _update1 with updated bridged balance
             _update1(bridgedBalanceForLPs);
+        }
+        if (delta >= 14400) {
+            //update bridge balance
+            bridgedBalanceForLPs -= syncRewardTotal;
 
             // send reward to syncRewardRecipient
             SafeTransferLib.safeTransfer(ERC20(partialSync1.token), syncRewardRecipient, syncRewardTotal / 2);
             emit SyncRewardSent(syncID, partialSync1.token, syncRewardRecipient, syncRewardTotal / 2);
-             // send reward to syncRewardRecipient
+            // send reward to syncRewardRecipient
             SafeTransferLib.safeTransfer(ERC20(partialSync1.token), partialSync1.l2Caller, syncRewardTotal / 2);
             emit SyncRewardSent(syncID, partialSync1.token, partialSync1.l2Caller, syncRewardTotal / 2);
-        } 
-        else if(delta < 14400) {
-            // calc sync reward
-            uint256 syncReward = delta / 14400 * syncRewardTotal;
-
-            //update bridge balance
-            bridgedBalanceForLPs -= syncReward;
 
             // call _update1 with updated bridged balance
             _update1(bridgedBalanceForLPs);
+        } else if (delta < 14400) {
+            // calc sync reward
+            uint256 syncReward = delta * syncRewardTotal / 14400;
+
+            //update bridge balance
+            bridgedBalanceForLPs -= syncReward;
 
             // send reward to syncRewardRecipient
             SafeTransferLib.safeTransfer(ERC20(partialSync1.token), syncRewardRecipient, syncReward / 2);
@@ -586,6 +598,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             // send reward to syncRewardRecipient
             SafeTransferLib.safeTransfer(ERC20(partialSync1.token), partialSync1.l2Caller, syncReward / 2);
             emit SyncRewardSent(syncID, partialSync1.token, partialSync1.l2Caller, syncReward / 2);
+
+            // call _update1 with updated bridged balance
+            _update1(bridgedBalanceForLPs);
         }
         // cleanup
         delete lastBridged1[srcDomain][syncID];
@@ -604,10 +619,14 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     ) internal returns (bool failed) {
         (ERC20 _token0, ERC20 _token1) = (ERC20(token0), ERC20(token1));
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
+
         {
             // In the case of a correct sync, we would never enter in the block
             // below and would proceed normally.
-            if (partialSync0.pairBalance > lastBridged0[srcDomain][syncID] || partialSync1.pairBalance > lastBridged1[srcDomain][syncID]) {
+            if (
+                partialSync0.pairBalance > lastBridged0[srcDomain][syncID]
+                    || partialSync1.pairBalance > lastBridged1[srcDomain][syncID]
+            ) {
                 // early exit
                 return true;
             }
