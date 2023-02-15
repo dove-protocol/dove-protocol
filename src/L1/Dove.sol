@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
+import "forge-std/console.sol";
+
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {Owned} from "solmate/auth/Owned.sol";
@@ -484,6 +486,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             // calc reward
             uint256 syncReward = syncRewardTotal * syncRewardTotal / (reserve0 * 2);
 
+            console.log(bridgedBalanceForLPs, syncReward);
+
             // update bridge balance
             bridgedBalanceForLPs -= syncReward;
 
@@ -571,8 +575,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
 
             // call _update1 with updated bridged balance
             _update1(bridgedBalanceForLPs);
-        }
-        if (delta >= 14400) {
+        } else if (delta >= 14400) {
             //update bridge balance
             bridgedBalanceForLPs -= syncRewardTotal;
 
@@ -633,6 +636,10 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
 
             uint256 fees0 = _syncPartialSync0(srcDomain, syncID, partialSync0, syncRewardRecipient);
             uint256 fees1 = _syncPartialSync1(srcDomain, syncID, partialSync1, syncRewardRecipient);
+
+            // uint256 fees1 = lastBridged1[srcDomain][syncID] - partialSync1.pairBalance;
+            // _update0(fees0);
+            // _update1(fees1);
             emit Fees(srcDomain, fees0, fees1);
 
             // cleanup
