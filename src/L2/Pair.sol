@@ -14,7 +14,7 @@ import "../hyperlane/TypeCasts.sol";
 import "./interfaces/IStargateRouter.sol";
 import "./interfaces/IL2Factory.sol";
 
-import "../MessageType.sol";
+import "../Codec.sol";
 
 /// The AMM logic is taken from https://github.com/transmissions11/solidly/blob/master/contracts/BaseV1-core.sol
 
@@ -357,13 +357,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 abi.encodePacked(L1Target),
                 "1"
             );
-            bytes memory payload = abi.encode(
-                MessageType.SYNC_TO_L1,
-                syncID,
-                L1Token0,
-                pairVoucher0Balance,
-                voucher0Delta - pairVoucher0Balance,
-                _balance0
+            bytes memory payload = Codec.encodeSyncToL1(
+                syncID, L1Token0, pairVoucher0Balance, voucher0Delta - pairVoucher0Balance, _balance0
             );
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
@@ -385,13 +380,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 abi.encodePacked(L1Target),
                 "1"
             );
-            bytes memory payload = abi.encode(
-                MessageType.SYNC_TO_L1,
-                syncID,
-                L1Token1,
-                pairVoucher1Balance,
-                voucher1Delta - pairVoucher1Balance,
-                _balance1
+            bytes memory payload = Codec.encodeSyncToL1(
+                syncID, L1Token1, pairVoucher1Balance, voucher1Delta - pairVoucher1Balance, _balance1
             );
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
@@ -410,13 +400,12 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     /// @param amount1 The amount of voucher1 to burn.
     function burnVouchers(uint256 amount0, uint256 amount1) external payable nonReentrant {
         uint32 destDomain = factory.destDomain();
-
         // tell L1 that vouchers been burned
         require(amount0 > 0 || amount1 > 0, "NO VOUCHERS");
         if (amount0 > 0) voucher0.burn(msg.sender, amount0);
         if (amount1 > 0) voucher1.burn(msg.sender, amount1);
         (amount0, amount1) = _getL1Ordering(amount0, amount1);
-        bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, msg.sender, amount0, amount1);
+        bytes memory payload = Codec.encodeVouchersBurn(msg.sender, amount0, amount1);
         bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destDomain);
     }
@@ -426,15 +415,14 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         require(origin == destDomain, "WRONG ORIGIN");
         require(TypeCasts.addressToBytes32(L1Target) == sender, "NOT DOVE");
         uint256 messageType = abi.decode(payload, (uint256));
-        if (messageType == MessageType.SYNC_TO_L2) {
-            _syncFromL1(payload);
+        if (messageType == Codec.SYNC_TO_L2) {
+            Codec.SyncToL2Payload memory sp = Codec.decodeSyncToL2(payload);
+            _syncFromL1(sp);
         }
     }
 
-    function _syncFromL1(bytes calldata payload) internal {
-        (, address _L1Token0, uint256 _reserve0, uint256 _reserve1) =
-            abi.decode(payload, (uint256, address, uint256, uint256));
-        (reserve0, reserve1) = _L1Token0 == L1Token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
+    function _syncFromL1(Codec.SyncToL2Payload memory sp) internal {
+        (reserve0, reserve1) = sp.token0 == L1Token0 ? (sp.reserve0, sp.reserve1) : (sp.reserve1, sp.reserve0);
         ref0 = reserve0;
         ref1 = reserve1;
     }

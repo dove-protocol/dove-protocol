@@ -16,7 +16,7 @@ import "./interfaces/IStargateReceiver.sol";
 import "./interfaces/IL1Factory.sol";
 import "../hyperlane/HyperlaneClient.sol";
 
-import "../MessageType.sol";
+import "../Codec.sol";
 
 contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGuard {
     /*###############################################################
@@ -42,16 +42,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                             STRUCTS
     ###############################################################*/
 
-    struct PartialSync {
-        address token;
-        uint256 pairBalance; // L2 pair balance
-        uint256 tokensForDove; // tokens to send to dove
-        uint256 earmarkedAmount; // tokens to earmark
-    }
-
     struct Sync {
-        PartialSync partialSyncA;
-        PartialSync partialSyncB;
+        Codec.SyncToL1Payload partialSyncA;
+        Codec.SyncToL1Payload partialSyncB;
     }
 
     struct BurnClaim {
@@ -285,6 +278,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     function sync() external nonReentrant {
         _update(ERC20(token0).balanceOf(address(this)), ERC20(token1).balanceOf(address(this)), reserve0, reserve1);
     }
+
     /*###############################################################
                             SYNCING LOGIC
     ###############################################################*/
@@ -314,20 +308,17 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         // check if message is from trusted remote
         require(trustedRemoteLookup[origin] == sender, "NOT TRUSTED");
         uint256 messageType = abi.decode(payload, (uint256));
-        if (messageType == MessageType.BURN_VOUCHERS) {
-            // receive both amounts and a single address to determine ordering
-            (, address user, uint256 amount0, uint256 amount1) =
-                abi.decode(payload, (uint256, address, uint256, uint256));
-            _completeVoucherBurns(origin, user, amount0, amount1);
-        } else if (messageType == MessageType.SYNC_TO_L1) {
-            (, uint256 syncID, address token, uint256 tokensForDove, uint256 earmarkedDelta, uint256 pairBalance) =
-                abi.decode(payload, (uint256, uint256, address, uint256, uint256, uint256));
-            _syncFromL2(origin, syncID, token, tokensForDove, earmarkedDelta, pairBalance);
+        if (messageType == Codec.BURN_VOUCHERS) {
+            Codec.VouchersBurnPayload memory vbp = Codec.decodeVouchersBurn(payload);
+            _completeVoucherBurns(origin, vbp);
+        } else if (messageType == Codec.SYNC_TO_L1) {
+            (uint256 syncID, Codec.SyncToL1Payload memory sp) = Codec.decodeSyncToL1(payload);
+            _syncFromL2(origin, syncID, sp);
         }
     }
 
     function syncL2(uint32 destinationDomain, address pair) external payable {
-        bytes memory payload = abi.encode(MessageType.SYNC_TO_L2, token0, reserve0, reserve1);
+        bytes memory payload = Codec.encodeSyncToL2(token0, reserve0, reserve1);
         bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(pair), payload);
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destinationDomain);
     }
@@ -335,9 +326,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     function finalizeSyncFromL2(uint32 originDomain, uint256 syncID) external {
         require(lastBridged0[originDomain][syncID] > 0 && lastBridged1[originDomain][syncID] > 0, "NO SG SWAPS");
         Sync memory sync = syncs[originDomain][syncID];
-        (PartialSync memory partialSync0, PartialSync memory partialSync1) = sync.partialSyncA.token == token0
-            ? (sync.partialSyncA, sync.partialSyncB)
-            : (sync.partialSyncB, sync.partialSyncA);
+        (Codec.SyncToL1Payload memory partialSync0, Codec.SyncToL1Payload memory partialSync1) = sync.partialSyncA.token
+            == token0 ? (sync.partialSyncA, sync.partialSyncB) : (sync.partialSyncB, sync.partialSyncA);
         _finalizeSyncFromL2(originDomain, syncID, partialSync0, partialSync1);
     }
 
@@ -358,60 +348,38 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                             INTERNAL FUNCTIONS
     ###############################################################*/
 
-    /// @notice Completes a voucher burn initiated on the L2.
-    /// @dev Checks if user is able to burn or not should be done on L2 beforehand.
-    /// @param srcDomain The domain id of the remote chain.
-    /// @param user The user who initiated the burn.
-    /// @param amount0 The quantity of local token0 tokens.
-    /// @param amount1 The quantity of local token1 tokens.
-    function _completeVoucherBurns(uint32 srcDomain, address user, uint256 amount0, uint256 amount1) internal {
+    function _completeVoucherBurns(uint32 srcDomain, Codec.VouchersBurnPayload memory vbp) internal {
         // if not enough to satisfy, just save the claim
-        if (amount0 > marked0[srcDomain] || amount1 > marked1[srcDomain]) {
+        if (vbp.amount0 > marked0[srcDomain] || vbp.amount1 > marked1[srcDomain]) {
             // cumulate burns
-            BurnClaim memory burnClaim = burnClaims[srcDomain][user];
-            burnClaims[srcDomain][user] = BurnClaim(burnClaim.amount0 + amount0, burnClaim.amount1 + amount1);
-            emit BurnClaimCreated(srcDomain, user, amount0, amount1);
+            BurnClaim memory burnClaim = burnClaims[srcDomain][vbp.user];
+            burnClaims[srcDomain][vbp.user] =
+                BurnClaim(burnClaim.amount0 + vbp.amount0, burnClaim.amount1 + vbp.amount1);
+            emit BurnClaimCreated(srcDomain, vbp.user, vbp.amount0, vbp.amount1);
             return;
         }
         // update earmarked tokens
-        marked0[srcDomain] -= amount0;
-        marked1[srcDomain] -= amount1;
-        fountain.squirt(user, amount0, amount1);
+        marked0[srcDomain] -= vbp.amount0;
+        marked1[srcDomain] -= vbp.amount1;
+        fountain.squirt(vbp.user, vbp.amount0, vbp.amount1);
     }
 
-    function _syncFromL2(
-        uint32 origin,
-        uint256 syncID,
-        address token,
-        uint256 tokensForDove,
-        uint256 earmarkedDelta,
-        uint256 pairBalance
-    ) internal {
+    function _syncFromL2(uint32 origin, uint256 syncID, Codec.SyncToL1Payload memory sp) internal {
         Sync memory sync = syncs[origin][syncID];
         // sync.partialSync1 should always be the first one to be set, regardless
         // if it's token0 or token1 being bridged
         if (sync.partialSyncA.token == address(0)) {
-            syncs[origin][syncID].partialSyncA = PartialSync(token, pairBalance, tokensForDove, earmarkedDelta);
+            syncs[origin][syncID].partialSyncA = sp;
         } else {
             // can proceed with full sync since we got the two HyperLane messages
             // have to check if SG swaps are completed
             if (lastBridged0[origin][syncID] > 0 && lastBridged1[origin][syncID] > 0) {
                 bool hasFailed;
                 // if incoming message's token is token0, means partialSyncA is token1
-                if (token == token0) {
-                    hasFailed = _finalizeSyncFromL2(
-                        origin,
-                        syncID,
-                        PartialSync(token, pairBalance, tokensForDove, earmarkedDelta),
-                        sync.partialSyncA
-                    );
+                if (sp.token == token0) {
+                    hasFailed = _finalizeSyncFromL2(origin, syncID, sp, sync.partialSyncA);
                 } else {
-                    hasFailed = _finalizeSyncFromL2(
-                        origin,
-                        syncID,
-                        sync.partialSyncA,
-                        PartialSync(token, pairBalance, tokensForDove, earmarkedDelta)
-                    );
+                    hasFailed = _finalizeSyncFromL2(origin, syncID, sync.partialSyncA, sp);
                 }
                 if (!hasFailed) {
                     // clear storage
@@ -419,13 +387,13 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                 } else {
                     // has failed, means there were tokens sent from same L2
                     // but NOT from the Pair!
-                    syncs[origin][syncID].partialSyncB = PartialSync(token, pairBalance, tokensForDove, earmarkedDelta);
+                    syncs[origin][syncID].partialSyncB = sp;
                     emit SyncPending(origin, syncID);
                 }
             } else {
                 // otherwise means there is at least one SG swap that hasn't completed yet
                 // so we need to store the HL data and execute the sync when the SG swap is done
-                syncs[origin][syncID].partialSyncB = PartialSync(token, pairBalance, tokensForDove, earmarkedDelta);
+                syncs[origin][syncID].partialSyncB = sp;
                 emit SyncPending(origin, syncID);
             }
         }
@@ -438,8 +406,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     function _finalizeSyncFromL2(
         uint32 srcDomain,
         uint256 syncID,
-        PartialSync memory partialSync0,
-        PartialSync memory partialSync1
+        Codec.SyncToL1Payload memory partialSync0,
+        Codec.SyncToL1Payload memory partialSync1
     ) internal returns (bool failed) {
         (ERC20 _token0, ERC20 _token1) = (ERC20(token0), ERC20(token1));
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
