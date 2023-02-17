@@ -319,6 +319,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
 
         SafeTransferLib.safeTransfer(ERC20(token0), msg.sender, amount0);
         SafeTransferLib.safeTransfer(ERC20(token1), msg.sender, amount1);
+
+        emit VouchersYeeted(msg.sender, amount0, amount1);
     }
 
     /// @notice Syncs to the L1.
@@ -384,6 +386,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             reserve1 = ref1 + _balance1 - (voucher1Delta - pairVoucher1Balance);
         }
 
+        emit SyncToL1Initiated(_balance0, _balance1, fees0, fees1);
+
         ref0 = reserve0;
         ref1 = reserve1;
         voucher0Delta = 0;
@@ -405,6 +409,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         bytes memory payload = Codec.encodeVouchersBurn(msg.sender, amount0, amount1);
         bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destDomain);
+
+        emit VouchersBurnInitiated(msg.sender, amount0, amount1);
     }
 
     function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
@@ -424,6 +430,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         (reserve0, reserve1) = sp.token0 == L1Token0 ? (sp.reserve0, sp.reserve1) : (sp.reserve1, sp.reserve0);
         ref0 = reserve0;
         ref1 = reserve1;
+
+        emit SyncedFromL1(reserve0, reserve1);
     }
 
     function _getL1Ordering(uint256 amount0, uint256 amount1) internal view returns (uint256, uint256) {

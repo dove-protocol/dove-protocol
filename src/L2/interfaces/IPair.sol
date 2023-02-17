@@ -11,6 +11,10 @@ interface IPair {
         address indexed to
     );
     event Sync(uint256 reserve0, uint256 reserve1);
+    event VouchersYeeted(address sender, uint256 amount0, uint256 amount1);
+    event VouchersBurnInitiated(address sender, uint256 amount0, uint256 amount1);
+    event SyncToL1Initiated(uint256 amount0, uint256 amount1, uint256 fees0, uint256 fees1);
+    event SyncedFromL1(uint256 reserve0, uint256 reserve1);
 
     error InsufficientOutputAmount();
     error InsufficientLiquidity();
