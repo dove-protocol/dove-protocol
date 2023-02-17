@@ -1,4 +1,4 @@
-<img align="right" width="150" height="150" top="100" src="./assets/dove.png">
+<img align="right" width="150" height="150" top="100" src="./assets/dove-logo.png">
 
 # Dove Protocol • ![solidity](https://img.shields.io/badge/solidity-^0.8.15-lightgrey)
 

@@ -14,7 +14,7 @@ import "../hyperlane/TypeCasts.sol";
 import "./interfaces/IStargateRouter.sol";
 import "./interfaces/IL2Factory.sol";
 
-import "../MessageType.sol";
+import "../Codec.sol";
 
 /// The AMM logic is taken from https://github.com/transmissions11/solidly/blob/master/contracts/BaseV1-core.sol
 
@@ -344,7 +344,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     function yeetVouchers(uint256 amount0, uint256 amount1) external nonReentrant {
         voucher0.transferFrom(msg.sender, address(this), amount0);
         voucher1.transferFrom(msg.sender, address(this), amount1);
-        
+
         SafeTransferLib.safeTransfer(ERC20(token0), msg.sender, amount0);
         SafeTransferLib.safeTransfer(ERC20(token1), msg.sender, amount1);
     }
@@ -384,6 +384,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         IStargateRouter stargateRouter = IStargateRouter(factory.stargateRouter());
 
         {
+            uint256 pairVoucher0Balance = voucher0.balanceOf(address(this));
             // swap token0
             _token0.approve(address(stargateRouter), _balance0 + fees0);
             stargateRouter.swap{value: sgFee}(
@@ -395,14 +396,18 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 _balance0,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                abi.encodePacked(syncID)
+                "1"
             );
-            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID, L1Token0, voucher0Delta, _balance0);
+            bytes memory payload = Codec.encodeSyncToL1(
+                syncID, L1Token0, pairVoucher0Balance, voucher0Delta - pairVoucher0Balance, _balance0
+            );
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
+            reserve0 = ref0 + _balance0 - (voucher0Delta - pairVoucher0Balance);
         }
 
         {
+            uint256 pairVoucher1Balance = voucher1.balanceOf(address(this));
             // swap token1
             _token1.approve(address(stargateRouter), _balance1 + fees1);
             stargateRouter.swap{value: sgFee}(
@@ -414,15 +419,16 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                 _balance1,
                 IStargateRouter.lzTxObj(200000, 0, "0x"),
                 abi.encodePacked(L1Target),
-                abi.encodePacked(syncID)
+                "1"
             );
-            bytes memory payload = abi.encode(MessageType.SYNC_TO_L1, syncID, L1Token1, voucher1Delta, _balance1);
+            bytes memory payload = Codec.encodeSyncToL1(
+                syncID, L1Token1, pairVoucher1Balance, voucher1Delta - pairVoucher1Balance, _balance1
+            );
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
+            reserve1 = ref1 + _balance1 - (voucher1Delta - pairVoucher1Balance);
         }
 
-        reserve0 = ref0 + _balance0 - voucher0Delta;
-        reserve1 = ref1 + _balance1 - voucher1Delta;
         ref0 = reserve0;
         ref1 = reserve1;
         voucher0Delta = 0;
@@ -435,7 +441,6 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     /// @param amount1 The amount of voucher1 to burn.
     function burnVouchers(uint256 amount0, uint256 amount1) external payable nonReentrant {
         uint32 destDomain = factory.destDomain();
-
         // tell L1 that vouchers been burned
         if(!(amount0 > 0 || amount1 > 0)) {
             revert NoVouchers();
@@ -443,7 +448,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         if (amount0 > 0) voucher0.burn(msg.sender, amount0);
         if (amount1 > 0) voucher1.burn(msg.sender, amount1);
         (amount0, amount1) = _getL1Ordering(amount0, amount1);
-        bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, msg.sender, amount0, amount1);
+        bytes memory payload = Codec.encodeVouchersBurn(msg.sender, amount0, amount1);
         bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destDomain);
     }
@@ -457,19 +462,17 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
             revert NotDove();
         }
         uint256 messageType = abi.decode(payload, (uint256));
-        if (messageType == MessageType.SYNC_TO_L2) {
-            _syncFromL1(payload);
+        if (messageType == Codec.SYNC_TO_L2) {
+            Codec.SyncToL2Payload memory sp = Codec.decodeSyncToL2(payload);
+            _syncFromL1(sp);
         }
     }
 
-    function _syncFromL1(bytes calldata payload) internal {
-        (, address _L1Token0, uint256 _reserve0, uint256 _reserve1) =
-            abi.decode(payload, (uint256, address, uint256, uint256));
-        (reserve0, reserve1) = _L1Token0 == L1Token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
+    function _syncFromL1(Codec.SyncToL2Payload memory sp) internal {
+        (reserve0, reserve1) = sp.token0 == L1Token0 ? (sp.reserve0, sp.reserve1) : (sp.reserve1, sp.reserve0);
         ref0 = reserve0;
         ref1 = reserve1;
     }
-
 
     function _getL1Ordering(uint256 amount0, uint256 amount1) internal view returns (uint256, uint256) {
         if (L1Token0 < L1Token1) {

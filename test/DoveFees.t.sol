@@ -16,10 +16,10 @@ contract DoveFeesTest is DoveBase {
         dove.transfer(address(0xbaf), balance / 3);
         dove.transfer(address(0xbef), balance / 3);
 
-        _syncToL2();
+        _syncToL2(L2_FORK_ID);
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
-        _standardSyncToL1();
+        _standardSyncToL1(L2_FORK_ID);
 
         (uint256 amount0, uint256 amount1) =
             routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xfab)));
@@ -75,10 +75,10 @@ contract DoveFeesTest is DoveBase {
     }
 
     function testNoFeesIfAddLiquidityAfterSync() external {
-        _syncToL2();
+        _syncToL2(L2_FORK_ID);
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
-        _standardSyncToL1();
+        _standardSyncToL1(L2_FORK_ID);
 
         (uint256 toAdd0, uint256 toAdd1,) =
             routerL1.quoteAddLiquidity(address(L1Token0), address(L1Token1), initialLiquidity0, initialLiquidity1); // 10M of each
@@ -114,10 +114,10 @@ contract DoveFeesTest is DoveBase {
         dove.transfer(address(0xbaf), balance / 3);
         dove.transfer(address(0xbef), balance / 3);
 
-        _syncToL2();
+        _syncToL2(L2_FORK_ID);
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
-        _standardSyncToL1();
+        _standardSyncToL1(L2_FORK_ID);
 
         // transfer LP tokens and try to claim fees
         vm.startBroadcast(address(0xfab));
@@ -152,10 +152,10 @@ contract DoveFeesTest is DoveBase {
         dove.transfer(address(0xbaf), balance / 3);
         dove.transfer(address(0xbef), balance / 3);
 
-        _syncToL2();
+        _syncToL2(L2_FORK_ID);
         vm.selectFork(L2_FORK_ID);
         _doSomeSwaps();
-        _standardSyncToL1();
+        _standardSyncToL1(L2_FORK_ID);
 
         uint256 claimableBefore0 = dove.claimable0(address(0xbaf));
         uint256 claimableBefore1 = dove.claimable1(address(0xbaf));
@@ -196,13 +196,13 @@ contract DoveFeesTest is DoveBase {
         );
         vm.stopBroadcast();
 
-        // make sure from isn't mistaken by msg.sender 
+        // make sure from isn't mistaken by msg.sender
         assertEq(dove.claimable0(address(0xbaf)), claimableBefore0);
         assertEq(dove.claimable1(address(0xbaf)), claimableBefore1);
         assertEq(dove.balanceOf(address(0xbaf)), balance / 3);
         assertEq(L1Token0.balanceOf(address(0xbaf)), 0);
         assertEq(L1Token1.balanceOf(address(0xbaf)), 0);
-        
+
         assertTrue(L1Token0.balanceOf(address(0xbef)) > initialLiquidity0 * 2 / 3);
         assertTrue(L1Token1.balanceOf(address(0xbef)) > initialLiquidity1 * 2 / 3);
     }

@@ -3,6 +3,7 @@ pragma solidity ^0.8.15;
 
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
+import "forge-std/console.sol";
 
 import {Dove} from "src/L1/Dove.sol";
 import {L1Router} from "src/L1/L1Router.sol";
@@ -31,9 +32,12 @@ import {MailboxMock} from "./mocks/MailboxMock.sol";
     token0      token1+voucher1
     token1      token0+voucher0
     marked0     voucher1
-    marked1     voucher0
-*/
+    marked1     voucher0*/
 contract DoveBase is Test, Helper {
+    mapping(uint256 => uint32) forkToDomain;
+    mapping(uint256 => uint16) forkToChainId;
+    mapping(uint256 => address) forkToPair;
+    mapping(uint256 => address) forkToMailbox;
     // L1
     address constant L1SGRouter = 0x8731d54E9D02c286767d56ac03e8037C07e01e98;
     InterchainGasPaymasterMock gasMasterL1;
@@ -65,8 +69,8 @@ contract DoveBase is Test, Helper {
     uint256 L2_FORK_ID;
     uint16 constant L1_CHAIN_ID = 101;
     uint16 constant L2_CHAIN_ID = 109;
-    uint32 constant L1_DOMAIN = 0x657468;
-    uint32 constant L2_DOMAIN = 0x706f6c79;
+    uint32 constant L1_DOMAIN = 1;
+    uint32 constant L2_DOMAIN = 137;
 
     address pairAddress;
 
@@ -127,6 +131,10 @@ contract DoveBase is Test, Helper {
             109, 0x9d1B1669c73b033DFe47ae5a0164Ab96df25B944, 0x296F55F8Fb28E498B858d0BcDA06D955B2Cb3f97
         );
 
+        forkToDomain[L1_FORK_ID] = L1_DOMAIN;
+        forkToChainId[L1_FORK_ID] = L1_CHAIN_ID;
+        forkToMailbox[L1_FORK_ID] = address(mailboxL1);
+
         /*
             Set all the L2 stuff.
         */
@@ -154,6 +162,8 @@ contract DoveBase is Test, Helper {
 
         pairAddress = address(pair);
 
+        vm.label(pairAddress, "PairL2");
+
         Helper.mintUSDCL2(address(L2Token0), address(this), 10 ** 36);
         Helper.mintDAIL2(address(L2Token1), address(this), 10 ** 60);
 
@@ -162,98 +172,95 @@ contract DoveBase is Test, Helper {
         L2Token0.approve(address(routerL2), type(uint256).max);
         L2Token1.approve(address(routerL2), type(uint256).max);
 
+        forkToDomain[L2_FORK_ID] = L2_DOMAIN;
+        forkToChainId[L2_FORK_ID] = L2_CHAIN_ID;
+        forkToPair[L2_FORK_ID] = address(pair);
+        forkToMailbox[L2_FORK_ID] = address(mailboxL2);
+
         // ---------------------------------------------
         vm.selectFork(L1_FORK_ID);
         vm.broadcast(address(factoryL1));
         dove.addTrustedRemote(L2_DOMAIN, bytes32(uint256(uint160(address(pair)))));
     }
 
-    function _burnVouchers(address user, uint256 amount0, uint256 amount1) internal {
-        vm.selectFork(L2_FORK_ID);
+    function _burnVouchers(uint256 fromFork, address user, uint256 amount0, uint256 amount1) internal {
+        vm.selectFork(fromFork);
         vm.recordLogs();
         vm.broadcast(user);
-        pair.burnVouchers(amount0, amount1);
+        Pair(forkToPair[fromFork]).burnVouchers(amount0, amount1);
         Vm.Log[] memory logs = vm.getRecordedLogs();
         // should be second long
         (address sender, bytes memory HLpayload) = abi.decode(logs[1].data, (address, bytes));
         vm.selectFork(L1_FORK_ID);
         vm.broadcast(address(mailboxL1));
-        dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender), HLpayload);
+        dove.handle(forkToDomain[fromFork], TypeCasts.addressToBytes32(sender), HLpayload);
     }
 
-    function _syncToL2() internal {
+    function _syncToL2(uint256 toFork) internal {
         vm.selectFork(L1_FORK_ID);
         vm.recordLogs();
-        dove.syncL2{value: 1 ether}(L2_CHAIN_ID, address(pair));
+        dove.syncL2{value: 1 ether}(forkToChainId[toFork], forkToPair[toFork]);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         // Packet event with payload should be the last one
         (address sender, bytes memory payload) = abi.decode(logs[logs.length - 1].data, (address, bytes));
         // switch fork
-        vm.selectFork(L2_FORK_ID);
-        vm.broadcast(address(mailboxL2));
-        pair.handle(L1_DOMAIN, TypeCasts.addressToBytes32(sender), payload);
+        vm.selectFork(toFork);
+        vm.broadcast(forkToMailbox[toFork]);
+        Pair(forkToPair[toFork]).handle(L1_DOMAIN, TypeCasts.addressToBytes32(sender), payload);
     }
 
-    function _standardSyncToL1() internal {
+    function _standardSyncToL1(uint256 fromFork) internal {
         uint256[] memory order = new uint[](4);
         order[0] = 0;
         order[1] = 1;
         order[2] = 2;
         order[3] = 3;
 
-        _syncToL1(order, _handleSGMessage, _handleSGMessage, _handleHLMessage, _handleHLMessage);
+        _syncToL1(fromFork, order, _handleSGMessage, _handleSGMessage, _handleHLMessage, _handleHLMessage);
     }
 
     function _syncToL1(
+        uint256 fromFork,
         uint256[] memory order,
-        function(bytes memory) internal one,
-        function(bytes memory) internal two,
-        function(bytes memory) internal three,
-        function(bytes memory) internal four
+        function(uint256, bytes memory) internal one,
+        function(uint256, bytes memory) internal two,
+        function(uint256, bytes memory) internal three,
+        function(uint256, bytes memory) internal four
     ) internal {
         /*
             Simulate syncing to L1.
             Using Stargate.
         */
-        vm.selectFork(L2_FORK_ID);
+        vm.selectFork(fromFork);
 
         vm.recordLogs();
         // reminder it's not ether but MATIC
-        pair.syncToL1{value: 800 ether}(200 ether, 200 ether);
+        Pair(forkToPair[fromFork]).syncToL1{value: 800 ether}(200 ether, 200 ether);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         // to find LZ events
-        //_findEvent(logs, 0xe9bded5f24a4168e4f3bf44e00298c993b22376aad8c58c7dda9718a54cbea82);
+        uint256[2] memory LZEventsIndexes =
+            _findSyncingEvents(logs, 0xe9bded5f24a4168e4f3bf44e00298c993b22376aad8c58c7dda9718a54cbea82);
         // to find mock mailbox events
-        //_findEvent(logs, 0x3b31784f245377d844a88ed832a668978c700fd9d25d80e8bf5ef168c6bffa20);
+        uint256[2] memory HLEventsIndexes =
+            _findSyncingEvents(logs, 0x3b31784f245377d844a88ed832a668978c700fd9d25d80e8bf5ef168c6bffa20);
 
         // first two payloads are LZ
         // last two are HL
         bytes[] memory payloads = new bytes[](4);
-        payloads[0] = abi.decode(logs[10].data, (bytes));
-        payloads[1] = abi.decode(logs[21].data, (bytes));
-        payloads[2] = logs[12].data;
-        payloads[3] = logs[23].data;
+        payloads[0] = abi.decode(logs[LZEventsIndexes[0]].data, (bytes));
+        payloads[1] = abi.decode(logs[LZEventsIndexes[1]].data, (bytes));
+        payloads[2] = logs[HLEventsIndexes[0]].data;
+        payloads[3] = logs[HLEventsIndexes[1]].data;
 
-        one(payloads[order[0]]);
-        two(payloads[order[1]]);
-        three(payloads[order[2]]);
-        four(payloads[order[3]]);
-
-        // (,address token0,uint256 marked0, uint256 pairBalance0) = abi.decode(HLpayload1, (uint,address,uint,uint));
-        // (,address token1,uint256 marked1, uint256 pairBalance1) = abi.decode(HLpayload2, (uint,address,uint,uint));
-        // console.log("Hyperlane payload0...");
-        // console.log("token", token0);
-        // console.log("marked", marked0);
-        // console.log("pairBalance", pairBalance0);
-        // console.log("Hyperlane payload1...");
-        // console.log("token", token1);
-        // console.log("marked", marked1);
-        // console.log("pairBalance", pairBalance1);
+        one(fromFork, payloads[order[0]]);
+        two(fromFork, payloads[order[1]]);
+        three(fromFork, payloads[order[2]]);
+        four(fromFork, payloads[order[3]]);
     }
 
-    function _handleSGMessage(bytes memory payload) internal {
+    function _handleSGMessage(uint256 fromFork, bytes memory payload) internal {
         LayerZeroPacket.Packet memory packet = LayerZeroPacket.getCustomPacket(payload);
         // switch fork
         vm.selectFork(L1_FORK_ID);
@@ -270,19 +277,45 @@ contract DoveBase is Test, Helper {
         );
     }
 
-    function _handleHLMessage(bytes memory payload) internal {
+    function _handleHLMessage(uint256 fromFork, bytes memory payload) internal {
         vm.selectFork(L1_FORK_ID);
         (address sender, bytes memory HLpayload) = abi.decode(payload, (address, bytes));
         vm.broadcast(address(mailboxL1));
-        dove.handle(L2_DOMAIN, TypeCasts.addressToBytes32(sender), HLpayload);
+        dove.handle(forkToDomain[fromFork], TypeCasts.addressToBytes32(sender), HLpayload);
     }
 
-    function _findEvent(Vm.Log[] memory logs, bytes32 topic) internal {
+    function _findSyncingEvents(Vm.Log[] memory logs, bytes32 topic) internal returns (uint256[2] memory indexes) {
+        bool useIndex0 = true;
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == topic) {
-                console2.logUint(i);
+                if (useIndex0) {
+                    indexes[0] = i;
+                    useIndex0 = false;
+                } else {
+                    indexes[1] = i;
+                    break;
+                }
             }
         }
+    }
+
+    function _yeetVouchers(address user, uint256 amount0, uint256 amount1) internal {
+        /*
+            Napkin math
+            Balances after yeeting [doSomeSwaps]
+
+            erc20       pair                        0xbeef  
+            DAI         3082874155273737            49833330250459178059597
+            USDC        0                           49833333334     
+            vDAI        49833330250459178059597     0
+            vUSDC       0                           3082
+        */
+        vm.startBroadcast(user);
+        Pair _pair = Pair(forkToPair[vm.activeFork()]);
+        _pair.voucher0().approve(address(_pair), type(uint256).max);
+        _pair.voucher1().approve(address(_pair), type(uint256).max);
+        _pair.yeetVouchers(amount0, amount1);
+        vm.stopBroadcast();
     }
 
     function _doSomeSwaps() internal {
