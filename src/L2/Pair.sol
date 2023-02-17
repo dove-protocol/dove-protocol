@@ -200,11 +200,11 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     // this low-level function should be called from a contract which performs important safety checks
     function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external nonReentrant {
         //require(!BaseV1Factory(factory).isPaused());
-        if(!(amount0Out > 0 || amount1Out > 0)) {
+        if (!(amount0Out > 0 || amount1Out > 0)) {
             revert InsufficientOutputAmount();
         }
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
-        if(!(amount0Out < _reserve0 && amount1Out < _reserve1)) {
+        if (!(amount0Out < _reserve0 && amount1Out < _reserve1)) {
             revert InsufficientLiquidity();
         }
 
@@ -215,7 +215,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
             _balance0 = ERC20(_token0).balanceOf(address(this));
             _balance1 = ERC20(_token1).balanceOf(address(this));
             // scope for _token{0,1}, avoids stack too deep errors
-            if(!(to != _token0 && to != _token1)) {
+            if (!(to != _token0 && to != _token1)) {
                 revert InvalidTo();
             }
             // optimistically mints vouchers
@@ -246,7 +246,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         }
         uint256 amount0In = _balance0 > _reserve0 - amount0Out ? _balance0 - (_reserve0 - amount0Out) : 0;
         uint256 amount1In = _balance1 > _reserve1 - amount1Out ? _balance1 - (_reserve1 - amount1Out) : 0;
-        if(!(amount0In > 0 || amount1In > 0)) {
+        if (!(amount0In > 0 || amount1In > 0)) {
             revert InsufficientInputAmount();
         }
         {
@@ -256,7 +256,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
             _balance0 = balance0(); // since we removed tokens, we need to reconfirm balances, can also simply use previous balance - amountIn/ 10000, but doing balanceOf again as safety check
             _balance1 = balance1();
             // The curve, either x3y+y3x for stable pools, or x*y for volatile pools
-            if(!(_k(_balance0, _balance1) >= _k(_reserve0, _reserve1))) {
+            if (!(_k(_balance0, _balance1) >= _k(_reserve0, _reserve1))) {
                 revert kInvariant();
             }
         }
@@ -349,26 +349,10 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         SafeTransferLib.safeTransfer(ERC20(token1), msg.sender, amount1);
     }
 
-    function burnVouchersHeldByPair() external payable {
-        uint32 destDomain = factory.destDomain();
-        uint256 amount0 = voucher0.balanceOf(address(this));
-        uint256 amount1 = voucher1.balanceOf(address(this));
-        // tell L1 that vouchers been burned
-        if(!(amount0 > 0 || amount1 > 0)) {
-            revert NoVouchers();
-        }
-        if (amount0 > 0) voucher0.burn(address(this), amount0);
-        if (amount1 > 0) voucher1.burn(address(this), amount1);
-        (amount0, amount1) = _getL1Ordering(amount0, amount1);
-        bytes memory payload = abi.encode(MessageType.BURN_VOUCHERS, L1Target, amount0, amount1);
-        bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-        hyperlaneGasMaster.payGasFor{value: msg.value}(id, destDomain);
-    }
-
     /// @notice Syncs to the L1.
     /// @dev Dependent on SG.
     function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable {
-        if(msg.value < (sgFee + hyperlaneFee) * 2) {
+        if (msg.value < (sgFee + hyperlaneFee) * 2) {
             revert MsgValueTooLow();
         }
         ERC20 _token0 = ERC20(token0);
@@ -442,7 +426,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     function burnVouchers(uint256 amount0, uint256 amount1) external payable nonReentrant {
         uint32 destDomain = factory.destDomain();
         // tell L1 that vouchers been burned
-        if(!(amount0 > 0 || amount1 > 0)) {
+        if (!(amount0 > 0 || amount1 > 0)) {
             revert NoVouchers();
         }
         if (amount0 > 0) voucher0.burn(msg.sender, amount0);
@@ -455,10 +439,10 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
 
     function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
         uint32 destDomain = factory.destDomain();
-        if(origin != destDomain) {
+        if (origin != destDomain) {
             revert WrongOrigin();
         }
-        if(TypeCasts.addressToBytes32(L1Target) != sender) {
+        if (TypeCasts.addressToBytes32(L1Target) != sender) {
             revert NotDove();
         }
         uint256 messageType = abi.decode(payload, (uint256));
