@@ -118,6 +118,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
             token1_.decimals()
         );
         feesAccumulator = new FeesAccumulator(_token0, _token1);
+
+        lastSyncTimestamp = block.timestamp;
     }
 
     /*###############################################################
