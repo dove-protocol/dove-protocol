@@ -7,14 +7,6 @@ import "./Pair.sol";
 
 contract L2Factory is IL2Factory {
     /*###############################################################
-                            ERRORS
-    ###############################################################*/
-    error IdenticalAddress();
-    error ZeroAddress();
-    error ZeroAddressOrigin();
-    error PairExists();
-
-    /*###############################################################
                             STORAGE
     ###############################################################*/
     mapping(address => mapping(address => address)) public getPair;

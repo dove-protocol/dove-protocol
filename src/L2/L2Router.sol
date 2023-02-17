@@ -5,26 +5,9 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {Pair} from "./Pair.sol";
 import {L2Factory} from "./L2Factory.sol";
 
-contract L2Router {
-    /*###############################################################
-                            ERRORS
-    ###############################################################*/
-    error Expired();
-    error IdenticalAddress();
-    error ZeroAddress();
-    error InvalidPath();
-    error InsufficientOutputAmount();
-    error CodeLength();
-    error TransferFailed();
+import "./interfaces/IL2Router.sol";
 
-    /*###############################################################
-                            STORAGE
-    ###############################################################*/
-    struct route {
-        address from;
-        address to;
-    }
-
+contract L2Router is IL2Router {
     L2Factory public immutable factory;
     bytes32 immutable pairCodeHash;
 

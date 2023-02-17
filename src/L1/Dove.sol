@@ -206,7 +206,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
             uint256 b = _amount1 * _totalSupply / _reserve1;
             liquidity = a < b ? a : b;
         }
-        if (!(liquidity > 0)) revert InsuffcientLiquidityMinted();
+        if (!(liquidity > 0)) revert InsufficientLiquidityMinted();
 
         _updateFor(to);
         _mint(to, liquidity);
@@ -228,7 +228,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         amount0 = _liquidity * _balance0 / _totalSupply; // using balances ensures pro-rata distribution
         amount1 = _liquidity * _balance1 / _totalSupply; // using balances ensures pro-rata distribution
 
-        if (!(amount0 > 0 && amount1 > 0)) revert InsuffcientLiquidityBurned();
+        if (!(amount0 > 0 && amount1 > 0)) revert InsufficientLiquidityBurned();
 
         _updateFor(to);
         _burn(address(this), _liquidity);

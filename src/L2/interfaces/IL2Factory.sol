@@ -4,6 +4,11 @@ pragma solidity ^0.8.15;
 interface IL2Factory {
     event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
 
+    error IdenticalAddress();
+    error ZeroAddress();
+    error ZeroAddressOrigin();
+    error PairExists();
+
     struct SGConfig {
         uint16 srcPoolId0;
         uint16 srcPoolId1;

@@ -4,21 +4,9 @@ pragma solidity >=0.8.15;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
-interface IFactory {
-    function allPairsLength() external view returns (uint256);
-    function isPair(address pair) external view returns (bool);
-    function pairCodeHash() external pure returns (bytes32);
-    function getPair(address tokenA, address token) external view returns (address);
-}
-
-interface IDove {
-    function transferFrom(address src, address dst, uint256 amount) external returns (bool);
-    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
-        external;
-    function burn(address to) external returns (uint256 amount0, uint256 amount1);
-    function mint(address to) external returns (uint256 liquidity);
-    function getReserves() external view returns (uint256 _reserve0, uint256 _reserve1);
-}
+import "./interfaces/IL1Router.sol";
+import "./interfaces/IL1Factory.sol";
+import "./interfaces/IDove.sol";
 
 library Math {
     function min(uint256 a, uint256 b) internal pure returns (uint256) {
@@ -39,32 +27,7 @@ library Math {
     }
 }
 
-contract L1Router {
-    /*###############################################################
-                            ERRORS
-    ###############################################################*/
-    error Expired();
-    error IdenticalAddress();
-    error ZeroAddress();
-    error InsuffcientAmountForQuote();
-    error InsufficientLiquidity();
-    error BelowMinimumAmount();
-    error PairDoesNotExist();
-    error InsufficientAmountA();
-    error InsufficientAmountB();
-    error TransferLiqToPairFailed();
-    error CodeLength();
-    error TransferFailed();
-
-    /*###############################################################
-                            STORAGE
-    ###############################################################*/
-    struct route {
-        address from;
-        address to;
-        bool stable;
-    }
-
+contract L1Router is IL1Router {
     address public immutable factory;
     uint256 internal constant MINIMUM_LIQUIDITY = 10 ** 3;
     bytes32 immutable pairCodeHash;
@@ -74,7 +37,7 @@ contract L1Router {
     ###############################################################*/
     constructor(address _factory) {
         factory = _factory;
-        pairCodeHash = IFactory(_factory).pairCodeHash();
+        pairCodeHash = IL1Factory(_factory).pairCodeHash();
     }
 
     /*###############################################################
@@ -122,12 +85,12 @@ contract L1Router {
     // fetches and sorts the reserves for a pair
     function getReserves(address tokenA, address tokenB) public view returns (uint256 reserveA, uint256 reserveB) {
         (address token0,) = sortTokens(tokenA, tokenB);
-        (uint256 reserve0, uint256 reserve1) = IDove(IFactory(factory).getPair(tokenA, tokenB)).getReserves();
+        (uint256 reserve0, uint256 reserve1) = IDove(IL1Factory(factory).getPair(tokenA, tokenB)).getReserves();
         (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
     }
 
     function isPair(address pair) external view returns (bool) {
-        return IFactory(factory).isPair(pair);
+        return IL1Factory(factory).isPair(pair);
     }
 
     function quoteAddLiquidity(address tokenA, address tokenB, uint256 amountADesired, uint256 amountBDesired)
@@ -136,7 +99,7 @@ contract L1Router {
         returns (uint256 amountA, uint256 amountB, uint256 liquidity)
     {
         // create the pair if it doesn't exist yet
-        address _pair = IFactory(factory).getPair(tokenA, tokenB);
+        address _pair = IL1Factory(factory).getPair(tokenA, tokenB);
         (uint256 reserveA, uint256 reserveB) = (0, 0);
         uint256 _totalSupply = 0;
         if (_pair != address(0)) {
@@ -165,7 +128,7 @@ contract L1Router {
         returns (uint256 amountA, uint256 amountB)
     {
         // create the pair if it doesn't exist yet
-        address _pair = IFactory(factory).getPair(tokenA, tokenB);
+        address _pair = IL1Factory(factory).getPair(tokenA, tokenB);
 
         if (_pair == address(0)) {
             return (0, 0);
@@ -189,7 +152,7 @@ contract L1Router {
         if (!(amountADesired >= amountAMin && amountBDesired >= amountBMin)) revert BelowMinimumAmount();
 
         // create the pair if it doesn't exist yet
-        address _pair = IFactory(factory).getPair(tokenA, tokenB);
+        address _pair = IL1Factory(factory).getPair(tokenA, tokenB);
         if (_pair == address(0)) revert PairDoesNotExist();
 
         (uint256 reserveA, uint256 reserveB) = getReserves(tokenA, tokenB);
@@ -224,7 +187,7 @@ contract L1Router {
         if (deadline < block.timestamp) revert Expired();
 
         (amountA, amountB) = _addLiquidity(tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin);
-        address pair = IFactory(factory).getPair(tokenA, tokenB);
+        address pair = IL1Factory(factory).getPair(tokenA, tokenB);
         _safeTransferFrom(tokenA, msg.sender, pair, amountA);
         _safeTransferFrom(tokenB, msg.sender, pair, amountB);
         liquidity = IDove(pair).mint(to);
@@ -242,7 +205,7 @@ contract L1Router {
     ) public returns (uint256 amountA, uint256 amountB) {
         if (deadline < block.timestamp) revert Expired();
 
-        address pair = IFactory(factory).getPair(tokenA, tokenB);
+        address pair = IL1Factory(factory).getPair(tokenA, tokenB);
 
         if (!(IDove(pair).transferFrom(msg.sender, pair, liquidity))) revert TransferLiqToPairFailed();
 
@@ -267,7 +230,7 @@ contract L1Router {
         bytes32 r,
         bytes32 s
     ) external returns (uint256 amountA, uint256 amountB) {
-        address pair = IFactory(factory).getPair(tokenA, tokenB);
+        address pair = IL1Factory(factory).getPair(tokenA, tokenB);
         {
             uint256 value = approveMax ? type(uint256).max : liquidity;
             IDove(pair).permit(msg.sender, address(this), value, deadline, v, r, s);
