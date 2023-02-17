@@ -11,6 +11,7 @@ import {FeesAccumulator} from "./FeesAccumulator.sol";
 import "../hyperlane/HyperlaneClient.sol";
 import "../hyperlane/TypeCasts.sol";
 
+import "./interfaces/IPair.sol";
 import "./interfaces/IStargateRouter.sol";
 import "./interfaces/IL2Factory.sol";
 
@@ -18,33 +19,7 @@ import "../Codec.sol";
 
 /// The AMM logic is taken from https://github.com/transmissions11/solidly/blob/master/contracts/BaseV1-core.sol
 
-contract Pair is ReentrancyGuard, HyperlaneClient {
-    /*###############################################################
-                            EVENTS
-    ###############################################################*/
-    event Swap(
-        address indexed sender,
-        uint256 amount0In,
-        uint256 amount1In,
-        uint256 amount0Out,
-        uint256 amount1Out,
-        address indexed to
-    );
-    event Sync(uint256 reserve0, uint256 reserve1);
-
-    /*###############################################################
-                            ERRORS
-    ###############################################################*/
-    error InsufficientOutputAmount();
-    error InsufficientLiquidity();
-    error InvalidTo();
-    error InsufficientInputAmount();
-    error kInvariant();
-    error NoVouchers();
-    error MsgValueTooLow();
-    error WrongOrigin();
-    error NotDove();
-
+contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     /*###############################################################
                             STORAGE
     ###############################################################*/

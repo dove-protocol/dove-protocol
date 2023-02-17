@@ -12,61 +12,14 @@ import {SGHyperlaneConverter} from "./SGHyperlaneConverter.sol";
 
 import "../hyperlane/TypeCasts.sol";
 
+import "./interfaces/IDove.sol";
 import "./interfaces/IStargateReceiver.sol";
 import "./interfaces/IL1Factory.sol";
 import "../hyperlane/HyperlaneClient.sol";
 
 import "../Codec.sol";
 
-contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGuard {
-    /*###############################################################
-                            EVENTS
-    ###############################################################*/
-    event Fees(uint256 indexed srcDomain, uint256 amount0, uint256 amount1);
-    event Mint(address indexed sender, uint256 amount0, uint256 amount1);
-    event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
-    event Claim(address indexed recipient, uint256 amount0, uint256 amount1);
-    event Updated(uint256 reserve0, uint256 reserve1);
-    event Bridged(uint256 indexed srcChainId, uint256 syncId, address token, uint256 amount);
-    event SyncPending(uint256 indexed srcDomain, uint256 syncID);
-    event SyncFinalized(
-        uint256 indexed srcDomain,
-        uint256 syncID,
-        uint256 pairBalance0,
-        uint256 pairBalance1,
-        uint256 earmarkedAmount0,
-        uint256 earmarkedAmount1
-    );
-    event BurnClaimCreated(uint256 indexed srcDomain, address indexed user, uint256 amount0, uint256 amount1);
-
-    /*###############################################################
-                            ERRORS
-    ###############################################################*/
-    error LiquidityLocked();
-    error InsuffcientLiquidityMinted();
-    error InsuffcientLiquidityBurned();
-    error NotStargate();
-    error NotTrusted();
-    error NoStargateSwaps();
-
-    /*###############################################################
-                            STRUCTS
-    ###############################################################*/
-
-    struct Sync {
-        Codec.SyncToL1Payload partialSyncA;
-        Codec.SyncToL1Payload partialSyncB;
-    }
-
-    struct BurnClaim {
-        uint256 amount0;
-        uint256 amount1;
-    }
-
-    /*###############################################################
-                            STORAGE
-    ###############################################################*/
-
+contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGuard {
     uint256 internal constant MINIMUM_LIQUIDITY = 10 ** 3;
     uint256 internal constant LIQUIDITY_LOCK_PERIOD = 7 days;
     uint256 internal constant LIQUIDITY_UNLOCK_PERIOD = 1 days;
@@ -445,7 +398,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             uint256 fees1 = LB1 - partialSync1.pairBalance;
             _update0(fees0);
             _update1(fees1);
-            emit Fees(srcDomain, fees0, fees1);
+            emit IDove.Fees({srcDomain: srcDomain, amount0: fees0, amount1: fees1});
             // cleanup
             delete lastBridged0[srcDomain][syncID];
             delete lastBridged1[srcDomain][syncID];
