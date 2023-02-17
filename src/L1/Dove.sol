@@ -130,6 +130,8 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
             claimable1[from] = 0;
             claimable0[to] += _fees0;
             claimable1[to] += _fees1;
+
+            emit FeesTransferred(from, _fees0, _fees1, to);
         }
     }
 
@@ -154,6 +156,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
                 uint256 _share = _supplied * _delta1 / 1e18;
                 claimable1[recipient] += _share;
             }
+            emit FeesUpdated(recipient, supplyIndex0[recipient], supplyIndex1[recipient]);
         } else {
             supplyIndex0[recipient] = index0; // new users are set to the default global state
             supplyIndex1[recipient] = index1;
@@ -334,12 +337,13 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
             burnClaims[srcDomain][vbp.user] =
                 BurnClaim(burnClaim.amount0 + vbp.amount0, burnClaim.amount1 + vbp.amount1);
             emit BurnClaimCreated(srcDomain, vbp.user, vbp.amount0, vbp.amount1);
-            return;
+        } else {
+            // update earmarked tokens
+            marked0[srcDomain] -= vbp.amount0;
+            marked1[srcDomain] -= vbp.amount1;
+            fountain.squirt(vbp.user, vbp.amount0, vbp.amount1);
+            emit BurnClaimed(srcDomain, vbp.user, vbp.amount0, vbp.amount1);
         }
-        // update earmarked tokens
-        marked0[srcDomain] -= vbp.amount0;
-        marked1[srcDomain] -= vbp.amount1;
-        fountain.squirt(vbp.user, vbp.amount0, vbp.amount1);
     }
 
     function _syncFromL2(uint32 origin, uint256 syncID, Codec.SyncToL1Payload memory sp) internal {

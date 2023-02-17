@@ -8,6 +8,7 @@ interface IDove {
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
     event Claim(address indexed recipient, uint256 amount0, uint256 amount1);
+    event FeesUpdated(address recipient, uint256 amount0, uint256 amount1);
     event FeesTransferred(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
     event Updated(uint256 reserve0, uint256 reserve1);
     event Bridged(uint256 indexed srcChainId, uint256 syncId, address token, uint256 amount);
@@ -20,6 +21,7 @@ interface IDove {
         uint256 earmarkedAmount0,
         uint256 earmarkedAmount1
     );
+    event BurnClaimed(uint256 srcDomain, address indexed user, uint256 amount0, uint256 amount1);
     event BurnClaimCreated(uint256 indexed srcDomain, address indexed user, uint256 amount0, uint256 amount1);
 
     error LiquidityLocked();
