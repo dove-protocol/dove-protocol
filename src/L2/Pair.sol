@@ -265,13 +265,6 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
     }
 
-    // force balances to match reserves
-    // function skim(address to) external nonReentrant {
-    //     (address _token0, address _token1) = (token0, token1);
-    //     _safeTransfer(_token0, to, ???);
-    //     _safeTransfer(_token1, to, ???);
-    // }
-
     // force reserves to match balances
     function sync() external nonReentrant {
         _update(balance0(), balance1(), reserve0, reserve1);
