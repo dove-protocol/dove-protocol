@@ -18,7 +18,7 @@ contract DoveLiquidityTest is DoveBase {
         address token0 = dove.token0();
         address token1 = dove.token1();
         uint256 balance = dove.balanceOf(address(this));
-        vm.expectRevert("Liquidity locked");
+        vm.expectRevert(Dove.LiquidityLocked.selector);
         routerL1.removeLiquidity(token0, token1, balance, amount0, amount1, address(this), block.timestamp + 1);
     }
 

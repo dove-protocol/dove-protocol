@@ -16,8 +16,24 @@ contract L1Factory {
     address[] public allPairs;
     mapping(address => bool) public isPair; // simplified check if its a pair, given that `stable` flag might not be available in peripherals
 
+    /*###############################################################
+                            EVENTS
+    ###############################################################*/
+
     event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
 
+    /*###############################################################
+                            ERRORS
+    ###############################################################*/
+    error OnlyPauser();
+    error OnlyPendingPauser();
+    error IdenticalAddress();
+    error ZeroAddress();
+    error PairAlreadyExists();
+
+    /*###############################################################
+                            CONSTRUCTOR
+    ###############################################################*/
     constructor(address _hyperlaneGasMaster, address _mailbox, address _stargateRouter) {
         pauser = msg.sender;
         isPaused = false;
@@ -27,22 +43,28 @@ contract L1Factory {
         stargateRouter = _stargateRouter;
     }
 
+    /*###############################################################
+                            FACTORY
+    ###############################################################*/
     function allPairsLength() external view returns (uint256) {
         return allPairs.length;
     }
 
     function setPauser(address _pauser) external {
-        require(msg.sender == pauser);
+        if (msg.sender != pauser) revert OnlyPauser();
+
         pendingPauser = _pauser;
     }
 
     function acceptPauser() external {
-        require(msg.sender == pendingPauser);
+        if (msg.sender != pauser) revert OnlyPendingPauser();
+
         pauser = pendingPauser;
     }
 
     function setPause(bool _state) external {
-        require(msg.sender == pauser);
+        if (msg.sender != pauser) revert OnlyPauser();
+
         isPaused = _state;
     }
 
@@ -50,11 +72,14 @@ contract L1Factory {
         return keccak256(type(Dove).creationCode);
     }
 
+    // Create a new LP pair if it does not already exist
     function createPair(address tokenA, address tokenB) external returns (address pair) {
-        require(tokenA != tokenB, "IA"); // BaseV1: IDENTICAL_ADDRESSES
+        if (tokenA == tokenB) revert IdenticalAddress();
+
         (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-        require(token0 != address(0), "ZA"); // BaseV1: ZERO_ADDRESS
-        require(getPair[token0][token1] == address(0), "PE"); // BaseV1: PAIR_EXISTS - single check is sufficient
+        if (token0 == address(0)) revert ZeroAddress();
+        if (getPair[token0][token1] != address(0)) revert PairAlreadyExists();
+
         bytes32 salt = keccak256(abi.encodePacked(token0, token1, true));
         pair = address(
             new Dove{salt:salt}(
