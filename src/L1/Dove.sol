@@ -331,6 +331,9 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
     function finalizeSyncFromL2(uint32 originDomain, uint256 syncID) external {
         require(lastBridged0[originDomain][syncID] > 0 && lastBridged1[originDomain][syncID] > 0, "NO SG SWAPS");
         Sync memory sync = syncs[originDomain][syncID];
+        // PVP enabled : whoever finalizes the sync gets the reward
+        // doesn't matter if another user initiated it on L2
+        sync.syncerMetadata.syncer = msg.sender;
         (Codec.SyncToL1Payload memory partialSync0, Codec.SyncToL1Payload memory partialSync1) = sync.partialSyncA.token
             == token0 ? (sync.partialSyncA, sync.partialSyncB) : (sync.partialSyncB, sync.partialSyncA);
         _finalizeSyncFromL2(originDomain, syncID, sync.syncerMetadata, partialSync0, partialSync1);
