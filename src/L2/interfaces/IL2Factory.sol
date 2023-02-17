@@ -17,17 +17,12 @@ interface IL2Factory {
     }
 
     function destDomain() external view returns (uint32);
-
     function destChainId() external view returns (uint16);
-
     function stargateRouter() external view returns (address);
-
     function getPair(address tokenA, address tokenB) external view returns (address pair);
-
     function allPairs(uint256) external view returns (address pair);
-
     function allPairsLength() external view returns (uint256);
-
+    function pairCodeHash() external pure returns (bytes32);
     function createPair(
         address tokenA,
         address tokenB,

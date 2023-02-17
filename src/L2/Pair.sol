@@ -112,7 +112,12 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     ###############################################################*/
 
     // TODO ; use balance0() instrad of reserrve0???
-    function getReserves() public view returns (uint256 _reserve0, uint256 _reserve1, uint256 _blockTimestampLast) {
+    function getReserves()
+        public
+        view
+        override
+        returns (uint256 _reserve0, uint256 _reserve1, uint256 _blockTimestampLast)
+    {
         _reserve0 = reserve0;
         _reserve1 = reserve1;
         _blockTimestampLast = blockTimestampLast;
@@ -156,6 +161,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     function currentCumulativePrices()
         public
         view
+        override
         returns (uint256 reserve0Cumulative, uint256 reserve1Cumulative, uint256 blockTimestamp)
     {
         blockTimestamp = block.timestamp;
@@ -173,7 +179,11 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     }
 
     // this low-level function should be called from a contract which performs important safety checks
-    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external nonReentrant {
+    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data)
+        external
+        override
+        nonReentrant
+    {
         //require(!BaseV1Factory(factory).isPaused());
         if (!(amount0Out > 0 || amount1Out > 0)) revert InsufficientOutputAmount();
 
@@ -271,7 +281,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         return y;
     }
 
-    function getAmountOut(uint256 amountIn, address tokenIn) external view returns (uint256) {
+    function getAmountOut(uint256 amountIn, address tokenIn) external view override returns (uint256) {
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         amountIn -= amountIn / FEE; // remove fee from amount received
         return _getAmountOut(amountIn, tokenIn, _reserve0, _reserve1);
@@ -303,7 +313,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
                             CROSS-CHAIN LOGIC
     ###############################################################*/
 
-    function yeetVouchers(uint256 amount0, uint256 amount1) external nonReentrant {
+    function yeetVouchers(uint256 amount0, uint256 amount1) external override nonReentrant {
         voucher0.transferFrom(msg.sender, address(this), amount0);
         voucher1.transferFrom(msg.sender, address(this), amount1);
 
@@ -313,7 +323,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
 
     /// @notice Syncs to the L1.
     /// @dev Dependent on SG.
-    function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable {
+    function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable override {
         if (msg.value < (sgFee + hyperlaneFee) * 2) revert MsgValueTooLow();
 
         ERC20 _token0 = ERC20(token0);
@@ -384,7 +394,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     /// @notice Allows user to burn his L2 vouchers to get the L1 tokens.
     /// @param amount0 The amount of voucher0 to burn.
     /// @param amount1 The amount of voucher1 to burn.
-    function burnVouchers(uint256 amount0, uint256 amount1) external payable nonReentrant {
+    function burnVouchers(uint256 amount0, uint256 amount1) external payable override nonReentrant {
         uint32 destDomain = factory.destDomain();
         // tell L1 that vouchers been burned
         if (!(amount0 > 0 || amount1 > 0)) revert NoVouchers();

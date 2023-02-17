@@ -8,15 +8,15 @@ import "./interfaces/IL1Factory.sol";
 contract L1Factory is IL1Factory {
     address public hyperlaneGasMaster;
     address public mailbox;
-    address public override stargateRouter;
+    address public stargateRouter;
 
     bool public isPaused;
     address public pauser;
     address public pendingPauser;
 
-    mapping(address => mapping(address => address)) public override getPair;
+    mapping(address => mapping(address => address)) public getPair;
     address[] public allPairs;
-    mapping(address => bool) public override isPair; // simplified check if its a pair, given that `stable` flag might not be available in peripherals
+    mapping(address => bool) public isPair; // simplified check if its a pair, given that `stable` flag might not be available in peripherals
 
     /*###############################################################
                             CONSTRUCTOR
