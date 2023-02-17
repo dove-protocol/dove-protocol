@@ -12,61 +12,14 @@ import {SGHyperlaneConverter} from "./SGHyperlaneConverter.sol";
 
 import "../hyperlane/TypeCasts.sol";
 
+import "./interfaces/IDove.sol";
 import "./interfaces/IStargateReceiver.sol";
 import "./interfaces/IL1Factory.sol";
 import "../hyperlane/HyperlaneClient.sol";
 
 import "../Codec.sol";
 
-contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGuard {
-    /*###############################################################
-                            EVENTS
-    ###############################################################*/
-    event Fees(uint256 indexed srcDomain, uint256 amount0, uint256 amount1);
-    event Mint(address indexed sender, uint256 amount0, uint256 amount1);
-    event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
-    event Claim(address indexed recipient, uint256 amount0, uint256 amount1);
-    event Updated(uint256 reserve0, uint256 reserve1);
-    event Bridged(uint256 indexed srcChainId, uint256 syncId, address token, uint256 amount);
-    event SyncPending(uint256 indexed srcDomain, uint256 syncID);
-    event SyncFinalized(
-        uint256 indexed srcDomain,
-        uint256 syncID,
-        uint256 pairBalance0,
-        uint256 pairBalance1,
-        uint256 earmarkedAmount0,
-        uint256 earmarkedAmount1
-    );
-    event BurnClaimCreated(uint256 indexed srcDomain, address indexed user, uint256 amount0, uint256 amount1);
-
-    /*###############################################################
-                            ERRORS
-    ###############################################################*/
-    error LiquidityLocked();
-    error InsuffcientLiquidityMinted();
-    error InsuffcientLiquidityBurned();
-    error NotStargate();
-    error NotTrusted();
-    error NoStargateSwaps();
-
-    /*###############################################################
-                            STRUCTS
-    ###############################################################*/
-
-    struct Sync {
-        Codec.SyncToL1Payload partialSyncA;
-        Codec.SyncToL1Payload partialSyncB;
-    }
-
-    struct BurnClaim {
-        uint256 amount0;
-        uint256 amount1;
-    }
-
-    /*###############################################################
-                            STORAGE
-    ###############################################################*/
-
+contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGuard {
     uint256 internal constant MINIMUM_LIQUIDITY = 10 ** 3;
     uint256 internal constant LIQUIDITY_LOCK_PERIOD = 7 days;
     uint256 internal constant LIQUIDITY_UNLOCK_PERIOD = 1 days;
@@ -140,7 +93,12 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                             FEES LOGIC
     ###############################################################*/
 
-    function claimFeesFor(address recipient) public nonReentrant returns (uint256 claimed0, uint256 claimed1) {
+    function claimFeesFor(address recipient)
+        public
+        override
+        nonReentrant
+        returns (uint256 claimed0, uint256 claimed1)
+    {
         return _claimFees(recipient);
     }
 
@@ -172,6 +130,8 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             claimable1[from] = 0;
             claimable0[to] += _fees0;
             claimable1[to] += _fees1;
+
+            emit FeesTransferred(from, _fees0, _fees1, to);
         }
     }
 
@@ -196,6 +156,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                 uint256 _share = _supplied * _delta1 / 1e18;
                 claimable1[recipient] += _share;
             }
+            emit FeesUpdated(recipient, supplyIndex0[recipient], supplyIndex1[recipient]);
         } else {
             supplyIndex0[recipient] = index0; // new users are set to the default global state
             supplyIndex1[recipient] = index1;
@@ -223,7 +184,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                             LIQUIDITY LOGIC
     ###############################################################*/
 
-    function isLiquidityLocked() external view returns (bool) {
+    function isLiquidityLocked() external view override returns (bool) {
         // compute # of epochs so far
         uint256 epochs = (block.timestamp - startEpoch) / (LIQUIDITY_LOCK_PERIOD + LIQUIDITY_UNLOCK_PERIOD);
         uint256 t0 = startEpoch + epochs * (LIQUIDITY_LOCK_PERIOD + LIQUIDITY_UNLOCK_PERIOD);
@@ -236,7 +197,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         emit Updated(reserve0, reserve1);
     }
 
-    function mint(address to) external nonReentrant returns (uint256 liquidity) {
+    function mint(address to) external override nonReentrant returns (uint256 liquidity) {
         _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         uint256 _balance0 = ERC20(token0).balanceOf(address(this));
@@ -253,7 +214,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             uint256 b = _amount1 * _totalSupply / _reserve1;
             liquidity = a < b ? a : b;
         }
-        if (!(liquidity > 0)) revert InsuffcientLiquidityMinted();
+        if (!(liquidity > 0)) revert InsufficientLiquidityMinted();
 
         _updateFor(to);
         _mint(to, liquidity);
@@ -262,7 +223,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         emit Mint(msg.sender, _amount0, _amount1);
     }
 
-    function burn(address to) external nonReentrant returns (uint256 amount0, uint256 amount1) {
+    function burn(address to) external override nonReentrant returns (uint256 amount0, uint256 amount1) {
         if (this.isLiquidityLocked()) revert LiquidityLocked();
         _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
@@ -275,7 +236,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         amount0 = _liquidity * _balance0 / _totalSupply; // using balances ensures pro-rata distribution
         amount1 = _liquidity * _balance1 / _totalSupply; // using balances ensures pro-rata distribution
 
-        if (!(amount0 > 0 && amount1 > 0)) revert InsuffcientLiquidityBurned();
+        if (!(amount0 > 0 && amount1 > 0)) revert InsufficientLiquidityBurned();
 
         _updateFor(to);
         _burn(address(this), _liquidity);
@@ -289,7 +250,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         emit Burn(msg.sender, amount0, amount1, to);
     }
 
-    function sync() external nonReentrant {
+    function sync() external override nonReentrant {
         _update(ERC20(token0).balanceOf(address(this)), ERC20(token1).balanceOf(address(this)), reserve0, reserve1);
     }
 
@@ -334,13 +295,13 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         }
     }
 
-    function syncL2(uint32 destinationDomain, address pair) external payable {
+    function syncL2(uint32 destinationDomain, address pair) external payable override {
         bytes memory payload = Codec.encodeSyncToL2(token0, reserve0, reserve1);
         bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(pair), payload);
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destinationDomain);
     }
 
-    function finalizeSyncFromL2(uint32 originDomain, uint256 syncID) external {
+    function finalizeSyncFromL2(uint32 originDomain, uint256 syncID) external override {
         if (!(lastBridged0[originDomain][syncID] > 0 && lastBridged1[originDomain][syncID] > 0)) {
             revert NoStargateSwaps();
         }
@@ -351,7 +312,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
         _finalizeSyncFromL2(originDomain, syncID, partialSync0, partialSync1);
     }
 
-    function claimBurn(uint32 srcDomain, address user) external {
+    function claimBurn(uint32 srcDomain, address user) external override {
         BurnClaim memory burnClaim = burnClaims[srcDomain][user];
 
         uint256 amount0 = burnClaim.amount0;
@@ -376,12 +337,13 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
             burnClaims[srcDomain][vbp.user] =
                 BurnClaim(burnClaim.amount0 + vbp.amount0, burnClaim.amount1 + vbp.amount1);
             emit BurnClaimCreated(srcDomain, vbp.user, vbp.amount0, vbp.amount1);
-            return;
+        } else {
+            // update earmarked tokens
+            marked0[srcDomain] -= vbp.amount0;
+            marked1[srcDomain] -= vbp.amount1;
+            fountain.squirt(vbp.user, vbp.amount0, vbp.amount1);
+            emit BurnClaimed(srcDomain, vbp.user, vbp.amount0, vbp.amount1);
         }
-        // update earmarked tokens
-        marked0[srcDomain] -= vbp.amount0;
-        marked1[srcDomain] -= vbp.amount1;
-        fountain.squirt(vbp.user, vbp.amount0, vbp.amount1);
     }
 
     function _syncFromL2(uint32 origin, uint256 syncID, Codec.SyncToL1Payload memory sp) internal {
@@ -498,7 +460,7 @@ contract Dove is IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGua
                             VIEW FUNCTIONS
     ###############################################################*/
 
-    function getReserves() external view returns (uint256, uint256) {
+    function getReserves() external view override returns (uint256, uint256) {
         return (reserve0, reserve1);
     }
 }

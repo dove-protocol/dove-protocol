@@ -7,14 +7,6 @@ import "./Pair.sol";
 
 contract L2Factory is IL2Factory {
     /*###############################################################
-                            ERRORS
-    ###############################################################*/
-    error IdenticalAddress();
-    error ZeroAddress();
-    error ZeroAddressOrigin();
-    error PairExists();
-
-    /*###############################################################
                             STORAGE
     ###############################################################*/
     mapping(address => mapping(address => address)) public getPair;
@@ -43,11 +35,11 @@ contract L2Factory is IL2Factory {
     /*###############################################################
                             Factory
     ###############################################################*/
-    function allPairsLength() external view returns (uint256) {
+    function allPairsLength() external view override returns (uint256) {
         return allPairs.length;
     }
 
-    function pairCodeHash() external pure returns (bytes32) {
+    function pairCodeHash() external pure override returns (bytes32) {
         return keccak256(type(Pair).creationCode);
     }
 
@@ -58,7 +50,7 @@ contract L2Factory is IL2Factory {
         address L1TokenA,
         address L1TokenB,
         address L1Target
-    ) external returns (address pair) {
+    ) external override returns (address pair) {
         if (tokenA == tokenB) revert IdenticalAddress();
 
         // sort tokens

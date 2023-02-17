@@ -11,6 +11,7 @@ import {FeesAccumulator} from "./FeesAccumulator.sol";
 import "../hyperlane/HyperlaneClient.sol";
 import "../hyperlane/TypeCasts.sol";
 
+import "./interfaces/IPair.sol";
 import "./interfaces/IStargateRouter.sol";
 import "./interfaces/IL2Factory.sol";
 
@@ -18,33 +19,7 @@ import "../Codec.sol";
 
 /// The AMM logic is taken from https://github.com/transmissions11/solidly/blob/master/contracts/BaseV1-core.sol
 
-contract Pair is ReentrancyGuard, HyperlaneClient {
-    /*###############################################################
-                            EVENTS
-    ###############################################################*/
-    event Swap(
-        address indexed sender,
-        uint256 amount0In,
-        uint256 amount1In,
-        uint256 amount0Out,
-        uint256 amount1Out,
-        address indexed to
-    );
-    event Sync(uint256 reserve0, uint256 reserve1);
-
-    /*###############################################################
-                            ERRORS
-    ###############################################################*/
-    error InsufficientOutputAmount();
-    error InsufficientLiquidity();
-    error InvalidTo();
-    error InsufficientInputAmount();
-    error kInvariant();
-    error NoVouchers();
-    error MsgValueTooLow();
-    error WrongOrigin();
-    error NotDove();
-
+contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     /*###############################################################
                             STORAGE
     ###############################################################*/
@@ -137,7 +112,12 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     ###############################################################*/
 
     // TODO ; use balance0() instrad of reserrve0???
-    function getReserves() public view returns (uint256 _reserve0, uint256 _reserve1, uint256 _blockTimestampLast) {
+    function getReserves()
+        public
+        view
+        override
+        returns (uint256 _reserve0, uint256 _reserve1, uint256 _blockTimestampLast)
+    {
         _reserve0 = reserve0;
         _reserve1 = reserve1;
         _blockTimestampLast = blockTimestampLast;
@@ -181,6 +161,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     function currentCumulativePrices()
         public
         view
+        override
         returns (uint256 reserve0Cumulative, uint256 reserve1Cumulative, uint256 blockTimestamp)
     {
         blockTimestamp = block.timestamp;
@@ -198,7 +179,11 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     }
 
     // this low-level function should be called from a contract which performs important safety checks
-    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external nonReentrant {
+    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data)
+        external
+        override
+        nonReentrant
+    {
         //require(!BaseV1Factory(factory).isPaused());
         if (!(amount0Out > 0 || amount1Out > 0)) revert InsufficientOutputAmount();
 
@@ -296,7 +281,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         return y;
     }
 
-    function getAmountOut(uint256 amountIn, address tokenIn) external view returns (uint256) {
+    function getAmountOut(uint256 amountIn, address tokenIn) external view override returns (uint256) {
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         amountIn -= amountIn / FEE; // remove fee from amount received
         return _getAmountOut(amountIn, tokenIn, _reserve0, _reserve1);
@@ -328,17 +313,19 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
                             CROSS-CHAIN LOGIC
     ###############################################################*/
 
-    function yeetVouchers(uint256 amount0, uint256 amount1) external nonReentrant {
+    function yeetVouchers(uint256 amount0, uint256 amount1) external override nonReentrant {
         voucher0.transferFrom(msg.sender, address(this), amount0);
         voucher1.transferFrom(msg.sender, address(this), amount1);
 
         SafeTransferLib.safeTransfer(ERC20(token0), msg.sender, amount0);
         SafeTransferLib.safeTransfer(ERC20(token1), msg.sender, amount1);
+
+        emit VouchersYeeted(msg.sender, amount0, amount1);
     }
 
     /// @notice Syncs to the L1.
     /// @dev Dependent on SG.
-    function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable {
+    function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable override {
         if (msg.value < (sgFee + hyperlaneFee) * 2) revert MsgValueTooLow();
 
         ERC20 _token0 = ERC20(token0);
@@ -399,6 +386,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
             reserve1 = ref1 + _balance1 - (voucher1Delta - pairVoucher1Balance);
         }
 
+        emit SyncToL1Initiated(_balance0, _balance1, fees0, fees1);
+
         ref0 = reserve0;
         ref1 = reserve1;
         voucher0Delta = 0;
@@ -409,7 +398,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     /// @notice Allows user to burn his L2 vouchers to get the L1 tokens.
     /// @param amount0 The amount of voucher0 to burn.
     /// @param amount1 The amount of voucher1 to burn.
-    function burnVouchers(uint256 amount0, uint256 amount1) external payable nonReentrant {
+    function burnVouchers(uint256 amount0, uint256 amount1) external payable override nonReentrant {
         uint32 destDomain = factory.destDomain();
         // tell L1 that vouchers been burned
         if (!(amount0 > 0 || amount1 > 0)) revert NoVouchers();
@@ -420,6 +409,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         bytes memory payload = Codec.encodeVouchersBurn(msg.sender, amount0, amount1);
         bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destDomain);
+
+        emit VouchersBurnInitiated(msg.sender, amount0, amount1);
     }
 
     function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
@@ -439,6 +430,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         (reserve0, reserve1) = sp.token0 == L1Token0 ? (sp.reserve0, sp.reserve1) : (sp.reserve1, sp.reserve0);
         ref0 = reserve0;
         ref1 = reserve1;
+
+        emit SyncedFromL1(reserve0, reserve1);
     }
 
     function _getL1Ordering(uint256 amount0, uint256 amount1) internal view returns (uint256, uint256) {

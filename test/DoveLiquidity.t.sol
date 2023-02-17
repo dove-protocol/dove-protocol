@@ -2,6 +2,7 @@
 pragma solidity ^0.8.15;
 
 import "./DoveBase.sol";
+import "../src/L1/interfaces/IDove.sol";
 
 contract DoveLiquidityTest is DoveBase {
     function setUp() external {
@@ -18,7 +19,7 @@ contract DoveLiquidityTest is DoveBase {
         address token0 = dove.token0();
         address token1 = dove.token1();
         uint256 balance = dove.balanceOf(address(this));
-        vm.expectRevert(Dove.LiquidityLocked.selector);
+        vm.expectRevert(IDove.LiquidityLocked.selector);
         routerL1.removeLiquidity(token0, token1, balance, amount0, amount1, address(this), block.timestamp + 1);
     }
 
