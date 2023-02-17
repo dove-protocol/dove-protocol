@@ -51,23 +51,20 @@ contract L1Factory {
     }
 
     function setPauser(address _pauser) external {
-        if(msg.sender != pauser) {
-            revert OnlyPauser();
-        }
+        if (msg.sender != pauser) revert OnlyPauser();
+
         pendingPauser = _pauser;
     }
 
     function acceptPauser() external {
-        if(msg.sender != pauser) {
-            revert OnlyPendingPauser();
-        }
+        if (msg.sender != pauser) revert OnlyPendingPauser();
+
         pauser = pendingPauser;
     }
 
     function setPause(bool _state) external {
-        if(msg.sender != pauser) {
-            revert OnlyPauser();
-        }
+        if (msg.sender != pauser) revert OnlyPauser();
+
         isPaused = _state;
     }
 
@@ -77,16 +74,12 @@ contract L1Factory {
 
     // Create a new LP pair if it does not already exist
     function createPair(address tokenA, address tokenB) external returns (address pair) {
-        if(tokenA == tokenB) {
-            revert IdenticalAddress();
-        }
+        if (tokenA == tokenB) revert IdenticalAddress();
+
         (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-        if(token0 == address(0)) {
-            revert ZeroAddress();
-        }
-        if(getPair[token0][token1] != address(0)) {
-            revert PairAlreadyExists();
-        }
+        if (token0 == address(0)) revert ZeroAddress();
+        if (getPair[token0][token1] != address(0)) revert PairAlreadyExists();
+
         bytes32 salt = keccak256(abi.encodePacked(token0, token1, true));
         pair = address(
             new Dove{salt:salt}(

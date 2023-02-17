@@ -6,7 +6,6 @@ import {Pair} from "./Pair.sol";
 import {L2Factory} from "./L2Factory.sol";
 
 contract L2Router {
-
     /*###############################################################
                             ERRORS
     ###############################################################*/
@@ -46,13 +45,10 @@ contract L2Router {
                             ROUTER
     ###############################################################*/
     function sortTokens(address tokenA, address tokenB) public pure returns (address token0, address token1) {
-        if(tokenA == tokenB) {
-            revert IdenticalAddress();
-        }
+        if (tokenA == tokenB) revert IdenticalAddress();
+
         (token0, token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-        if(token0 == address(0)) {
-            revert ZeroAddress();
-        }
+        if (token0 == address(0)) revert ZeroAddress();
     }
 
     // performs chained getAmountOut calculations on any number of pairs
@@ -63,9 +59,8 @@ contract L2Router {
 
     // performs chained getAmountOut calculations on any number of pairs
     function getAmountsOut(uint256 amountIn, route[] memory routes) public view returns (uint256[] memory amounts) {
-        if(routes.length < 1) {
-            revert InvalidPath();
-        }
+        if (routes.length < 1) revert InvalidPath();
+
         amounts = new uint[](routes.length+1);
         amounts[0] = amountIn;
         for (uint256 i = 0; i < routes.length; i++) {
@@ -105,9 +100,8 @@ contract L2Router {
         routes[0].from = tokenFrom;
         routes[0].to = tokenTo;
         amounts = getAmountsOut(amountIn, routes);
-        if(amounts[amounts.length - 1] < amountOutMin) {
-            revert InsufficientOutputAmount();
-        }
+        if (amounts[amounts.length - 1] < amountOutMin) revert InsufficientOutputAmount();
+
         _safeTransferFrom(routes[0].from, msg.sender, factory.getPair(routes[0].from, routes[0].to), amounts[0]);
         _swap(amounts, routes, to);
     }
@@ -120,31 +114,24 @@ contract L2Router {
         uint256 deadline
     ) external ensure(deadline) returns (uint256[] memory amounts) {
         amounts = getAmountsOut(amountIn, routes);
-        if(amounts[amounts.length - 1] < amountOutMin) {
-            revert InsufficientOutputAmount();
-        }
+        if (amounts[amounts.length - 1] < amountOutMin) revert InsufficientOutputAmount();
+
         _safeTransferFrom(routes[0].from, msg.sender, factory.getPair(routes[0].from, routes[0].to), amounts[0]);
         _swap(amounts, routes, to);
     }
 
     function _safeTransfer(address token, address to, uint256 value) internal {
-        if(!(token.code.length > 0)) {
-            revert CodeLength();
-        }
+        if (!(token.code.length > 0)) revert CodeLength();
+
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(ERC20.transfer.selector, to, value));
-        if(!(success && (data.length == 0 || abi.decode(data, (bool))))) {
-            revert TransferFailed();
-        }
+        if (!(success && (data.length == 0 || abi.decode(data, (bool))))) revert TransferFailed();
     }
 
     function _safeTransferFrom(address token, address from, address to, uint256 value) internal {
-        if(!(token.code.length > 0)) {
-            revert CodeLength();
-        }
+        if (!(token.code.length > 0)) revert CodeLength();
+
         (bool success, bytes memory data) =
             token.call(abi.encodeWithSelector(ERC20.transferFrom.selector, from, to, value));
-        if(!(success && (data.length == 0 || abi.decode(data, (bool))))) {
-            revert TransferFailed();
-        }
+        if (!(success && (data.length == 0 || abi.decode(data, (bool))))) revert TransferFailed();
     }
 }

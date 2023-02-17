@@ -40,7 +40,6 @@ library Math {
 }
 
 contract L1Router {
-
     /*###############################################################
                             ERRORS
     ###############################################################*/
@@ -82,13 +81,10 @@ contract L1Router {
                             ROUTER
     ###############################################################*/
     function sortTokens(address tokenA, address tokenB) public pure returns (address token0, address token1) {
-        if(tokenA == tokenB){
-            revert IdenticalAddress();
-        }
+        if (tokenA == tokenB) revert IdenticalAddress();
+
         (token0, token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-        if(token0 == address(0)) {
-            revert ZeroAddress();
-        }
+        if (token0 == address(0)) revert ZeroAddress();
     }
 
     // calculates the CREATE2 address for a pair without making any external calls
@@ -116,12 +112,10 @@ contract L1Router {
         pure
         returns (uint256 amountB)
     {
-        if(!(amountA > 0)) {
-            revert InsuffcientAmountForQuote();
-        }
-        if(!(reserveA > 0 && reserveB > 0)) {
-            revert InsufficientLiquidity();
-        }
+        if (!(amountA > 0)) revert InsuffcientAmountForQuote();
+
+        if (!(reserveA > 0 && reserveB > 0)) revert InsufficientLiquidity();
+
         amountB = amountA * reserveB / reserveA;
     }
 
@@ -192,30 +186,26 @@ contract L1Router {
         uint256 amountAMin,
         uint256 amountBMin
     ) internal returns (uint256 amountA, uint256 amountB) {
-        if(!(amountADesired >= amountAMin && amountBDesired >= amountBMin)) {
-            revert BelowMinimumAmount();
-        }
+        if (!(amountADesired >= amountAMin && amountBDesired >= amountBMin)) revert BelowMinimumAmount();
+
         // create the pair if it doesn't exist yet
         address _pair = IFactory(factory).getPair(tokenA, tokenB);
-        if(_pair == address(0)) {
-            revert PairDoesNotExist();
-        }
+        if (_pair == address(0)) revert PairDoesNotExist();
+
         (uint256 reserveA, uint256 reserveB) = getReserves(tokenA, tokenB);
         if (reserveA == 0 && reserveB == 0) {
             (amountA, amountB) = (amountADesired, amountBDesired);
         } else {
             uint256 amountBOptimal = quoteLiquidity(amountADesired, reserveA, reserveB);
             if (amountBOptimal <= amountBDesired) {
-                if(amountBOptimal < amountBMin) {
-                    revert InsufficientAmountB();
-                }
+                if (amountBOptimal < amountBMin) revert InsufficientAmountB();
+
                 (amountA, amountB) = (amountADesired, amountBOptimal);
             } else {
                 uint256 amountAOptimal = quoteLiquidity(amountBDesired, reserveB, reserveA);
                 assert(amountAOptimal <= amountADesired);
-                if(amountBOptimal < amountBMin) {
-                    revert InsufficientAmountA();
-                }
+                if (amountBOptimal < amountBMin) revert InsufficientAmountA();
+
                 (amountA, amountB) = (amountAOptimal, amountBDesired);
             }
         }
@@ -231,9 +221,8 @@ contract L1Router {
         address to,
         uint256 deadline
     ) external returns (uint256 amountA, uint256 amountB, uint256 liquidity) {
-        if(deadline < block.timestamp) {
-            revert Expired();
-        }
+        if (deadline < block.timestamp) revert Expired();
+
         (amountA, amountB) = _addLiquidity(tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin);
         address pair = IFactory(factory).getPair(tokenA, tokenB);
         _safeTransferFrom(tokenA, msg.sender, pair, amountA);
@@ -251,22 +240,18 @@ contract L1Router {
         address to,
         uint256 deadline
     ) public returns (uint256 amountA, uint256 amountB) {
-        if(deadline < block.timestamp) {
-            revert Expired();
-        }
+        if (deadline < block.timestamp) revert Expired();
+
         address pair = IFactory(factory).getPair(tokenA, tokenB);
-        if(!(IDove(pair).transferFrom(msg.sender, pair, liquidity))) {
-            revert TransferLiqToPairFailed();
-        }
+
+        if (!(IDove(pair).transferFrom(msg.sender, pair, liquidity))) revert TransferLiqToPairFailed();
+
         (uint256 amount0, uint256 amount1) = IDove(pair).burn(to);
         (address token0,) = sortTokens(tokenA, tokenB);
         (amountA, amountB) = tokenA == token0 ? (amount0, amount1) : (amount1, amount0);
-        if(amountA < amountAMin) {
-            revert InsufficientAmountA();
-        }
-        if(amountB < amountBMin) {
-            revert InsufficientAmountB();
-        }
+
+        if (amountA < amountAMin) revert InsufficientAmountA();
+        if (amountB < amountBMin) revert InsufficientAmountB();
     }
 
     function removeLiquidityWithPermit(
@@ -292,23 +277,17 @@ contract L1Router {
     }
 
     function _safeTransfer(address token, address to, uint256 value) internal {
-        if(!(token.code.length > 0)) {
-            revert CodeLength();
-        }
+        if (!(token.code.length > 0)) revert CodeLength();
+
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(ERC20.transfer.selector, to, value));
-        if(!(success && (data.length == 0 || abi.decode(data, (bool))))) {
-            revert TransferFailed();
-        }
+        if (!(success && (data.length == 0 || abi.decode(data, (bool))))) revert TransferFailed();
     }
 
     function _safeTransferFrom(address token, address from, address to, uint256 value) internal {
-        if(!(token.code.length > 0)) {
-            revert CodeLength();
-        }
+        if (!(token.code.length > 0)) revert CodeLength();
+
         (bool success, bytes memory data) =
             token.call(abi.encodeWithSelector(ERC20.transferFrom.selector, from, to, value));
-        if(!(success && (data.length == 0 || abi.decode(data, (bool))))) {
-            revert TransferFailed();
-        }
+        if (!(success && (data.length == 0 || abi.decode(data, (bool))))) revert TransferFailed();
     }
 }

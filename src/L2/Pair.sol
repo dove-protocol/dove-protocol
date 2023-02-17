@@ -200,13 +200,10 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     // this low-level function should be called from a contract which performs important safety checks
     function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external nonReentrant {
         //require(!BaseV1Factory(factory).isPaused());
-        if (!(amount0Out > 0 || amount1Out > 0)) {
-            revert InsufficientOutputAmount();
-        }
+        if (!(amount0Out > 0 || amount1Out > 0)) revert InsufficientOutputAmount();
+
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
-        if (!(amount0Out < _reserve0 && amount1Out < _reserve1)) {
-            revert InsufficientLiquidity();
-        }
+        if (!(amount0Out < _reserve0 && amount1Out < _reserve1)) revert InsufficientLiquidity();
 
         uint256 _balance0;
         uint256 _balance1;
@@ -246,9 +243,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
         }
         uint256 amount0In = _balance0 > _reserve0 - amount0Out ? _balance0 - (_reserve0 - amount0Out) : 0;
         uint256 amount1In = _balance1 > _reserve1 - amount1Out ? _balance1 - (_reserve1 - amount1Out) : 0;
-        if (!(amount0In > 0 || amount1In > 0)) {
-            revert InsufficientInputAmount();
-        }
+        if (!(amount0In > 0 || amount1In > 0)) revert InsufficientInputAmount();
+
         {
             // scope for reserve{0,1}Adjusted, avoids stack too deep errors
             if (amount0In > 0) _update0(amount0In / FEE); // accrue fees for token0 and move them out of pool
@@ -256,9 +252,7 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
             _balance0 = balance0(); // since we removed tokens, we need to reconfirm balances, can also simply use previous balance - amountIn/ 10000, but doing balanceOf again as safety check
             _balance1 = balance1();
             // The curve, either x3y+y3x for stable pools, or x*y for volatile pools
-            if (!(_k(_balance0, _balance1) >= _k(_reserve0, _reserve1))) {
-                revert kInvariant();
-            }
+            if (!(_k(_balance0, _balance1) >= _k(_reserve0, _reserve1))) revert kInvariant();
         }
 
         _update(_balance0, _balance1, _reserve0, _reserve1);
@@ -345,9 +339,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     /// @notice Syncs to the L1.
     /// @dev Dependent on SG.
     function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable {
-        if (msg.value < (sgFee + hyperlaneFee) * 2) {
-            revert MsgValueTooLow();
-        }
+        if (msg.value < (sgFee + hyperlaneFee) * 2) revert MsgValueTooLow();
+
         ERC20 _token0 = ERC20(token0);
         ERC20 _token1 = ERC20(token1);
         // balance before getting accumulated fees
@@ -419,9 +412,8 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
     function burnVouchers(uint256 amount0, uint256 amount1) external payable nonReentrant {
         uint32 destDomain = factory.destDomain();
         // tell L1 that vouchers been burned
-        if (!(amount0 > 0 || amount1 > 0)) {
-            revert NoVouchers();
-        }
+        if (!(amount0 > 0 || amount1 > 0)) revert NoVouchers();
+
         if (amount0 > 0) voucher0.burn(msg.sender, amount0);
         if (amount1 > 0) voucher1.burn(msg.sender, amount1);
         (amount0, amount1) = _getL1Ordering(amount0, amount1);
@@ -432,12 +424,10 @@ contract Pair is ReentrancyGuard, HyperlaneClient {
 
     function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
         uint32 destDomain = factory.destDomain();
-        if (origin != destDomain) {
-            revert WrongOrigin();
-        }
-        if (TypeCasts.addressToBytes32(L1Target) != sender) {
-            revert NotDove();
-        }
+        if (origin != destDomain) revert WrongOrigin();
+
+        if (TypeCasts.addressToBytes32(L1Target) != sender) revert NotDove();
+
         uint256 messageType = abi.decode(payload, (uint256));
         if (messageType == Codec.SYNC_TO_L2) {
             Codec.SyncToL2Payload memory sp = Codec.decodeSyncToL2(payload);

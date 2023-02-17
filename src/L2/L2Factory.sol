@@ -59,22 +59,16 @@ contract L2Factory is IL2Factory {
         address L1TokenB,
         address L1Target
     ) external returns (address pair) {
-        if(tokenA == tokenB) {
-            revert IdenticalAddress();
-        }
+        if (tokenA == tokenB) revert IdenticalAddress();
+
         // sort tokens
         (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
         (address L1Token0, address L1Token1) = token0 == tokenA ? (L1TokenA, L1TokenB) : (L1TokenB, L1TokenA);
-        if((token0 == address(0) || token1 == address(0))) {
-            revert ZeroAddress();
-        }
-        if((L1Token0 == address(0) || L1Token1 == address(0))) {
-            revert ZeroAddressOrigin();
-        }
-        // check if pair exists
-        if(getPair[token0][token1] != address(0)) {
-            revert PairExists();
-        }
+
+        if ((token0 == address(0) || token1 == address(0))) revert ZeroAddress();
+        if ((L1Token0 == address(0) || L1Token1 == address(0))) revert ZeroAddressOrigin();
+        if (getPair[token0][token1] != address(0)) revert PairExists();
+
         bytes32 salt = keccak256(abi.encodePacked(token0, L1Token0, token1, L1Token1, gasMaster, mailbox, L1Target));
         // shitty design, should remove gasMaster,sgRouter, destChainId and destDomain from constructor
         // should query factory
