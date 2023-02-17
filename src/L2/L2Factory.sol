@@ -6,6 +6,17 @@ import "./interfaces/IL2Factory.sol";
 import "./Pair.sol";
 
 contract L2Factory is IL2Factory {
+    /*###############################################################
+                            ERRORS
+    ###############################################################*/
+    error IdenticalAddress();
+    error ZeroAddress();
+    error ZeroAddressOrigin();
+    error PairExists();
+
+    /*###############################################################
+                            STORAGE
+    ###############################################################*/
     mapping(address => mapping(address => address)) public getPair;
     address[] public allPairs;
     mapping(address => bool) public isPair;
@@ -16,6 +27,9 @@ contract L2Factory is IL2Factory {
     uint16 public destChainId;
     uint32 public destDomain;
 
+    /*###############################################################
+                            CONSTRUCTOR
+    ###############################################################*/
     constructor(address _gasMaster, address _mailbox, address _stargateRouter, uint16 _destChainId, uint32 _destDomain)
         public
     {
@@ -26,6 +40,9 @@ contract L2Factory is IL2Factory {
         destDomain = _destDomain;
     }
 
+    /*###############################################################
+                            Factory
+    ###############################################################*/
     function allPairsLength() external view returns (uint256) {
         return allPairs.length;
     }
@@ -42,14 +59,16 @@ contract L2Factory is IL2Factory {
         address L1TokenB,
         address L1Target
     ) external returns (address pair) {
-        require(tokenA != tokenB, "Factory: IDENTICAL_ADDRESSES");
+        if (tokenA == tokenB) revert IdenticalAddress();
+
         // sort tokens
         (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
         (address L1Token0, address L1Token1) = token0 == tokenA ? (L1TokenA, L1TokenB) : (L1TokenB, L1TokenA);
-        require(token0 != address(0) && token1 != address(0), "Factory: ZERO_ADDRESS");
-        require(L1Token0 != address(0) && L1Token1 != address(0), "Factory: ZERO_ADDRESS_ORIGIN");
-        // check if pair exists
-        require(getPair[token0][token1] == address(0), "Factory: PAIR_EXISTS"); // single check is sufficient
+
+        if ((token0 == address(0) || token1 == address(0))) revert ZeroAddress();
+        if ((L1Token0 == address(0) || L1Token1 == address(0))) revert ZeroAddressOrigin();
+        if (getPair[token0][token1] != address(0)) revert PairExists();
+
         bytes32 salt = keccak256(abi.encodePacked(token0, L1Token0, token1, L1Token1, gasMaster, mailbox, L1Target));
         // shitty design, should remove gasMaster,sgRouter, destChainId and destDomain from constructor
         // should query factory
