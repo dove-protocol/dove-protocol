@@ -39,10 +39,13 @@ interface IDove {
         uint256 amount1;
     }
 
-    function transferFrom(address src, address dst, uint256 amount) external returns (bool);
-    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
-        external;
-    function burn(address to) external returns (uint256 amount0, uint256 amount1);
+    function claimFeesFor(address recipient) external returns (uint256 claimed0, uint256 claimed1);
+    function isLiquidityLocked() external view returns (bool);
     function mint(address to) external returns (uint256 liquidity);
-    function getReserves() external view returns (uint256 _reserve0, uint256 _reserve1);
+    function burn(address to) external returns (uint256 amount0, uint256 amount1);
+    function sync() external;
+    function syncL2(uint32 destinationDomain, address pair) external payable;
+    function finalizeSyncFromL2(uint32 originDomain, uint256 syncID) external;
+    function claimBurn(uint32 srcDomain, address user) external;
+    function getReserves() external view returns (uint256 reserve0, uint256 reserve1);
 }

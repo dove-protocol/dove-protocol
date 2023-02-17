@@ -93,7 +93,12 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
                             FEES LOGIC
     ###############################################################*/
 
-    function claimFeesFor(address recipient) public nonReentrant returns (uint256 claimed0, uint256 claimed1) {
+    function claimFeesFor(address recipient)
+        public
+        override
+        nonReentrant
+        returns (uint256 claimed0, uint256 claimed1)
+    {
         return _claimFees(recipient);
     }
 
@@ -176,7 +181,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
                             LIQUIDITY LOGIC
     ###############################################################*/
 
-    function isLiquidityLocked() external view returns (bool) {
+    function isLiquidityLocked() external view override returns (bool) {
         // compute # of epochs so far
         uint256 epochs = (block.timestamp - startEpoch) / (LIQUIDITY_LOCK_PERIOD + LIQUIDITY_UNLOCK_PERIOD);
         uint256 t0 = startEpoch + epochs * (LIQUIDITY_LOCK_PERIOD + LIQUIDITY_UNLOCK_PERIOD);
@@ -189,7 +194,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         emit Updated(reserve0, reserve1);
     }
 
-    function mint(address to) external nonReentrant returns (uint256 liquidity) {
+    function mint(address to) external override nonReentrant returns (uint256 liquidity) {
         _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         uint256 _balance0 = ERC20(token0).balanceOf(address(this));
@@ -215,7 +220,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         emit Mint(msg.sender, _amount0, _amount1);
     }
 
-    function burn(address to) external nonReentrant returns (uint256 amount0, uint256 amount1) {
+    function burn(address to) external override nonReentrant returns (uint256 amount0, uint256 amount1) {
         if (this.isLiquidityLocked()) revert LiquidityLocked();
         _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
@@ -242,7 +247,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         emit Burn(msg.sender, amount0, amount1, to);
     }
 
-    function sync() external nonReentrant {
+    function sync() external override nonReentrant {
         _update(ERC20(token0).balanceOf(address(this)), ERC20(token1).balanceOf(address(this)), reserve0, reserve1);
     }
 
@@ -287,13 +292,13 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         }
     }
 
-    function syncL2(uint32 destinationDomain, address pair) external payable {
+    function syncL2(uint32 destinationDomain, address pair) external payable override {
         bytes memory payload = Codec.encodeSyncToL2(token0, reserve0, reserve1);
         bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(pair), payload);
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destinationDomain);
     }
 
-    function finalizeSyncFromL2(uint32 originDomain, uint256 syncID) external {
+    function finalizeSyncFromL2(uint32 originDomain, uint256 syncID) external override {
         if (!(lastBridged0[originDomain][syncID] > 0 && lastBridged1[originDomain][syncID] > 0)) {
             revert NoStargateSwaps();
         }
@@ -304,7 +309,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         _finalizeSyncFromL2(originDomain, syncID, partialSync0, partialSync1);
     }
 
-    function claimBurn(uint32 srcDomain, address user) external {
+    function claimBurn(uint32 srcDomain, address user) external override {
         BurnClaim memory burnClaim = burnClaims[srcDomain][user];
 
         uint256 amount0 = burnClaim.amount0;
@@ -398,7 +403,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
             uint256 fees1 = LB1 - partialSync1.pairBalance;
             _update0(fees0);
             _update1(fees1);
-            emit IDove.Fees({srcDomain: srcDomain, amount0: fees0, amount1: fees1});
+            emit Fees(srcDomain, fees0, fees1);
             // cleanup
             delete lastBridged0[srcDomain][syncID];
             delete lastBridged1[srcDomain][syncID];
@@ -451,7 +456,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
                             VIEW FUNCTIONS
     ###############################################################*/
 
-    function getReserves() external view returns (uint256, uint256) {
+    function getReserves() external view override returns (uint256, uint256) {
         return (reserve0, reserve1);
     }
 }

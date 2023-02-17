@@ -3,33 +3,20 @@ pragma solidity ^0.8.15;
 
 import {Dove} from "./Dove.sol";
 
-contract L1Factory {
+import "./interfaces/IL1Factory.sol";
+
+contract L1Factory is IL1Factory {
     address public hyperlaneGasMaster;
     address public mailbox;
-    address public stargateRouter;
+    address public override stargateRouter;
 
     bool public isPaused;
     address public pauser;
     address public pendingPauser;
 
-    mapping(address => mapping(address => address)) public getPair;
+    mapping(address => mapping(address => address)) public override getPair;
     address[] public allPairs;
-    mapping(address => bool) public isPair; // simplified check if its a pair, given that `stable` flag might not be available in peripherals
-
-    /*###############################################################
-                            EVENTS
-    ###############################################################*/
-
-    event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
-
-    /*###############################################################
-                            ERRORS
-    ###############################################################*/
-    error OnlyPauser();
-    error OnlyPendingPauser();
-    error IdenticalAddress();
-    error ZeroAddress();
-    error PairAlreadyExists();
+    mapping(address => bool) public override isPair; // simplified check if its a pair, given that `stable` flag might not be available in peripherals
 
     /*###############################################################
                             CONSTRUCTOR
@@ -46,34 +33,34 @@ contract L1Factory {
     /*###############################################################
                             FACTORY
     ###############################################################*/
-    function allPairsLength() external view returns (uint256) {
+    function allPairsLength() external view override returns (uint256) {
         return allPairs.length;
     }
 
-    function setPauser(address _pauser) external {
+    function setPauser(address _pauser) external override {
         if (msg.sender != pauser) revert OnlyPauser();
 
         pendingPauser = _pauser;
     }
 
-    function acceptPauser() external {
+    function acceptPauser() external override {
         if (msg.sender != pauser) revert OnlyPendingPauser();
 
         pauser = pendingPauser;
     }
 
-    function setPause(bool _state) external {
+    function setPause(bool _state) external override {
         if (msg.sender != pauser) revert OnlyPauser();
 
         isPaused = _state;
     }
 
-    function pairCodeHash() external pure returns (bytes32) {
+    function pairCodeHash() external pure override returns (bytes32) {
         return keccak256(type(Dove).creationCode);
     }
 
     // Create a new LP pair if it does not already exist
-    function createPair(address tokenA, address tokenB) external returns (address pair) {
+    function createPair(address tokenA, address tokenB) external override returns (address pair) {
         if (tokenA == tokenB) revert IdenticalAddress();
 
         (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
