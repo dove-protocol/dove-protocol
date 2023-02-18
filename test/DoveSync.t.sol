@@ -353,5 +353,10 @@ contract DoveSyncTest is DoveBase {
         assert(syncerBalance0 <= LPFees0);
         assert(syncerBalance1 <= LPFees1);
 
+        if (syncerPercentage > 0) {
+            assert(syncerBalance0 > 0);
+            assert(syncerBalance1 > 0);
+        }
+
     }
 }
