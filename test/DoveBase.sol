@@ -417,4 +417,19 @@ contract DoveBase is Test, Helper {
     }
 
     receive() external payable {}
+
+    function _findOneLog(Vm.Log[] memory logs, bytes32 topic) internal returns (Vm.Log memory) {
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] == topic) {
+                return logs[i];
+            }
+        }
+    }
+
+    function _extractFees(Vm.Log[] memory logs) internal returns (uint256, uint256) {
+        bytes32 feesTopic = 0xe47e312e14ed22581dccdf9557c3dd18d0ef990e87fc3f6dcf6bcdde1d13d1e8;
+        Vm.Log memory feesLog = _findOneLog(logs, feesTopic);
+        (uint256 fees0, uint256 fees1) = abi.decode(feesLog.data, (uint256, uint256));
+        return (fees0, fees1);
+    }
 }
