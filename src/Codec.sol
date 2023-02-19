@@ -7,9 +7,9 @@ library Codec {
 
     struct SyncToL1Payload {
         address token;
-        uint256 tokensForDove; // tokens to send to Dove, aka vouchers held by pair burnt
-        uint256 earmarkedAmount; // tokens to earmark aka vouchers
-        uint256 pairBalance; // token balance of the pair
+        uint96 tokensForDove; // tokens to send to Dove, aka vouchers held by pair burnt
+        uint128 earmarkedAmount; // tokens to earmark aka vouchers
+        uint128 pairBalance; // token balance of the pair
     }
 
     struct SyncerMetadata {
@@ -30,7 +30,7 @@ library Codec {
             SYNC_TO_L1,
             syncID,
             SyncerMetadata(syncer, syncerPercentage),
-            SyncToL1Payload(L1Token, pairVoucherBalance, voucherDelta, balance)
+            SyncToL1Payload(L1Token, uint96(pairVoucherBalance), uint128(voucherDelta), uint128(balance))
         );
     }
 
@@ -48,12 +48,12 @@ library Codec {
 
     struct SyncToL2Payload {
         address token0;
-        uint256 reserve0;
-        uint256 reserve1;
+        uint128 reserve0;
+        uint128 reserve1;
     }
 
     function encodeSyncToL2(address token0, uint256 reserve0, uint256 reserve1) internal pure returns (bytes memory) {
-        return abi.encode(SYNC_TO_L2, SyncToL2Payload(token0, reserve0, reserve1));
+        return abi.encode(SYNC_TO_L2, SyncToL2Payload(token0, uint128(reserve0), uint128(reserve1)));
     }
 
     function decodeSyncToL2(bytes calldata _payload) internal pure returns (SyncToL2Payload memory) {
@@ -65,12 +65,12 @@ library Codec {
 
     struct VouchersBurnPayload {
         address user;
-        uint256 amount0;
-        uint256 amount1;
+        uint128 amount0;
+        uint128 amount1;
     }
 
     function encodeVouchersBurn(address user, uint256 amount0, uint256 amount1) internal pure returns (bytes memory) {
-        return abi.encode(BURN_VOUCHERS, VouchersBurnPayload(user, amount0, amount1));
+        return abi.encode(BURN_VOUCHERS, VouchersBurnPayload(user, uint128(amount0), uint128(amount1)));
     }
 
     function decodeVouchersBurn(bytes calldata _payload) internal pure returns (VouchersBurnPayload memory) {
