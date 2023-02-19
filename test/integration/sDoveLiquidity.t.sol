@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import "./DoveBase.sol";
-import "../src/L1/interfaces/IDove.sol";
+import "../DoveBaseSingle.sol";
+import "../../src/L1/interfaces/IDove.sol";
 
-contract DoveLiquidityTest is DoveBase {
+contract DoveLiquidityTest is DoveBaseSingle {
     function setUp() external {
         _setUp();
         vm.selectFork(L1_FORK_ID);
