@@ -290,11 +290,8 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
             Codec.VouchersBurnPayload memory vbp = Codec.decodeVouchersBurn(payload);
             _completeVoucherBurns(origin, vbp);
         } else if (messageType == Codec.SYNC_TO_L1) {
-            (
-                uint256 syncID,
-                Codec.SyncerMetadata memory sm,
-                Codec.SyncToL1Payload memory sp
-            ) = Codec.decodeSyncToL1(payload);
+            (uint256 syncID, Codec.SyncerMetadata memory sm, Codec.SyncToL1Payload memory sp) =
+                Codec.decodeSyncToL1(payload);
             _syncFromL2(origin, syncID, sm, sp);
         }
     }
@@ -353,7 +350,9 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         }
     }
 
-    function _syncFromL2(uint32 origin, uint256 syncID, Codec.SyncerMetadata memory sm, Codec.SyncToL1Payload memory sp) internal {
+    function _syncFromL2(uint32 origin, uint256 syncID, Codec.SyncerMetadata memory sm, Codec.SyncToL1Payload memory sp)
+        internal
+    {
         Sync memory sync = syncs[origin][syncID];
         // sync.partialSync1 should always be the first one to be set, regardless
         // if it's token0 or token1 being bridged
@@ -415,7 +414,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
             }
             uint256 fees0 = LB0 - partialSync0.pairBalance;
             uint256 fees1 = LB1 - partialSync1.pairBalance;
-            
+
             // send over the fees to syncer
             SafeTransferLib.safeTransfer(_token0, sm.syncer, fees0 * sm.syncerPercentage / 10000);
             SafeTransferLib.safeTransfer(_token1, sm.syncer, fees1 * sm.syncerPercentage / 10000);

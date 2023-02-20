@@ -34,13 +34,13 @@ library Codec {
         );
     }
 
-    function decodeSyncToL1(bytes calldata _payload) internal pure returns (uint256, SyncerMetadata memory, SyncToL1Payload memory) {
-        (
-            ,
-            uint256 syncID,
-            SyncerMetadata memory syncerMetadata,
-            SyncToL1Payload memory payload
-        ) = abi.decode(_payload, (uint256, uint256, SyncerMetadata, SyncToL1Payload));
+    function decodeSyncToL1(bytes calldata _payload)
+        internal
+        pure
+        returns (uint256, SyncerMetadata memory, SyncToL1Payload memory)
+    {
+        (, uint256 syncID, SyncerMetadata memory syncerMetadata, SyncToL1Payload memory payload) =
+            abi.decode(_payload, (uint256, uint256, SyncerMetadata, SyncToL1Payload));
         return (syncID, syncerMetadata, payload);
     }
 

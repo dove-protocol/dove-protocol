@@ -325,7 +325,7 @@ contract DoveSyncTest is DoveBase {
         _doSomeSwaps();
         vm.selectFork(L2_FORK_ID);
         // we ain't going that far
-        timeElapsed = timeElapsed % 2**64;
+        timeElapsed = timeElapsed % 2 ** 64;
         vm.warp(block.timestamp + timeElapsed);
         uint256 syncerPercentage = pair.getSyncerPercentage();
         assert(syncerPercentage >= 0);
@@ -357,6 +357,5 @@ contract DoveSyncTest is DoveBase {
             assert(syncerBalance0 > 0);
             assert(syncerBalance1 > 0);
         }
-
     }
 }
