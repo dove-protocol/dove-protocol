@@ -12,19 +12,36 @@ library Codec {
         uint256 pairBalance; // token balance of the pair
     }
 
+    struct SyncerMetadata {
+        address syncer;
+        uint64 syncerPercentage;
+    }
+
     function encodeSyncToL1(
         uint256 syncID,
         address L1Token,
         uint256 pairVoucherBalance,
         uint256 voucherDelta,
-        uint256 balance
+        uint256 balance,
+        address syncer,
+        uint64 syncerPercentage
     ) internal pure returns (bytes memory) {
-        return abi.encode(SYNC_TO_L1, syncID, SyncToL1Payload(L1Token, pairVoucherBalance, voucherDelta, balance));
+        return abi.encode(
+            SYNC_TO_L1,
+            syncID,
+            SyncerMetadata(syncer, syncerPercentage),
+            SyncToL1Payload(L1Token, pairVoucherBalance, voucherDelta, balance)
+        );
     }
 
-    function decodeSyncToL1(bytes calldata _payload) internal pure returns (uint256, SyncToL1Payload memory) {
-        (, uint256 syncID, SyncToL1Payload memory payload) = abi.decode(_payload, (uint256, uint256, SyncToL1Payload));
-        return (syncID, payload);
+    function decodeSyncToL1(bytes calldata _payload)
+        internal
+        pure
+        returns (uint256, SyncerMetadata memory, SyncToL1Payload memory)
+    {
+        (, uint256 syncID, SyncerMetadata memory syncerMetadata, SyncToL1Payload memory payload) =
+            abi.decode(_payload, (uint256, uint256, SyncerMetadata, SyncToL1Payload));
+        return (syncID, syncerMetadata, payload);
     }
 
     /*##############################################################################################################################*/

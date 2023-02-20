@@ -256,9 +256,7 @@ contract DoveSyncTest is DoveBase {
         logs = vm.getRecordedLogs();
         assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k);
         // fees should have gone up by almost 100 each given the attacker sent them
-        bytes32 feesTopic = 0xe47e312e14ed22581dccdf9557c3dd18d0ef990e87fc3f6dcf6bcdde1d13d1e8;
-        Vm.Log memory feesLog = _findOneLog(logs, feesTopic);
-        (uint256 fees0, uint256 fees1) = abi.decode(feesLog.data, (uint256, uint256));
+        (uint256 fees0, uint256 fees1) = _extractFees(logs);
         // todo : actually retrieved bridged amounts and not use a margin error
         assertApproxEqAbs(fees0, 136666666666666666666 + 10 ** 20, 10 ** 18);
         assertApproxEqAbs(fees1, 166566667 + 10 ** 8, 10 ** 6);
@@ -320,11 +318,44 @@ contract DoveSyncTest is DoveBase {
         assertEq(dove.reserve1(), reserve1 + balance0OfPair - voucher0Delta);
     }
 
-    function _findOneLog(Vm.Log[] memory logs, bytes32 topic) internal returns (Vm.Log memory) {
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == topic) {
-                return logs[i];
-            }
+    function testSyncerRewards(uint256 timeElapsed) external {
+        address syncer = address(0xfeed);
+        _syncToL2(L2_FORK_ID);
+        vm.selectFork(L2_FORK_ID);
+        _doSomeSwaps();
+        vm.selectFork(L2_FORK_ID);
+        // we ain't going that far
+        timeElapsed = timeElapsed % 2 ** 64;
+        vm.warp(block.timestamp + timeElapsed);
+        uint256 syncerPercentage = pair.getSyncerPercentage();
+        assert(syncerPercentage >= 0);
+        assert(syncerPercentage <= 5000);
+        vm.recordLogs();
+        // use non standard sync so we can manually finalize
+        uint256[] memory order = new uint[](4);
+        order[0] = 2;
+        order[1] = 3;
+        order[2] = 0;
+        order[3] = 1;
+        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+
+        vm.selectFork(L1_FORK_ID);
+        vm.broadcast(syncer);
+        dove.finalizeSyncFromL2(L2_DOMAIN, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        (uint256 LPFees0, uint256 LPFees1) = _extractFees(logs);
+
+        uint256 syncerBalance0 = L1Token0.balanceOf(syncer);
+        uint256 syncerBalance1 = L1Token1.balanceOf(syncer);
+
+        // syncer balances aka fees cannot be bigger than what LPs got
+        assert(syncerBalance0 <= LPFees0);
+        assert(syncerBalance1 <= LPFees1);
+
+        if (syncerPercentage > 0) {
+            assert(syncerBalance0 > 0);
+            assert(syncerBalance1 > 0);
         }
     }
 }

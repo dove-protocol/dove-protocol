@@ -290,8 +290,9 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
             Codec.VouchersBurnPayload memory vbp = Codec.decodeVouchersBurn(payload);
             _completeVoucherBurns(origin, vbp);
         } else if (messageType == Codec.SYNC_TO_L1) {
-            (uint256 syncID, Codec.SyncToL1Payload memory sp) = Codec.decodeSyncToL1(payload);
-            _syncFromL2(origin, syncID, sp);
+            (uint256 syncID, Codec.SyncerMetadata memory sm, Codec.SyncToL1Payload memory sp) =
+                Codec.decodeSyncToL1(payload);
+            _syncFromL2(origin, syncID, sm, sp);
         }
     }
 
@@ -307,9 +308,12 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         }
 
         Sync memory sync = syncs[originDomain][syncID];
+        // PVP enabled : whoever finalizes the sync gets the reward
+        // doesn't matter if another user initiated it on L2
+        sync.syncerMetadata.syncer = msg.sender;
         (Codec.SyncToL1Payload memory partialSync0, Codec.SyncToL1Payload memory partialSync1) = sync.partialSyncA.token
             == token0 ? (sync.partialSyncA, sync.partialSyncB) : (sync.partialSyncB, sync.partialSyncA);
-        _finalizeSyncFromL2(originDomain, syncID, partialSync0, partialSync1);
+        _finalizeSyncFromL2(originDomain, syncID, sync.syncerMetadata, partialSync0, partialSync1);
     }
 
     function claimBurn(uint32 srcDomain, address user) external override {
@@ -346,7 +350,9 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         }
     }
 
-    function _syncFromL2(uint32 origin, uint256 syncID, Codec.SyncToL1Payload memory sp) internal {
+    function _syncFromL2(uint32 origin, uint256 syncID, Codec.SyncerMetadata memory sm, Codec.SyncToL1Payload memory sp)
+        internal
+    {
         Sync memory sync = syncs[origin][syncID];
         // sync.partialSync1 should always be the first one to be set, regardless
         // if it's token0 or token1 being bridged
@@ -359,9 +365,9 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
                 bool hasFailed;
                 // if incoming message's token is token0, means partialSyncA is token1
                 if (sp.token == token0) {
-                    hasFailed = _finalizeSyncFromL2(origin, syncID, sp, sync.partialSyncA);
+                    hasFailed = _finalizeSyncFromL2(origin, syncID, sm, sp, sync.partialSyncA);
                 } else {
-                    hasFailed = _finalizeSyncFromL2(origin, syncID, sync.partialSyncA, sp);
+                    hasFailed = _finalizeSyncFromL2(origin, syncID, sm, sync.partialSyncA, sp);
                 }
                 if (!hasFailed) {
                     // clear storage
@@ -370,12 +376,14 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
                     // has failed, means there were tokens sent from same L2
                     // but NOT from the Pair!
                     syncs[origin][syncID].partialSyncB = sp;
+                    syncs[origin][syncID].syncerMetadata = sm;
                     emit SyncPending(origin, syncID);
                 }
             } else {
                 // otherwise means there is at least one SG swap that hasn't completed yet
                 // so we need to store the HL data and execute the sync when the SG swap is done
                 syncs[origin][syncID].partialSyncB = sp;
+                syncs[origin][syncID].syncerMetadata = sm;
                 emit SyncPending(origin, syncID);
             }
         }
@@ -388,6 +396,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     function _finalizeSyncFromL2(
         uint32 srcDomain,
         uint256 syncID,
+        Codec.SyncerMetadata memory sm,
         Codec.SyncToL1Payload memory partialSync0,
         Codec.SyncToL1Payload memory partialSync1
     ) internal returns (bool failed) {
@@ -405,6 +414,13 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
             }
             uint256 fees0 = LB0 - partialSync0.pairBalance;
             uint256 fees1 = LB1 - partialSync1.pairBalance;
+
+            // send over the fees to syncer
+            SafeTransferLib.safeTransfer(_token0, sm.syncer, fees0 * sm.syncerPercentage / 10000);
+            SafeTransferLib.safeTransfer(_token1, sm.syncer, fees1 * sm.syncerPercentage / 10000);
+            fees0 -= fees0 * sm.syncerPercentage / 10000;
+            fees1 -= fees1 * sm.syncerPercentage / 10000;
+
             _update0(fees0);
             _update1(fees1);
             emit Fees(srcDomain, fees0, fees1);

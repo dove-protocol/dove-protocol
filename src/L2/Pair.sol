@@ -60,6 +60,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     uint256 internal voucher1Delta;
 
     uint256 internal syncID;
+    uint256 internal lastSyncTimestamp;
 
     uint256 constant FEE = 300;
 
@@ -105,6 +106,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             token1_.decimals()
         );
         feesAccumulator = new FeesAccumulator(_token0, _token1);
+
+        lastSyncTimestamp = block.timestamp;
     }
 
     /*###############################################################
@@ -323,6 +326,13 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         emit VouchersYeeted(msg.sender, amount0, amount1);
     }
 
+    function getSyncerPercentage() external view returns (uint64) {
+        // reaches 50% over 24h => 0.06 bps per second
+        uint256 bps = ((block.timestamp - lastSyncTimestamp) * 6) / 100;
+        bps = bps >= 5000 ? 5000 : bps;
+        return uint64(bps);
+    }
+
     /// @notice Syncs to the L1.
     /// @dev Dependent on SG.
     function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable override {
@@ -339,7 +349,6 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         uint16 destChainId = factory.destChainId();
 
         IStargateRouter stargateRouter = IStargateRouter(factory.stargateRouter());
-
         {
             uint256 pairVoucher0Balance = voucher0.balanceOf(address(this));
             // swap token0
@@ -356,7 +365,13 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
                 "1"
             );
             bytes memory payload = Codec.encodeSyncToL1(
-                syncID, L1Token0, pairVoucher0Balance, voucher0Delta - pairVoucher0Balance, _balance0
+                syncID,
+                L1Token0,
+                pairVoucher0Balance,
+                voucher0Delta - pairVoucher0Balance,
+                _balance0,
+                msg.sender,
+                this.getSyncerPercentage()
             );
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
@@ -379,7 +394,13 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
                 "1"
             );
             bytes memory payload = Codec.encodeSyncToL1(
-                syncID, L1Token1, pairVoucher1Balance, voucher1Delta - pairVoucher1Balance, _balance1
+                syncID,
+                L1Token1,
+                pairVoucher1Balance,
+                voucher1Delta - pairVoucher1Balance,
+                _balance1,
+                msg.sender,
+                this.getSyncerPercentage()
             );
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
@@ -393,6 +414,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         voucher0Delta = 0;
         voucher1Delta = 0;
         syncID++;
+        lastSyncTimestamp = block.timestamp;
     }
 
     /// @notice Allows user to burn his L2 vouchers to get the L1 tokens.

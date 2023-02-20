@@ -34,6 +34,7 @@ interface IDove {
     struct Sync {
         Codec.SyncToL1Payload partialSyncA;
         Codec.SyncToL1Payload partialSyncB;
+        Codec.SyncerMetadata syncerMetadata;
     }
 
     struct BurnClaim {
