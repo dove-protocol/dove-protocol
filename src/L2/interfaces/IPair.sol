@@ -26,6 +26,8 @@ interface IPair {
     error WrongOrigin();
     error NotDove();
 
+    function token0() external view returns (address _token0);
+    function token1() external view returns (address _token1);
     function getReserves() external view returns (uint256 reserve0, uint256 reserve1, uint256 blockTimestampLast);
     function balance0() external view returns (uint256);
     function balance1() external view returns (uint256);
