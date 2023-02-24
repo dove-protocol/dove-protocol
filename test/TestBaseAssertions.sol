@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import { BalanceAssertions } from "./BalanceAssertions.sol";
 import { TestBase }          from "./TestBase.sol";
 
 import { Dove } from "../src/L1/Dove.sol";
 import { Pair } from "../src/L2/Pair.sol";
-import { Codec } from "../src/Codec.sol";
 
 
-contract TestBaseAssertions is TestBase, BalanceAssertions {
+contract TestBaseAssertions is TestBase {
 
     
     // --------------------------------------------------------------------------------------------------------//

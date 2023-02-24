@@ -391,6 +391,7 @@ contract TestBase is ProtocolActions, Minter {
     function _swapSimple(
         uint256 _forkID,
         address _pair,
+        address _swapperAddr,
         address _inputToken,
         uint256 _inputAmount
     ) internal {
@@ -400,7 +401,32 @@ contract TestBase is ProtocolActions, Minter {
 
         uint256 _outputAmount = _Pair.getAmountOut(_inputAmount, _Pair.token0());
         L2Router(forkToRouter[_forkID]).swapExactTokensForTokensSimple(
-            _inputAmount, _outputAmount, _Pair.token0(), _Pair.token1(), address(0xbeef), block.timestamp + 1000
+            _inputAmount, _outputAmount, _Pair.token0(), _Pair.token1(), _swapperAddr, block.timestamp + 1000
+        );
+    }
+
+    /// swap "_inputToken" on "_forkID" using "_pair"
+    function _swapDouble(
+        uint256 _forkID,
+        address _pair,
+        address _swapperAddr,
+        address _inputToken0,
+        address _inputToken1,
+        uint256 _inputAmount0,
+        uint256 _inputAmount1
+    ) internal {
+        vm.selectFork(_forkID);
+
+        Pair _Pair = Pair(_pair);
+
+        uint256 _outputAmount0 = _Pair.getAmountOut(_inputAmount0, _Pair.token0());
+        L2Router(forkToRouter[_forkID]).swapExactTokensForTokensSimple(
+            _inputAmount0, _outputAmount0, _Pair.token0(), _Pair.token1(), _swapperAddr, block.timestamp + 1000
+        );
+
+        uint256 _outputAmount1 = _Pair.getAmountOut(_inputAmount1, _Pair.token1());
+        L2Router(forkToRouter[_forkID]).swapExactTokensForTokensSimple(
+            _inputAmount1, _outputAmount1, _Pair.token1(), _Pair.token0(), _swapperAddr, block.timestamp + 1000
         );
     }
 
