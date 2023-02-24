@@ -213,7 +213,7 @@ contract TestBase is ProtocolActions, Minter {
         address _token1,
         uint256 _initLiquidity0, 
         uint256 _initLiquidity1
-        ) internal {
+    ) internal {
         vm.makePersistent(address(this));
         vm.selectFork(L1_FORK_ID);
 
@@ -259,7 +259,7 @@ contract TestBase is ProtocolActions, Minter {
         address _mailbox,
         address _factory,
         IL2Factory.SGConfig memory _sgConfig
-        ) internal returns (Pair _pair) {
+    ) internal returns (Pair _pair) {
         vm.makePersistent(address(this));
         vm.selectFork(_forkID);
 
@@ -393,7 +393,7 @@ contract TestBase is ProtocolActions, Minter {
         address _pair,
         address _inputToken,
         uint256 _inputAmount
-        ) internal {
+    ) internal {
         vm.selectFork(_forkID);
 
         Pair _Pair = Pair(_pair);
@@ -424,7 +424,7 @@ contract TestBase is ProtocolActions, Minter {
         address _pair, 
         uint256 _amount0, 
         uint256 _amount1
-        ) internal {
+    ) internal {
         vm.selectFork(_forkID);
         vm.recordLogs();
         vm.broadcast(user);
@@ -443,7 +443,7 @@ contract TestBase is ProtocolActions, Minter {
         address user, 
         uint256 _amount0,
         uint256 _amount1
-        ) internal {
+    ) internal {
         vm.startBroadcast(user);
         Pair(_pair).voucher0().approve(_pair, type(uint256).max);
         Pair(_pair).voucher1().approve(_pair, type(uint256).max);
