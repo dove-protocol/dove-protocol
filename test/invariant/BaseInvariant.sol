@@ -1,11 +1,10 @@
 pragma solidity ^0.8.15;
 
-import { StdInvariant } from "lib/utils/StdInvariant.sol";
+import {StdInvariant} from "lib/utils/StdInvariant.sol";
 
-import { TestBaseAssertions } from "../TestBaseAssertions.sol";
+import {TestBaseAssertions} from "../TestBaseAssertions.sol";
 
 contract BaseInvariants is StdInvariant, TestBaseAssertions {
-
     //// State Variables
 
     uint256 internal setTimestamps;
@@ -16,7 +15,7 @@ contract BaseInvariants is StdInvariant, TestBaseAssertions {
 
     /// Modifiers
 
-    modifier useCurrentTimestamp {
+    modifier useCurrentTimestamp() {
         vm.warp(currentTimestamp);
         _;
     }
@@ -35,7 +34,4 @@ contract BaseInvariants is StdInvariant, TestBaseAssertions {
         setTimestamps++;
         currentTimestamp = currentTimestamp_;
     }
-
-
 }
-

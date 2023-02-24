@@ -1,57 +1,56 @@
 pragma solidity ^0.8.15;
 
-import { TestUtils } from "./utils/TestUtils.sol";
-import { Vm } from "forge-std/Vm.sol";
-import { Minter } from "./utils/Minter.sol";
+import {TestUtils} from "./utils/TestUtils.sol";
+import {Vm} from "forge-std/Vm.sol";
+import {Minter} from "./utils/Minter.sol";
 
-import { Dove } from "../src/L1/Dove.sol";
-import { IDove } from "../src/L1/interfaces/IDove.sol";
-import { Fountain } from "../src/L1/Fountain.sol";
-import { L1Factory } from "../src/L1/L1Factory.sol";
-import { L1Router } from "../src/L1/L1Router.sol";
-import { SGHyperlaneConverter } from "../src/L1/SGHyperlaneConverter.sol";
+import {Dove} from "../src/L1/Dove.sol";
+import {IDove} from "../src/L1/interfaces/IDove.sol";
+import {Fountain} from "../src/L1/Fountain.sol";
+import {L1Factory} from "../src/L1/L1Factory.sol";
+import {L1Router} from "../src/L1/L1Router.sol";
+import {SGHyperlaneConverter} from "../src/L1/SGHyperlaneConverter.sol";
 
-import { Pair } from "../src/L2/Pair.sol";
-import { FeesAccumulator } from "../src/L2/FeesAccumulator.sol";
-import { L2Factory } from "../src/L2/L2Factory.sol";
-import { IL2Factory } from "../src/L2/interfaces/IL2Factory.sol";
-import { L2Router } from "../src/L2/L2Router.sol";
-import { Voucher } from "../src/L2/Voucher.sol";
+import {Pair} from "../src/L2/Pair.sol";
+import {FeesAccumulator} from "../src/L2/FeesAccumulator.sol";
+import {L2Factory} from "../src/L2/L2Factory.sol";
+import {IL2Factory} from "../src/L2/interfaces/IL2Factory.sol";
+import {L2Router} from "../src/L2/L2Router.sol";
+import {Voucher} from "../src/L2/Voucher.sol";
 
-import { ERC20Mock } from "./mocks/ERC20Mock.sol";
-import { InterchainGasPaymasterMock } from "./mocks/InterchainGasPaymasterMock.sol";
-import { MailboxMock } from "./mocks/MailboxMock.sol";
-import { TypeCasts } from "src/hyperlane/TypeCasts.sol";
+import {ERC20Mock} from "./mocks/ERC20Mock.sol";
+import {InterchainGasPaymasterMock} from "./mocks/InterchainGasPaymasterMock.sol";
+import {MailboxMock} from "./mocks/MailboxMock.sol";
+import {TypeCasts} from "src/hyperlane/TypeCasts.sol";
 
-import { ILayerZeroEndpoint } from "./utils/ILayerZeroEndpoint.sol";
-import { LayerZeroPacket } from "./utils/LZPacket.sol";
+import {ILayerZeroEndpoint} from "./utils/ILayerZeroEndpoint.sol";
+import {LayerZeroPacket} from "./utils/LZPacket.sol";
 
-import { ProtocolActions } from "./utils/ProtocolActions.sol";
+import {ProtocolActions} from "./utils/ProtocolActions.sol";
 
 contract TestBase is ProtocolActions, Minter {
-
     // ----------------------------------------------------------------------------------------------------------
     // CONSTANTS, VARIABLES, MAPPINGS, ADDRESSES, CONTRACTS
     // ----------------------------------------------------------------------------------------------------------
 
     /// constants
     // time
-    uint256 internal constant ONE_DAY   = 1 days;
+    uint256 internal constant ONE_DAY = 1 days;
     uint256 internal constant ONE_MONTH = ONE_YEAR / 12;
-    uint256 internal constant ONE_YEAR  = 365 days;
+    uint256 internal constant ONE_YEAR = 365 days;
     uint256 internal start; // start ts set in constructor
     // L1
     address constant L1SGRouter = 0x8731d54E9D02c286767d56ac03e8037C07e01e98;
     InterchainGasPaymasterMock internal gasMasterL1;
-    MailboxMock                internal mailboxL1;
-    ILayerZeroEndpoint         internal lzEndpointL1;
+    MailboxMock internal mailboxL1;
+    ILayerZeroEndpoint internal lzEndpointL1;
     ERC20Mock L1Token0;
     ERC20Mock L1Token1;
     // L2
     address constant L2SGRouter = 0x45A01E4e04F14f7A4a6702c74187c5F6222033cd;
     InterchainGasPaymasterMock internal gasMasterL2;
-    MailboxMock                internal mailboxL2;
-    ILayerZeroEndpoint         internal lzEndpointL2;
+    MailboxMock internal mailboxL2;
+    ILayerZeroEndpoint internal lzEndpointL2;
     ERC20Mock L2Token0;
     ERC20Mock L2Token1;
 
@@ -60,8 +59,8 @@ contract TestBase is ProtocolActions, Minter {
 
     /// Helper Mappings
     // constant mappings, set alongside deployed factories on a given forkID
-    mapping(uint256 => uint32)  forkToDomain;
-    mapping(uint256 => uint16)  forkToChainId;
+    mapping(uint256 => uint32) forkToDomain;
+    mapping(uint256 => uint16) forkToChainId;
     mapping(uint256 => address) forkToMailbox;
     mapping(uint256 => address) forkToRouter;
     // dynamic mappings, set alongside pair deployment
@@ -69,18 +68,18 @@ contract TestBase is ProtocolActions, Minter {
 
     /// L1 (Ethereum)
     L1Factory internal factoryL1;
-    L1Router  internal routerL1;
-    Dove      internal dove01;
+    L1Router internal routerL1;
+    Dove internal dove01;
     // TODO: add several doves
-    Fountain  internal fountain;
+    Fountain internal fountain;
 
     /// L2 (Polygon)
-    L2Factory       internal factoryL2;
-    L2Router        internal routerL2;
-    Pair            internal pair01Poly;
+    L2Factory internal factoryL2;
+    L2Router internal routerL2;
+    Pair internal pair01Poly;
     // TODO: add more than 1 pair per chain
     FeesAccumulator internal feesAccumulator;
-    Voucher         internal voucher;
+    Voucher internal voucher;
 
     /// TODO: more chains than just polygon
 
@@ -110,11 +109,11 @@ contract TestBase is ProtocolActions, Minter {
         _createFactories();
         // create Dove01 with DAI & USDC, TestBase owns initial liq
         _createDove(
-            dove01,  // empty dove 
+            dove01, // empty dove
             address(L1Token0), // DAI
             address(L1Token1), // USDC
             10 ** 60, // token 0 initial amount, 10M
-            10 ** 36  // token 1 initial amount, 10M
+            10 ** 36 // token 1 initial amount, 10M
         );
         vm.label(address(dove01), "DOVE: DAI|USDC");
         // add sg bridges to deployed dove(s)
@@ -123,18 +122,17 @@ contract TestBase is ProtocolActions, Minter {
         IL2Factory.SGConfig memory sgConfig01 =
             IL2Factory.SGConfig({srcPoolId0: 1, dstPoolId0: 1, srcPoolId1: 3, dstPoolId1: 3});
         // create pair for DAI/USDC on Polygon/L2_FORK_ID
-        pair01Poly = 
-            _createPair(
-                L2_FORK_ID,
-                L2_DOMAIN,
-                L2_CHAIN_ID,
-                address(L2Token0),
-                address(L2Token1),
-                address(dove01),
-                address(mailboxL2),
-                address(factoryL2),
-                sgConfig01
-            );
+        pair01Poly = _createPair(
+            L2_FORK_ID,
+            L2_DOMAIN,
+            L2_CHAIN_ID,
+            address(L2Token0),
+            address(L2Token1),
+            address(dove01),
+            address(mailboxL2),
+            address(factoryL2),
+            sgConfig01
+        );
         vm.label(address(pair01Poly), "PAIR-01-POLY");
         // add pairs as trusted remotes
         _addRemote(address(dove01), address(pair01Poly), L2_DOMAIN);
@@ -172,7 +170,7 @@ contract TestBase is ProtocolActions, Minter {
     function _createFactories() internal {
         vm.makePersistent(address(this));
         vm.selectFork(L1_FORK_ID);
-        
+
         gasMasterL1 = new InterchainGasPaymasterMock();
         mailboxL1 = new MailboxMock(L1_DOMAIN);
         lzEndpointL1 = ILayerZeroEndpoint(0x66A71Dcef29A0fFBDBE3c6a460a3B5BC225Cd675);
@@ -207,13 +205,9 @@ contract TestBase is ProtocolActions, Minter {
     /// DEPLOY CONFIGURED DOVE CONTRACT(S)
 
     /// Create a Dove contract for the input tokens, and have TestBase take ownership of the initial liquidity provided
-    function _createDove(
-        Dove _dove,
-        address _token0,
-        address _token1,
-        uint256 _initLiquidity0, 
-        uint256 _initLiquidity1
-    ) internal {
+    function _createDove(Dove _dove, address _token0, address _token1, uint256 _initLiquidity0, uint256 _initLiquidity1)
+        internal
+    {
         vm.makePersistent(address(this));
         vm.selectFork(L1_FORK_ID);
 
@@ -233,14 +227,7 @@ contract TestBase is ProtocolActions, Minter {
             routerL1.quoteAddLiquidity(address(L1Token0), address(L1Token1), _initLiquidity0, _initLiquidity1);
 
         routerL1.addLiquidity(
-            _token0,
-            _token1,
-            _initLiquidity0,
-            _initLiquidity1,
-            _toAdd0,
-            _toAdd1,
-            address(this),
-            type(uint256).max
+            _token0, _token1, _initLiquidity0, _initLiquidity1, _toAdd0, _toAdd1, address(this), type(uint256).max
         );
     }
 
@@ -248,7 +235,7 @@ contract TestBase is ProtocolActions, Minter {
 
     /// DEPLOY CONFIGURED PAIR CONTRACTS
 
-    // Create Pair containing "_token0" & "_token1" on "_forkID" for "_dove" 
+    // Create Pair containing "_token0" & "_token1" on "_forkID" for "_dove"
     function _createPair(
         uint256 _forkID,
         uint32 _domain,
@@ -263,15 +250,7 @@ contract TestBase is ProtocolActions, Minter {
         vm.makePersistent(address(this));
         vm.selectFork(_forkID);
 
-        _pair = Pair(L2Factory(_factory).createPair(
-                _token1, 
-                _token0, 
-                _sgConfig, 
-                _token0, 
-                _token1,
-                _dove
-            )
-        );
+        _pair = Pair(L2Factory(_factory).createPair(_token1, _token0, _sgConfig, _token0, _token1, _dove));
 
         //bytes32 x = keccak256(abi.encode(_token0, _token1));
         forkToPair[_forkID][keccak256(abi.encode(_token0, _token1))] = address(_pair);
@@ -332,14 +311,8 @@ contract TestBase is ProtocolActions, Minter {
         order[3] = 3;
 
         _syncPairToDove(
-            _pair,
-            _dove,
-            _fromForkID, 
-            order, 
-            _handleSGMessage, 
-            _handleSGMessage, 
-            _handleHLMessage, 
-            _handleHLMessage);
+            _pair, _dove, _fromForkID, order, _handleSGMessage, _handleSGMessage, _handleHLMessage, _handleHLMessage
+        );
     }
 
     /// Sync any pair across all chains to any dove on L1
@@ -444,11 +417,11 @@ contract TestBase is ProtocolActions, Minter {
 
     /// Burn/send "user" vouchers (L2 tokens) from "_forkID" to "_dove", at amounts "_amount0" & "_amount1"
     function _burnVouchers(
-        uint256 _forkID, 
+        uint256 _forkID,
         address _dove,
         address user,
-        address _pair, 
-        uint256 _amount0, 
+        address _pair,
+        uint256 _amount0,
         uint256 _amount1
     ) internal {
         vm.selectFork(_forkID);
@@ -464,12 +437,7 @@ contract TestBase is ProtocolActions, Minter {
     }
 
     /// YEEEEEEET
-    function _yeetVouchers(
-        address _pair,
-        address user, 
-        uint256 _amount0,
-        uint256 _amount1
-    ) internal {
+    function _yeetVouchers(address _pair, address user, uint256 _amount0, uint256 _amount1) internal {
         vm.startBroadcast(user);
         Pair(_pair).voucher0().approve(_pair, type(uint256).max);
         Pair(_pair).voucher1().approve(_pair, type(uint256).max);
@@ -520,7 +488,4 @@ contract TestBase is ProtocolActions, Minter {
             }
         }
     }
-
-
-
 }

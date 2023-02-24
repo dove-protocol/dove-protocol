@@ -4,14 +4,13 @@ pragma solidity ^0.8.15;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-contract Address { }
+contract Address {}
 
 contract TestUtils is Test {
-
     uint256 private constant RAY = 10 ** 27;
 
     bytes constant ARITHMETIC_ERROR = abi.encodeWithSignature("Panic(uint256)", 0x11);
-    bytes constant ZERO_DIVISION    = abi.encodeWithSignature("Panic(uint256)", 0x12);
+    bytes constant ZERO_DIVISION = abi.encodeWithSignature("Panic(uint256)", 0x12);
 
     function getDiff(uint256 x, uint256 y) internal pure returns (uint256 diff) {
         diff = x > y ? x - y : y - x;
@@ -88,20 +87,16 @@ contract TestUtils is Test {
     }
 
     // Constrict values to a range, inclusive of min and max values.
-    function constrictToRange(
-        uint256 x,
-        uint256 min,
-        uint256 max
-    ) internal pure returns (uint256 result) {
+    function constrictToRange(uint256 x, uint256 min, uint256 max) internal pure returns (uint256 result) {
         require(max >= min, "MAX_LESS_THAN_MIN");
 
-        if (min == max) return min;  // A range of 0 is effectively a single value.
+        if (min == max) return min; // A range of 0 is effectively a single value.
 
-        if (x >= min && x <= max) return x;  // Use value directly from fuzz if already in range.
+        if (x >= min && x <= max) return x; // Use value directly from fuzz if already in range.
 
-        if (min == 0 && max == type(uint256).max) return x;  // The entire uint256 space is effectively x.
+        if (min == 0 && max == type(uint256).max) return x; // The entire uint256 space is effectively x.
 
-        return (x % ((max - min) + 1)) + min;  // Given the above exit conditions, `(max - min) + 1 <= type(uint256).max`.
+        return (x % ((max - min) + 1)) + min; // Given the above exit conditions, `(max - min) + 1 <= type(uint256).max`.
     }
 
     // Adapted from https://stackoverflow.com/questions/47129173/how-to-convert-uint-to-string-in-solidity
@@ -123,7 +118,7 @@ contract TestUtils is Test {
             k = k - 1;
 
             uint8 temp = (48 + uint8(input_ - input_ / 10 * 10));
-            bytes1 b1  = bytes1(temp);
+            bytes1 b1 = bytes1(temp);
 
             output[k] = b1;
             input_ /= 10;
@@ -131,5 +126,4 @@ contract TestUtils is Test {
 
         return string(output);
     }
-
 }
