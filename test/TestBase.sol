@@ -63,23 +63,26 @@ contract TestBase is ProtocolActions, Minter {
     mapping(uint256 => uint32)  forkToDomain;
     mapping(uint256 => uint16)  forkToChainId;
     mapping(uint256 => address) forkToMailbox;
+    mapping(uint256 => address) forkToRouter;
     // dynamic mappings, set alongside pair deployment
-    // TODO: make a way to access pair addresses easily even when multiple pairs are
-    // deployed on a single fork ID
-    mapping(uint256 => address) forkToPair;
+    mapping(uint256 => mapping(bytes32 => address)) forkToPair;
 
     /// L1 (Ethereum)
     L1Factory internal factoryL1;
     L1Router  internal routerL1;
     Dove      internal dove01;
+    // TODO: add several doves
     Fountain  internal fountain;
 
     /// L2 (Polygon)
     L2Factory       internal factoryL2;
     L2Router        internal routerL2;
     Pair            internal pair01Poly;
+    // TODO: add more than 1 pair per chain
     FeesAccumulator internal feesAccumulator;
     Voucher         internal voucher;
+
+    /// TODO: more chains than just polygon
 
     /// Fork/Chain IDs
     uint256 L1_FORK_ID; // Ethereum
@@ -129,11 +132,11 @@ contract TestBase is ProtocolActions, Minter {
                 address(L2Token1),
                 address(dove01),
                 address(mailboxL2),
-                sgConfig01,
-                factoryL2
+                address(factoryL2),
+                sgConfig01
             );
         vm.label(address(pair01Poly), "PAIR-01-POLY");
-        // add pairs as trusted remote
+        // add pairs as trusted remotes
         _addRemote(address(dove01), address(pair01Poly), L2_DOMAIN);
         // test suite creation timestamp
         start = block.timestamp;
@@ -165,8 +168,8 @@ contract TestBase is ProtocolActions, Minter {
     /// DEPLOY CONFIGURED FACTORY CONTRACTS
 
     // Deploy Factories
+    // TODO: break down factory deployment by each forkID?
     function _createFactories() internal {
-        // TODO: break down factory deployment by each forkID?
         vm.makePersistent(address(this));
         vm.selectFork(L1_FORK_ID);
         
@@ -194,13 +197,14 @@ contract TestBase is ProtocolActions, Minter {
         forkToDomain[L2_FORK_ID] = L2_DOMAIN;
         forkToChainId[L2_FORK_ID] = L2_CHAIN_ID;
         forkToMailbox[L2_FORK_ID] = address(mailboxL2);
+        forkToRouter[L2_FORK_ID] = address(routerL2);
     }
 
     // ----------------------------------------------------------------------------------------------------------
     // Deployer Functions
     // ----------------------------------------------------------------------------------------------------------
 
-    /// DEPLOY CONFIGURED DOVE CONTRACTS
+    /// DEPLOY CONFIGURED DOVE CONTRACT(S)
 
     /// Create a Dove contract for the input tokens, and have TestBase take ownership of the initial liquidity provided
     function _createDove(
@@ -238,8 +242,9 @@ contract TestBase is ProtocolActions, Minter {
             address(this),
             type(uint256).max
         );
-
     }
+
+    /// TODO: make a deployer function for several doves
 
     /// DEPLOY CONFIGURED PAIR CONTRACTS
 
@@ -252,13 +257,13 @@ contract TestBase is ProtocolActions, Minter {
         address _token1,
         address _dove,
         address _mailbox,
-        IL2Factory.SGConfig memory _sgConfig,
-        L2Factory _factory
+        address _factory,
+        IL2Factory.SGConfig memory _sgConfig
         ) internal returns (Pair _pair) {
         vm.makePersistent(address(this));
         vm.selectFork(_forkID);
 
-        _pair = Pair(_factory.createPair(
+        _pair = Pair(L2Factory(_factory).createPair(
                 _token1, 
                 _token0, 
                 _sgConfig, 
@@ -268,10 +273,15 @@ contract TestBase is ProtocolActions, Minter {
             )
         );
 
-        forkToPair[_forkID] = address(_pair);
+        //bytes32 x = keccak256(abi.encode(_token0, _token1));
+        forkToPair[_forkID][keccak256(abi.encode(_token0, _token1))] = address(_pair);
     }
 
-    /// ADD TRUSTED STARGATE BRIDGES & TRUSTED REMOTES/PAIRS
+    /// TODO: make a deployer function for several doves
+
+    // ----------------------------------------------------------------------------------------------------------
+    // ADD TRUSTED STARGATE BRIDGES & TRUSTED REMOTES/PAIRS
+    // ----------------------------------------------------------------------------------------------------------
 
     // Add Polygon SG bridge for "_dove"
     function _addBridgePoly(address _dove) internal {
@@ -292,19 +302,16 @@ contract TestBase is ProtocolActions, Minter {
     }
 
     // ----------------------------------------------------------------------------------------------------------
-    // Syncing Actions (SyncToL2, SyncToL1)
+    // Syncing Functions (SyncToL2, SyncToL1)
     // ----------------------------------------------------------------------------------------------------------
 
-    /// Sync "_dove" to "_pair"
+    /// Sync "_dove" to "_pair" on "_toForkID"
     // sync a dove to any pair across all chains
-    function _syncDoveToPair(
-        uint256 _toForkID,
-        address _dove,
-        Pair _pair
-        ) internal {
+    // TODO: Add in a value input parameter for syncL2 to remove need for (1 ether) constant
+    function _syncDoveToPair(uint256 _toForkID, address _dove, address _pair) internal {
         vm.selectFork(L1_FORK_ID);
         vm.recordLogs();
-        IDove(_dove).syncL2{value: 1 ether}(forkToChainId[_toForkID], address(_pair));
+        IDove(_dove).syncL2{value: 1 ether}(forkToChainId[_toForkID], _pair);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         // Packet event with payload should be the last one
@@ -312,12 +319,12 @@ contract TestBase is ProtocolActions, Minter {
         // switch fork
         vm.selectFork(_toForkID);
         vm.broadcast(forkToMailbox[_toForkID]);
-        _pair.handle(L1_DOMAIN, TypeCasts.addressToBytes32(sender), payload);
+        Pair(_pair).handle(L1_DOMAIN, TypeCasts.addressToBytes32(sender), payload);
     }
 
     /// Standard Sync To L1
     // sync "_pair" to "_dove" using standard ordering
-    function _standardSyncToL1(Pair _pair, Dove _dove, uint256 _fromForkID) internal {
+    function _standardSyncToL1(uint256 _fromForkID, address _dove, address _pair) internal {
         uint256[] memory order = new uint[](4);
         order[0] = 0;
         order[1] = 1;
@@ -338,21 +345,21 @@ contract TestBase is ProtocolActions, Minter {
     /// Sync any pair across all chains to any dove on L1
     // allows for standard or non-standard ordering of L2 => L1 syncing
     function _syncPairToDove(
-        Pair _pair,
-        Dove _dove,
+        address _pair,
+        address _dove,
         uint256 _fromForkID,
         uint256[] memory order,
-        function(uint256, Dove, bytes memory) internal one,
-        function(uint256, Dove, bytes memory) internal two,
-        function(uint256, Dove, bytes memory) internal three,
-        function(uint256, Dove, bytes memory) internal four
+        function(uint256, address, bytes memory) internal one,
+        function(uint256, address, bytes memory) internal two,
+        function(uint256, address, bytes memory) internal three,
+        function(uint256, address, bytes memory) internal four
     ) internal {
         vm.selectFork(_fromForkID);
 
         vm.recordLogs();
         // TODO: Make value of transaction agnostic to network it is being sent from
         // reminder it's not ether but MATIC
-        _pair.syncToL1{value: 800 ether}(200 ether, 200 ether);
+        Pair(_pair).syncToL1{value: 800 ether}(200 ether, 200 ether);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         // to find LZ events
@@ -380,7 +387,30 @@ contract TestBase is ProtocolActions, Minter {
     // Swap Functions
     // ----------------------------------------------------------------------------------------------------------
 
-    // TODO
+    /// swap "_inputToken" on "_forkID" using "_pair"
+    function _swapSimple(
+        uint256 _forkID,
+        address _pair,
+        address _inputToken,
+        uint256 _inputAmount
+        ) internal {
+        vm.selectFork(_forkID);
+
+        Pair _Pair = Pair(_pair);
+
+        uint256 _outputAmount = _Pair.getAmountOut(_inputAmount, _Pair.token0());
+        L2Router(forkToRouter[_forkID]).swapExactTokensForTokensSimple(
+            _inputAmount, _outputAmount, _Pair.token0(), _Pair.token1(), address(0xbeef), block.timestamp + 1000
+        );
+    }
+
+    function _k(uint256 x, uint256 y) internal view returns (uint256) {
+        uint256 _x = (x * 1e18) / uint64(10 ** 18);
+        uint256 _y = (y * 1e18) / uint64(10 ** 6);
+        uint256 _a = (_x * _y) / 1e18;
+        uint256 _b = ((_x * _x) / 1e18 + (_y * _y) / 1e18);
+        return (_a * _b) / 1e18; // x3y+y3x >= k
+    }
 
     // ----------------------------------------------------------------------------------------------------------
     // Voucher Actions (burn, YEEET)
@@ -389,37 +419,35 @@ contract TestBase is ProtocolActions, Minter {
     /// Burn/send "user" vouchers (L2 tokens) from "_forkID" to "_dove", at amounts "_amount0" & "_amount1"
     function _burnVouchers(
         uint256 _forkID, 
+        address _dove,
         address user,
-        Dove _dove,
-        L2Factory _factory,
-        address _token0,
-        address _token1, 
+        address _pair, 
         uint256 _amount0, 
         uint256 _amount1
         ) internal {
         vm.selectFork(_forkID);
         vm.recordLogs();
         vm.broadcast(user);
-        Pair(forkToPair[_forkID]).burnVouchers(_amount0, _amount1);
+        Pair(_pair).burnVouchers(_amount0, _amount1);
         Vm.Log[] memory logs = vm.getRecordedLogs();
         // should be second long
         (address sender, bytes memory HLpayload) = abi.decode(logs[1].data, (address, bytes));
         vm.selectFork(L1_FORK_ID);
         vm.broadcast(address(mailboxL1));
-        _dove.handle(forkToDomain[_forkID], TypeCasts.addressToBytes32(sender), HLpayload);
+        Dove(_dove).handle(forkToDomain[_forkID], TypeCasts.addressToBytes32(sender), HLpayload);
     }
 
     /// YEEEEEEET
     function _yeetVouchers(
-        Pair _pair,
+        address _pair,
         address user, 
         uint256 _amount0,
         uint256 _amount1
         ) internal {
         vm.startBroadcast(user);
-        _pair.voucher0().approve(address(_pair), type(uint256).max);
-        _pair.voucher1().approve(address(_pair), type(uint256).max);
-        _pair.yeetVouchers(_amount0, _amount1);
+        Pair(_pair).voucher0().approve(_pair, type(uint256).max);
+        Pair(_pair).voucher1().approve(_pair, type(uint256).max);
+        Pair(_pair).yeetVouchers(_amount0, _amount1);
         vm.stopBroadcast();
     }
 
@@ -427,7 +455,7 @@ contract TestBase is ProtocolActions, Minter {
     //  MISC HELPER FUNCTIONS
     // ---------------------------------------------------
 
-    function _handleSGMessage(uint256 _fromForkID, Dove _dove, bytes memory payload) internal {
+    function _handleSGMessage(uint256 _fromForkID, address _dove, bytes memory payload) internal {
         LayerZeroPacket.Packet memory packet = LayerZeroPacket.getCustomPacket(payload);
         // switch fork
         vm.selectFork(L1_FORK_ID);
@@ -444,11 +472,11 @@ contract TestBase is ProtocolActions, Minter {
         );
     }
 
-    function _handleHLMessage(uint256 _fromForkID, Dove _dove, bytes memory payload) internal {
+    function _handleHLMessage(uint256 _fromForkID, address _dove, bytes memory payload) internal {
         vm.selectFork(L1_FORK_ID);
         (address sender, bytes memory HLpayload) = abi.decode(payload, (address, bytes));
         vm.broadcast(address(mailboxL1));
-        _dove.handle(forkToDomain[_fromForkID], TypeCasts.addressToBytes32(sender), HLpayload);
+        Dove(_dove).handle(forkToDomain[_fromForkID], TypeCasts.addressToBytes32(sender), HLpayload);
     }
 
     /// Find Layer0 and HL Mailbox events for syncing Pairs to Mainnet
