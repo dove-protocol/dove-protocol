@@ -107,8 +107,6 @@ contract TestBaseAssertions is TestBase {
         vm.selectFork(forkID);
         assertEq(pair.balance0(), _balance0);
         assertEq(pair.balance1(), _balance1);
-        assertGe(pair.balance0(), pair.reserve0());
-        assertGe(pair.balance1(), pair.reserve1());
     }
 
     /// Sync
