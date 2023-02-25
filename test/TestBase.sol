@@ -46,6 +46,8 @@ contract TestBase is ProtocolActions, Minter {
     ILayerZeroEndpoint internal lzEndpointL1;
     ERC20Mock L1Token0;
     ERC20Mock L1Token1;
+    uint256 internal initialLiquidity0Dai; 
+    uint256 internal initialLiquidity1Usdc;
     // L2
     address constant L2SGRouter = 0x45A01E4e04F14f7A4a6702c74187c5F6222033cd;
     InterchainGasPaymasterMock internal gasMasterL2;
@@ -229,6 +231,13 @@ contract TestBase is ProtocolActions, Minter {
         routerL1.addLiquidity(
             _token0, _token1, _initLiquidity0, _initLiquidity1, _toAdd0, _toAdd1, address(this), type(uint256).max
         );
+
+        // constant storage value used for testing, initial liquidity constants must be set for each new Dove
+        // DAI|USDC
+        initialLiquidity0Dai = _dove.reserve0();
+        initialLiquidity1Usdc = _dove.reserve1();
+        // Other Pairs
+        
     }
 
     /// TODO: make a deployer function for several doves
