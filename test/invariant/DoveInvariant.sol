@@ -1,8 +1,8 @@
 pragma solidity ^0.8.15;
 
 import {StdInvariant} from "lib/utils/StdInvariant.sol";
-
 import {TestBaseAssertions} from "../TestBaseAssertions.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
 
 contract BaseInvariants is StdInvariant, TestBaseAssertions {
     //// State Variables
@@ -34,4 +34,10 @@ contract BaseInvariants is StdInvariant, TestBaseAssertions {
         setTimestamps++;
         currentTimestamp = currentTimestamp_;
     }
+
+    // --------------------------------------------------------------------------------------------------------
+    // Dove Invariants
+    // --------------------------------------------------------------------------------------------------------
+
+
 }
