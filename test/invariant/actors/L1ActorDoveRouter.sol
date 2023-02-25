@@ -4,8 +4,10 @@ pragma solidity ^0.8.15;
 import { Dove } from "../../../src/L1/Dove.sol";
 import { L1Router } from "../../../src/L1/L1Router.sol";
 import { ERC20Mock } from "../../mocks/ERC20Mock.sol";
+import { StdUtils } from "../../utils/StdUtils.sol";
+import { TestUtils } from "../../utils/TestUtils.sol";
 
-contract L1ActorDoveRouter {
+contract L1ActorDoveRouter is TestUtils, StdUtils {
 
     Dove public dove;
     L1Router public router;
@@ -19,18 +21,11 @@ contract L1ActorDoveRouter {
         uint256 _amountADesired, 
         uint256 _amountBDesired
     ) external {
-        if(_amountADesired > ERC20Mock(dove.token0()).balanceOf(address(this)) || _amountBDesired > ERC20Mock(dove.token1()).balanceOf(address(this))) {
-            return;
-        }
-        if(_amountADesired + _amountBDesired > ERC20Mock(dove.token0()).balanceOf(address(this)) + ERC20Mock(dove.token1()).balanceOf(address(this))) {
-            return;
-        }
-        if(_amountADesired <= 10 ** 3 || _amountBDesired <= 10 ** 3) {
-            return;
-        }
+        uint256 boundedDesiredA = bound(_amountADesired, 1001, ERC20Mock(dove.token0()).balanceOf(address(this)));
+        uint256 boundedDesiredB = bound(_amountBDesired, 1001, ERC20Mock(dove.token1()).balanceOf(address(this)));
 
         (uint256 _amountMinA, uint256 _amountMinB, uint256 liquidity) = 
-            router.quoteAddLiquidity(dove.token0(), dove.token1(), _amountADesired, _amountBDesired);
+            router.quoteAddLiquidity(dove.token0(), dove.token1(), boundedDesiredA, boundedDesiredB);
 
         router.addLiquidity(
             dove.token0(),
@@ -41,6 +36,26 @@ contract L1ActorDoveRouter {
             _amountMinB,
             address(this),
             type(uint256).max
+        );
+    }
+
+    function withdraw(
+        uint256 liquidity
+    ) external {
+        uint256 boundedLiquidity = bound(liquidity, 0, ERC20Mock(dove.balanceOf(address(this))));
+
+        (uint256 _amount0Min, uint256 _amount1Min) = 
+            routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), boundedLiquidity);
+
+        dove.approve(address(routerL1), type(uint256).max);
+        routerL1.removeLiquidity(
+            dove.token0(),
+            dove.token1(),
+            boundedLiquidity,
+            _amount0Min,
+            _amount1Min,
+            address(this),
+            block.timestamp + 1
         );
     }
 
