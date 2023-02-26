@@ -244,6 +244,7 @@ contract TestBase is ProtocolActions, Minter {
         initialLiquidity1Usdc = _dove.reserve1();
         // Other Pairs
 
+        // set dove
         dove01 = _dove;
     }
 
