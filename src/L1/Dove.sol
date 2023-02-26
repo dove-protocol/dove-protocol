@@ -198,6 +198,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     }
 
     function mint(address to) external override nonReentrant returns (uint256 liquidity) {
+        if (this.isLiquidityLocked()) revert LiquidityLocked();
         _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         uint256 _balance0 = ERC20(token0).balanceOf(address(this));
