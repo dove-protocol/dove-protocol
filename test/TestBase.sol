@@ -46,7 +46,7 @@ contract TestBase is ProtocolActions, Minter {
     ILayerZeroEndpoint internal lzEndpointL1;
     ERC20Mock L1Token0;
     ERC20Mock L1Token1;
-    uint256 internal initialLiquidity0Dai; 
+    uint256 internal initialLiquidity0Dai;
     uint256 internal initialLiquidity1Usdc;
     // L2
     address constant L2SGRouter = 0x45A01E4e04F14f7A4a6702c74187c5F6222033cd;
@@ -114,8 +114,8 @@ contract TestBase is ProtocolActions, Minter {
             dove01, // empty dove
             address(L1Token0), // DAI
             address(L1Token1), // USDC
-            10 ** 60, // token 0 initial amount, 10M
-            10 ** 36 // token 1 initial amount, 10M
+            10 ** 25, // token 0 initial amount, 10M
+            10 ** 13 // token 1 initial amount, 10M
         );
         vm.label(address(dove01), "DOVE: DAI|USDC");
         // add sg bridges to deployed dove(s)
@@ -237,7 +237,6 @@ contract TestBase is ProtocolActions, Minter {
         initialLiquidity0Dai = _dove.reserve0();
         initialLiquidity1Usdc = _dove.reserve1();
         // Other Pairs
-        
     }
 
     /// TODO: make a deployer function for several doves
@@ -381,7 +380,7 @@ contract TestBase is ProtocolActions, Minter {
 
         Pair _Pair = Pair(_pair);
 
-        if(_inputToken == _Pair.token0()) {
+        if (_inputToken == _Pair.token0()) {
             uint256 _outputAmount = _Pair.getAmountOut(_inputAmount, _Pair.token0());
             amounts = L2Router(forkToRouter[_forkID]).swapExactTokensForTokensSimple(
                 _inputAmount, _outputAmount, _Pair.token0(), _Pair.token1(), _swapperAddr, block.timestamp + 1000
@@ -403,12 +402,12 @@ contract TestBase is ProtocolActions, Minter {
         address _inputToken1,
         uint256 _inputAmount0,
         uint256 _inputAmount1
-    ) internal returns(uint256[] memory swap0Amounts, uint256[] memory swap1Amounts) {
+    ) internal returns (uint256[] memory swap0Amounts, uint256[] memory swap1Amounts) {
         vm.selectFork(_forkID);
 
         Pair _Pair = Pair(_pair);
 
-        if(_inputToken0 == _Pair.token0()) {
+        if (_inputToken0 == _Pair.token0()) {
             uint256 _outputAmount = _Pair.getAmountOut(_inputAmount0, _Pair.token0());
             swap0Amounts = L2Router(forkToRouter[_forkID]).swapExactTokensForTokensSimple(
                 _inputAmount0, _outputAmount, _Pair.token0(), _Pair.token1(), _swapperAddr, block.timestamp + 1000
@@ -420,7 +419,7 @@ contract TestBase is ProtocolActions, Minter {
             );
         }
 
-        if(_inputToken1 == _Pair.token1()) {
+        if (_inputToken1 == _Pair.token1()) {
             uint256 _outputAmount = _Pair.getAmountOut(_inputAmount1, _Pair.token1());
             swap1Amounts = L2Router(forkToRouter[_forkID]).swapExactTokensForTokensSimple(
                 _inputAmount1, _outputAmount, _Pair.token1(), _Pair.token0(), _swapperAddr, block.timestamp + 1000
