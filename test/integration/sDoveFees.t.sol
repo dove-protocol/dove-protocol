@@ -4,7 +4,7 @@ pragma solidity ^0.8.15;
 import "../TestBase.sol";
 
 contract DoveFeesTest is TestBase {
-    function setUp() external {
+    function setUp() public override {
         super.setUp();
     }
 
@@ -16,28 +16,28 @@ contract DoveFeesTest is TestBase {
         dove01.transfer(address(0xbaf), balance / 3);
         dove01.transfer(address(0xbef), balance / 3);
 
-        _syncDoveToPair(L2_FORK_ID, dove01, pair01Poly);
+        _syncDoveToPair(L2_FORK_ID, address(dove01), address(pair01Poly));
         _swapDouble(
             L2_FORK_ID,
-            pair01Poly,
+            address(pair01Poly),
             address(this),
             pair01Poly.token0(),
             pair01Poly.token1(),
             50000 * 10 ** 6,
             50000 * 10 ** 18
         );
-        _standardSyncToL1(L2_FORK_ID);
+        _standardSyncToL1(L2_FORK_ID, address(dove01), address(pair01Poly));
 
         (uint256 amount0, uint256 amount1) =
-            routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xfab)));
+            routerL1.quoteRemoveLiquidity(dove01.token0(), dove01.token1(), dove01.balanceOf(address(0xfab)));
 
         // remove liquidity
         vm.startBroadcast(address(0xfab));
-        dove.approve(address(routerL1), dove.balanceOf(address(0xfab)));
+        dove01.approve(address(routerL1), dove01.balanceOf(address(0xfab)));
         routerL1.removeLiquidity(
-            dove.token0(),
-            dove.token1(),
-            dove.balanceOf(address(0xfab)),
+            dove01.token0(),
+            dove01.token1(),
+            dove01.balanceOf(address(0xfab)),
             amount0,
             amount1,
             address(0xfab),
@@ -45,13 +45,14 @@ contract DoveFeesTest is TestBase {
         );
         vm.stopBroadcast();
 
-        (amount0, amount1) = routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xbaf)));
+        (amount0, amount1) =
+            routerL1.quoteRemoveLiquidity(dove01.token0(), dove01.token1(), dove01.balanceOf(address(0xbaf)));
         vm.startBroadcast(address(0xbaf));
-        dove.approve(address(routerL1), dove.balanceOf(address(0xbaf)));
+        dove01.approve(address(routerL1), dove01.balanceOf(address(0xbaf)));
         routerL1.removeLiquidity(
-            dove.token0(),
-            dove.token1(),
-            dove.balanceOf(address(0xbaf)),
+            dove01.token0(),
+            dove01.token1(),
+            dove01.balanceOf(address(0xbaf)),
             amount0,
             amount1,
             address(0xbaf),
@@ -59,13 +60,14 @@ contract DoveFeesTest is TestBase {
         );
         vm.stopBroadcast();
 
-        (amount0, amount1) = routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), dove.balanceOf(address(0xbef)));
+        (amount0, amount1) =
+            routerL1.quoteRemoveLiquidity(dove01.token0(), dove01.token1(), dove01.balanceOf(address(0xbef)));
         vm.startBroadcast(address(0xbef));
-        dove.approve(address(routerL1), dove.balanceOf(address(0xbef)));
+        dove01.approve(address(routerL1), dove01.balanceOf(address(0xbef)));
         routerL1.removeLiquidity(
-            dove.token0(),
-            dove.token1(),
-            dove.balanceOf(address(0xbef)),
+            dove01.token0(),
+            dove01.token1(),
+            dove01.balanceOf(address(0xbef)),
             amount0,
             amount1,
             address(0xbef),
@@ -73,12 +75,12 @@ contract DoveFeesTest is TestBase {
         );
         vm.stopBroadcast();
 
-        assertTrue(L1Token0.balanceOf(address(0xfab)) > initialLiquidity0 / 3);
-        assertTrue(L1Token0.balanceOf(address(0xbaf)) > initialLiquidity0 / 3);
-        assertTrue(L1Token0.balanceOf(address(0xbef)) > initialLiquidity0 / 3);
-        assertTrue(L1Token1.balanceOf(address(0xfab)) > initialLiquidity1 / 3);
-        assertTrue(L1Token1.balanceOf(address(0xbaf)) > initialLiquidity1 / 3);
-        assertTrue(L1Token1.balanceOf(address(0xbef)) > initialLiquidity1 / 3);
+        assertTrue(L1Token0.balanceOf(address(0xfab)) > initialLiquidity0Dai / 3);
+        assertTrue(L1Token0.balanceOf(address(0xbaf)) > initialLiquidity0Dai / 3);
+        assertTrue(L1Token0.balanceOf(address(0xbef)) > initialLiquidity0Dai / 3);
+        assertTrue(L1Token1.balanceOf(address(0xfab)) > initialLiquidity1Usdc / 3);
+        assertTrue(L1Token1.balanceOf(address(0xbaf)) > initialLiquidity1Usdc / 3);
+        assertTrue(L1Token1.balanceOf(address(0xbef)) > initialLiquidity1Usdc / 3);
     }
 
     // function testNoFeesIfAddLiquidityAfterSync() external {
