@@ -243,6 +243,8 @@ contract TestBase is ProtocolActions, Minter {
         initialLiquidity0Dai = _dove.reserve0();
         initialLiquidity1Usdc = _dove.reserve1();
         // Other Pairs
+
+        dove01 = _dove;
     }
 
     /// TODO: make a deployer function for several doves
