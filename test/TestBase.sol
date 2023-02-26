@@ -3,6 +3,8 @@ pragma solidity ^0.8.15;
 import {TestUtils} from "./utils/TestUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {Minter} from "./utils/Minter.sol";
+import {HyperlaneHelper} from "pigeon/src/hyperlane/HyperlaneHelper.sol";
+import {LayerZeroHelper} from "pigeon/src/layerzero/LayerZeroHelper.sol";
 
 import {Dove} from "../src/L1/Dove.sol";
 import {IDove} from "../src/L1/interfaces/IDove.sol";
@@ -96,6 +98,10 @@ contract TestBase is ProtocolActions, Minter {
     /// RPCs
     string RPC_ETH_MAINNET = vm.envString("ETH_MAINNET_RPC_URL");
     string RPC_POLYGON_MAINNET = vm.envString("POLYGON_MAINNET_RPC_URL");
+
+    /// Utilities
+    HyperlaneHelper internal hyperlaneHelper;
+    LayerZeroHelper internal lzHelper;
 
     // ----------------------------------------------------------------------------------------------------------
     // Base Setup, Deploy DAI & USDC DOVE/PAIR | Chains: Polygon
@@ -301,13 +307,7 @@ contract TestBase is ProtocolActions, Minter {
         vm.recordLogs();
         IDove(_dove).syncL2{value: 1 ether}(forkToChainId[_toForkID], _pair);
         Vm.Log[] memory logs = vm.getRecordedLogs();
-
-        // Packet event with payload should be the last one
-        (address sender, bytes memory payload) = abi.decode(logs[logs.length - 1].data, (address, bytes));
-        // switch fork
-        vm.selectFork(_toForkID);
-        vm.broadcast(forkToMailbox[_toForkID]);
-        Pair(_pair).handle(L1_DOMAIN, TypeCasts.addressToBytes32(sender), payload);
+        hyperlaneHelper.help(forkToMailbox[_toForkID], _toForkID, logs);
     }
 
     /// Standard Sync To L1
