@@ -1,6 +1,6 @@
 pragma solidity ^0.8.15;
 
-import {StdInvariant} from "../utils/StdInvariant.sol";
+import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {TestBaseAssertions} from "../TestBaseAssertions.sol";
 import {Minter} from "../utils/Minter.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
@@ -14,7 +14,7 @@ contract BaseInvariant is StdInvariant, TestBaseAssertions {
     // --------------------------------------------------------------------------------------------------------
 
     /// balance of the token inside dove01 must equal reserves
-    function invariantDove01Solvency() external {
+    function invariantDove01Solvency() internal {
         assertEq(
             ERC20(dove01.token0()).balanceOf(address(dove01)),
             dove01.reserve0()
@@ -29,7 +29,7 @@ contract BaseInvariant is StdInvariant, TestBaseAssertions {
     // Pair Invariants
     // --------------------------------------------------------------------------------------------------------
 
-    function invariantPair01PolySolvency() external {
+    function invariantPair01PolySolvency() internal {
         assertEq(
             ERC20(pair01Poly.token0()).balanceOf(address(pair01Poly)),
             pair01Poly.reserve0()
@@ -40,7 +40,7 @@ contract BaseInvariant is StdInvariant, TestBaseAssertions {
         );
     }
 
-    function invariantPair01PolyBalances() external {
+    function invariantPair01PolyBalances() internal {
         assertLe(
             pair01Poly.balance0(),
             pair01Poly.reserve0()

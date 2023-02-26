@@ -4,10 +4,10 @@ pragma solidity ^0.8.15;
 import { Dove } from "../../../src/L1/Dove.sol";
 import { L1Router } from "../../../src/L1/L1Router.sol";
 import { ERC20Mock } from "../../mocks/ERC20Mock.sol";
-import { StdUtils } from "../../utils/StdUtils.sol";
+import { StdUtils } from "forge-std/StdUtils.sol";
 import { TestUtils } from "../../utils/TestUtils.sol";
 
-contract L1ActorDoveRouter is TestUtils, StdUtils {
+contract L1ActorDoveRouter is StdUtils {
 
     Dove public dove;
     L1Router public router;
@@ -42,13 +42,13 @@ contract L1ActorDoveRouter is TestUtils, StdUtils {
     function withdraw(
         uint256 liquidity
     ) external {
-        uint256 boundedLiquidity = bound(liquidity, 0, ERC20Mock(dove.balanceOf(address(this))));
+        uint256 boundedLiquidity = bound(liquidity, 0, ERC20Mock(address(dove)).balanceOf(address(this)));
 
         (uint256 _amount0Min, uint256 _amount1Min) = 
-            routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), boundedLiquidity);
+            router.quoteRemoveLiquidity(dove.token0(), dove.token1(), boundedLiquidity);
 
-        dove.approve(address(routerL1), type(uint256).max);
-        routerL1.removeLiquidity(
+        dove.approve(address(router), type(uint256).max);
+        router.removeLiquidity(
             dove.token0(),
             dove.token1(),
             boundedLiquidity,
