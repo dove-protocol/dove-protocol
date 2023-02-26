@@ -48,8 +48,8 @@ contract TestBase is ProtocolActions, Minter {
     ILayerZeroEndpoint internal lzEndpointL1;
     ERC20Mock L1Token0;
     ERC20Mock L1Token1;
-    uint256 internal initialLiquidity0Dai;
-    uint256 internal initialLiquidity1Usdc;
+    uint256 internal initialLiquidity0Dai = 10 ** 25;
+    uint256 internal initialLiquidity1Usdc = 10 ** 13;
     // L2
     address constant L2SGRouter = 0x45A01E4e04F14f7A4a6702c74187c5F6222033cd;
     InterchainGasPaymasterMock internal gasMasterL2;
@@ -108,6 +108,8 @@ contract TestBase is ProtocolActions, Minter {
     // ----------------------------------------------------------------------------------------------------------
     function setUp() public virtual {
         vm.makePersistent(address(this));
+        // create utility contracts
+        _createUtilities();
         // set fork id constants for all chains
         _setForks();
         vm.selectFork(L1_FORK_ID);
@@ -120,8 +122,8 @@ contract TestBase is ProtocolActions, Minter {
             dove01, // empty dove
             address(L1Token0), // DAI
             address(L1Token1), // USDC
-            10 ** 25, // token 0 initial amount, 10M
-            10 ** 13 // token 1 initial amount, 10M
+            initialLiquidity0Dai, // token 0 initial amount, 10M
+            initialLiquidity1Usdc // token 1 initial amount, 10M
         );
         vm.label(address(dove01), "DOVE: DAI|USDC");
         // add sg bridges to deployed dove(s)
@@ -151,6 +153,14 @@ contract TestBase is ProtocolActions, Minter {
     // ----------------------------------------------------------------------------------------------------------
     // Initialize Functions (Forks, Tokens, and Factories)
     // ----------------------------------------------------------------------------------------------------------
+
+    /// CREATE UTILITIES
+    function _createUtilities() internal {
+        hyperlaneHelper = new HyperlaneHelper();
+        lzHelper = new LayerZeroHelper();
+        vm.makePersistent(address(hyperlaneHelper));
+        vm.makePersistent(address(lzHelper));
+    }
 
     /// CREATE FORKS
 
@@ -309,7 +319,12 @@ contract TestBase is ProtocolActions, Minter {
         vm.recordLogs();
         IDove(_dove).syncL2{value: 1 ether}(forkToChainId[_toForkID], _pair);
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        hyperlaneHelper.help(forkToMailbox[_toForkID], _toForkID, logs);
+        hyperlaneHelper.help(
+            forkToMailbox[_toForkID],
+            0x3b31784f245377d844a88ed832a668978c700fd9d25d80e8bf5ef168c6bffa20,
+            _toForkID,
+            logs
+        );
     }
 
     /// Standard Sync To L1
@@ -347,19 +362,17 @@ contract TestBase is ProtocolActions, Minter {
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         // to find LZ events
-        uint256[2] memory LZEventsIndexes =
-            _findSyncingEvents(logs, 0xe9bded5f24a4168e4f3bf44e00298c993b22376aad8c58c7dda9718a54cbea82);
+        Vm.Log[] memory LZEvents = lzHelper.findLogs(logs, 2);
         // to find mock mailbox events
-        uint256[2] memory HLEventsIndexes =
-            _findSyncingEvents(logs, 0x3b31784f245377d844a88ed832a668978c700fd9d25d80e8bf5ef168c6bffa20);
+        Vm.Log[] memory HLEvents = hyperlaneHelper.findLogs(logs, 2);
 
         // first two payloads are LZ
         // last two are HL
         bytes[] memory payloads = new bytes[](4);
-        payloads[0] = abi.decode(logs[LZEventsIndexes[0]].data, (bytes));
-        payloads[1] = abi.decode(logs[LZEventsIndexes[1]].data, (bytes));
-        payloads[2] = logs[HLEventsIndexes[0]].data;
-        payloads[3] = logs[HLEventsIndexes[1]].data;
+        payloads[0] = abi.decode(LZEvents[0].data, (bytes));
+        payloads[1] = abi.decode(LZEvents[1].data, (bytes));
+        payloads[2] = HLEvents[0].data;
+        payloads[3] = HLEvents[1].data;
 
         one(_fromForkID, _dove, payloads[order[0]]);
         two(_fromForkID, _dove, payloads[order[1]]);
@@ -503,21 +516,5 @@ contract TestBase is ProtocolActions, Minter {
         (address sender, bytes memory HLpayload) = abi.decode(payload, (address, bytes));
         vm.broadcast(address(mailboxL1));
         Dove(_dove).handle(forkToDomain[_fromForkID], TypeCasts.addressToBytes32(sender), HLpayload);
-    }
-
-    /// Find Layer0 and HL Mailbox events for syncing Pairs to Mainnet
-    function _findSyncingEvents(Vm.Log[] memory logs, bytes32 topic) internal returns (uint256[2] memory indexes) {
-        bool useIndex0 = true;
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == topic) {
-                if (useIndex0) {
-                    indexes[0] = i;
-                    useIndex0 = false;
-                } else {
-                    indexes[1] = i;
-                    break;
-                }
-            }
-        }
     }
 }
