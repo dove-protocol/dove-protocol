@@ -8,47 +8,28 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {L1ActorDoveRouter} from "./actors/L1ActorDoveRouter.sol";
 
 contract BaseInvariant is StdInvariant, TestBaseAssertions {
-
     // --------------------------------------------------------------------------------------------------------
     // Dove Invariants
     // --------------------------------------------------------------------------------------------------------
 
     /// balance of the token inside dove01 must equal reserves
     function invariantDove01Solvency() internal {
-        assertEq(
-            ERC20(dove01.token0()).balanceOf(address(dove01)),
-            dove01.reserve0()
-        );
-        assertEq(
-            ERC20(dove01.token1()).balanceOf(address(dove01)),
-            dove01.reserve1()
-        );
-    } 
+        assertEq(ERC20(dove01.token0()).balanceOf(address(dove01)), dove01.reserve0());
+        assertEq(ERC20(dove01.token1()).balanceOf(address(dove01)), dove01.reserve1());
+    }
 
     // --------------------------------------------------------------------------------------------------------
     // Pair Invariants
     // --------------------------------------------------------------------------------------------------------
 
     function invariantPair01PolySolvency() internal {
-        assertEq(
-            ERC20(pair01Poly.token0()).balanceOf(address(pair01Poly)),
-            pair01Poly.reserve0()
-        );
-        assertEq(
-            ERC20(pair01Poly.token1()).balanceOf(address(pair01Poly)),
-            pair01Poly.reserve1()
-        );
+        assertEq(ERC20(pair01Poly.token0()).balanceOf(address(pair01Poly)), pair01Poly.reserve0());
+        assertEq(ERC20(pair01Poly.token1()).balanceOf(address(pair01Poly)), pair01Poly.reserve1());
     }
 
     function invariantPair01PolyBalances() internal {
-        assertLe(
-            pair01Poly.balance0(),
-            pair01Poly.reserve0()
-        );
-        assertLe(
-            pair01Poly.balance1(),
-            pair01Poly.reserve1()
-        );
+        assertLe(pair01Poly.balance0(), pair01Poly.reserve0());
+        assertLe(pair01Poly.balance1(), pair01Poly.reserve1());
     }
 
     // --------------------------------------------------------------------------------------------------------
@@ -86,5 +67,4 @@ contract BaseInvariant is StdInvariant, TestBaseAssertions {
         excludeContract(address(L2Token0));
         excludeContract(address(L2Token1));
     }
-
 }

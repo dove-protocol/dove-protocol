@@ -5,6 +5,7 @@ import {Vm} from "forge-std/Vm.sol";
 import {Minter} from "./utils/Minter.sol";
 import {HyperlaneHelper} from "pigeon/src/hyperlane/HyperlaneHelper.sol";
 import {LayerZeroHelper} from "pigeon/src/layerzero/LayerZeroHelper.sol";
+import {console} from "forge-std/console.sol";
 
 import {Dove} from "../src/L1/Dove.sol";
 import {IDove} from "../src/L1/interfaces/IDove.sol";
@@ -48,6 +49,8 @@ contract TestBase is ProtocolActions, Minter {
     ILayerZeroEndpoint internal lzEndpointL1;
     ERC20Mock L1Token0;
     ERC20Mock L1Token1;
+    uint256 internal initialBalance0Dai = 10 ** 60;
+    uint256 internal initialBalance1Usdc = 10 ** 35;
     uint256 internal initialLiquidity0Dai = 10 ** 25;
     uint256 internal initialLiquidity1Usdc = 10 ** 13;
     // L2
@@ -122,8 +125,10 @@ contract TestBase is ProtocolActions, Minter {
             dove01, // empty dove
             address(L1Token0), // DAI
             address(L1Token1), // USDC
-            initialLiquidity0Dai, // token 0 initial amount, 10M
-            initialLiquidity1Usdc // token 1 initial amount, 10M
+            initialBalance0Dai, // token 0 initial this contract balance
+            initialBalance1Usdc, // token 1 initial this contract balance
+            initialLiquidity0Dai, // token 0 initial liquidity
+            initialLiquidity1Usdc // token 1 initial liqudity
         );
         vm.label(address(dove01), "DOVE: DAI|USDC");
         // add sg bridges to deployed dove(s)
@@ -143,6 +148,7 @@ contract TestBase is ProtocolActions, Minter {
             address(factoryL2),
             sgConfig01
         );
+
         vm.label(address(pair01Poly), "PAIR-01-POLY");
         // add pairs as trusted remotes
         _addRemote(address(dove01), address(pair01Poly), L2_DOMAIN);
@@ -223,9 +229,15 @@ contract TestBase is ProtocolActions, Minter {
     /// DEPLOY CONFIGURED DOVE CONTRACT(S)
 
     /// Create a Dove contract for the input tokens, and have TestBase take ownership of the initial liquidity provided
-    function _createDove(Dove _dove, address _token0, address _token1, uint256 _initLiquidity0, uint256 _initLiquidity1)
-        internal
-    {
+    function _createDove(
+        Dove _dove,
+        address _token0,
+        address _token1,
+        uint256 _initBalance0,
+        uint256 _initBalance1,
+        uint256 _initLiquidity0,
+        uint256 _initLiquidity1
+    ) internal {
         vm.makePersistent(address(this));
         vm.selectFork(L1_FORK_ID);
 
@@ -233,8 +245,8 @@ contract TestBase is ProtocolActions, Minter {
         _dove = Dove(factoryL1.createPair(_token0, _token1));
 
         // provide initial liquidity
-        Minter.mintDAIL1(address(_token0), address(this), _initLiquidity0);
-        Minter.mintUSDCL1(address(_token1), address(this), _initLiquidity1);
+        Minter.mintDAIL1(address(_token0), address(this), _initBalance0);
+        Minter.mintUSDCL1(address(_token1), address(this), _initBalance1);
         //approvals
         L1Token0.approve(address(_dove), type(uint256).max);
         L1Token1.approve(address(_dove), type(uint256).max);
@@ -279,6 +291,16 @@ contract TestBase is ProtocolActions, Minter {
 
         _pair = Pair(L2Factory(_factory).createPair(_token1, _token0, _sgConfig, _token0, _token1, _dove));
 
+        // TODO: move into another function
+        // mint to L2
+        Minter.mintUSDCL2(address(_token0), address(this), 10 ** 36);
+        Minter.mintDAIL2(address(_token1), address(this), 10 ** 60);
+        // approvals
+        L2Token0.approve(address(_pair), type(uint256).max);
+        L2Token1.approve(address(_pair), type(uint256).max);
+        L2Token0.approve(address(routerL2), type(uint256).max);
+        L2Token1.approve(address(routerL2), type(uint256).max);
+
         //bytes32 x = keccak256(abi.encode(_token0, _token1));
         forkToPair[_forkID][keccak256(abi.encode(_token0, _token1))] = address(_pair);
     }
@@ -319,12 +341,8 @@ contract TestBase is ProtocolActions, Minter {
         vm.recordLogs();
         IDove(_dove).syncL2{value: 1 ether}(forkToChainId[_toForkID], _pair);
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        hyperlaneHelper.help(
-            forkToMailbox[_toForkID],
-            0x3b31784f245377d844a88ed832a668978c700fd9d25d80e8bf5ef168c6bffa20,
-            _toForkID,
-            logs
-        );
+        console.log(logs[0].topics.length);
+        hyperlaneHelper.help(forkToMailbox[L1_FORK_ID], _toForkID, logs);
     }
 
     /// Standard Sync To L1

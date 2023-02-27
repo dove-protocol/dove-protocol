@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import { L1ActorDoveRouter } from "./actors/L1ActorDoveRouter.sol";
+import {L1ActorDoveRouter} from "./actors/L1ActorDoveRouter.sol";
 
-import { BaseInvariant } from "./BaseInvariant.t.sol";
-import { Minter } from "../utils/Minter.sol";
+import {BaseInvariant} from "./BaseInvariant.t.sol";
+import {Minter} from "../utils/Minter.sol";
 
 contract L1BasicInvariants is BaseInvariant {
     function setUp() public override {
@@ -27,9 +27,4 @@ contract L1BasicInvariants is BaseInvariant {
     function invariant_dove() external {
         invariantDove01Solvency();
     }
-
-
-
-
-
 }

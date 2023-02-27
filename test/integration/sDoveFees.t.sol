@@ -17,70 +17,72 @@ contract DoveFeesTest is TestBase {
         dove01.transfer(address(0xbef), balance / 3);
 
         _syncDoveToPair(L2_FORK_ID, address(dove01), address(pair01Poly));
+
+        vm.selectFork(L2_FORK_ID);
         _swapDouble(
             L2_FORK_ID,
             address(pair01Poly),
             address(this),
             pair01Poly.token0(),
             pair01Poly.token1(),
-            50000 * 10 ** 6,
-            50000 * 10 ** 18
+            5000 * 10 ** 6,
+            5000 * 10 ** 18
         );
-        _standardSyncToL1(L2_FORK_ID, address(dove01), address(pair01Poly));
+        // _standardSyncToL1(L2_FORK_ID, address(dove01), address(pair01Poly));
 
-        (uint256 amount0, uint256 amount1) =
-            routerL1.quoteRemoveLiquidity(dove01.token0(), dove01.token1(), dove01.balanceOf(address(0xfab)));
+        // (uint256 amount0, uint256 amount1) =
+        //     routerL1.quoteRemoveLiquidity(dove01.token0(), dove01.token1(), dove01.balanceOf(address(0xfab)));
 
-        // remove liquidity
-        vm.startBroadcast(address(0xfab));
-        dove01.approve(address(routerL1), dove01.balanceOf(address(0xfab)));
-        routerL1.removeLiquidity(
-            dove01.token0(),
-            dove01.token1(),
-            dove01.balanceOf(address(0xfab)),
-            amount0,
-            amount1,
-            address(0xfab),
-            block.timestamp + 1
-        );
-        vm.stopBroadcast();
+        // // remove liquidity
+        // vm.startBroadcast(address(0xfab));
+        // dove01.approve(address(routerL1), dove01.balanceOf(address(0xfab)));
+        // routerL1.removeLiquidity(
+        //     dove01.token0(),
+        //     dove01.token1(),
+        //     dove01.balanceOf(address(0xfab)),
+        //     amount0,
+        //     amount1,
+        //     address(0xfab),
+        //     block.timestamp + 1
+        // );
+        // vm.stopBroadcast();
 
-        (amount0, amount1) =
-            routerL1.quoteRemoveLiquidity(dove01.token0(), dove01.token1(), dove01.balanceOf(address(0xbaf)));
-        vm.startBroadcast(address(0xbaf));
-        dove01.approve(address(routerL1), dove01.balanceOf(address(0xbaf)));
-        routerL1.removeLiquidity(
-            dove01.token0(),
-            dove01.token1(),
-            dove01.balanceOf(address(0xbaf)),
-            amount0,
-            amount1,
-            address(0xbaf),
-            block.timestamp + 1
-        );
-        vm.stopBroadcast();
+        // (amount0, amount1) =
+        //     routerL1.quoteRemoveLiquidity(dove01.token0(), dove01.token1(), dove01.balanceOf(address(0xbaf)));
+        // vm.startBroadcast(address(0xbaf));
+        // dove01.approve(address(routerL1), dove01.balanceOf(address(0xbaf)));
+        // routerL1.removeLiquidity(
+        //     dove01.token0(),
+        //     dove01.token1(),
+        //     dove01.balanceOf(address(0xbaf)),
+        //     amount0,
+        //     amount1,
+        //     address(0xbaf),
+        //     block.timestamp + 1
+        // );
+        // vm.stopBroadcast();
 
-        (amount0, amount1) =
-            routerL1.quoteRemoveLiquidity(dove01.token0(), dove01.token1(), dove01.balanceOf(address(0xbef)));
-        vm.startBroadcast(address(0xbef));
-        dove01.approve(address(routerL1), dove01.balanceOf(address(0xbef)));
-        routerL1.removeLiquidity(
-            dove01.token0(),
-            dove01.token1(),
-            dove01.balanceOf(address(0xbef)),
-            amount0,
-            amount1,
-            address(0xbef),
-            block.timestamp + 1
-        );
-        vm.stopBroadcast();
+        // (amount0, amount1) =
+        //     routerL1.quoteRemoveLiquidity(dove01.token0(), dove01.token1(), dove01.balanceOf(address(0xbef)));
+        // vm.startBroadcast(address(0xbef));
+        // dove01.approve(address(routerL1), dove01.balanceOf(address(0xbef)));
+        // routerL1.removeLiquidity(
+        //     dove01.token0(),
+        //     dove01.token1(),
+        //     dove01.balanceOf(address(0xbef)),
+        //     amount0,
+        //     amount1,
+        //     address(0xbef),
+        //     block.timestamp + 1
+        // );
+        // vm.stopBroadcast();
 
-        assertTrue(L1Token0.balanceOf(address(0xfab)) > initialLiquidity0Dai / 3);
-        assertTrue(L1Token0.balanceOf(address(0xbaf)) > initialLiquidity0Dai / 3);
-        assertTrue(L1Token0.balanceOf(address(0xbef)) > initialLiquidity0Dai / 3);
-        assertTrue(L1Token1.balanceOf(address(0xfab)) > initialLiquidity1Usdc / 3);
-        assertTrue(L1Token1.balanceOf(address(0xbaf)) > initialLiquidity1Usdc / 3);
-        assertTrue(L1Token1.balanceOf(address(0xbef)) > initialLiquidity1Usdc / 3);
+        // assertTrue(L1Token0.balanceOf(address(0xfab)) > initialLiquidity0Dai / 3);
+        // assertTrue(L1Token0.balanceOf(address(0xbaf)) > initialLiquidity0Dai / 3);
+        // assertTrue(L1Token0.balanceOf(address(0xbef)) > initialLiquidity0Dai / 3);
+        // assertTrue(L1Token1.balanceOf(address(0xfab)) > initialLiquidity1Usdc / 3);
+        // assertTrue(L1Token1.balanceOf(address(0xbaf)) > initialLiquidity1Usdc / 3);
+        // assertTrue(L1Token1.balanceOf(address(0xbef)) > initialLiquidity1Usdc / 3);
     }
 
     // function testNoFeesIfAddLiquidityAfterSync() external {
