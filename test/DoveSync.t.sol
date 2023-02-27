@@ -89,12 +89,11 @@ contract DoveSyncTest is DoveBase {
         uint256 L2R0 = pair.reserve0(); // USDC virtual reserve
         uint256 L2R1 = pair.reserve1(); // DAI virtual reserve
 
-        uint256[] memory order = new uint[](4);
+        uint256[] memory order = new uint[](3);
         order[0] = 2;
-        order[1] = 3;
-        order[2] = 0;
-        order[3] = 1;
-        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+        order[1] = 0;
+        order[2] = 1;
+        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
         // given messages weren't in expected order, sync should still be pending
@@ -120,12 +119,11 @@ contract DoveSyncTest is DoveBase {
         uint256 voucher0Balance = pair.voucher0().totalSupply();
         uint256 voucher1Balance = pair.voucher1().totalSupply();
 
-        uint256[] memory order = new uint[](4);
+        uint256[] memory order = new uint[](3);
         order[0] = 2;
-        order[1] = 3;
-        order[2] = 0;
-        order[3] = 1;
-        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+        order[1] = 0;
+        order[2] = 1;
+        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
         dove.finalizeSyncFromL2(L2_DOMAIN, 0);
@@ -237,12 +235,11 @@ contract DoveSyncTest is DoveBase {
 
         // ######## ATTACK FINISHED ########
 
-        uint256[] memory order = new uint[](4);
+        uint256[] memory order = new uint[](3);
         order[0] = 2;
-        order[1] = 3;
-        order[2] = 0;
-        order[3] = 1;
-        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+        order[1] = 0;
+        order[2] = 1;
+        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
         // shouldn't have changed because the sync still pending
@@ -289,17 +286,22 @@ contract DoveSyncTest is DoveBase {
         vm.recordLogs();
         pair.syncToL1{value: 800 ether}(200 ether, 200 ether);
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        bytes[] memory payloads = new bytes[](4);
-        payloads[0] = abi.decode(logs[10].data, (bytes));
-        payloads[1] = abi.decode(logs[21].data, (bytes));
-        payloads[2] = logs[12].data;
-        payloads[3] = logs[23].data;
+
+        // to find LZ events
+        uint256[2] memory LZEventsIndexes =
+            _findSyncingEvents(logs, 0xe9bded5f24a4168e4f3bf44e00298c993b22376aad8c58c7dda9718a54cbea82);
+        // to find mock mailbox events
+        uint256[2] memory HLEventsIndexes =
+            _findSyncingEvents(logs, 0x3b31784f245377d844a88ed832a668978c700fd9d25d80e8bf5ef168c6bffa20);
+        bytes[] memory payloads = new bytes[](3);
+        payloads[0] = abi.decode(logs[LZEventsIndexes[0]].data, (bytes));
+        payloads[1] = abi.decode(logs[LZEventsIndexes[1]].data, (bytes));
+        payloads[2] = logs[HLEventsIndexes[0]].data;
 
         _handleSGMessage(L2_FORK_ID, payloads[0]);
         _handleSGMessage(L2_FORK_ID, payloads[1]);
         dove.sync();
         _handleHLMessage(L2_FORK_ID, payloads[2]);
-        _handleHLMessage(L2_FORK_ID, payloads[3]);
 
         // ################################
 
@@ -332,12 +334,11 @@ contract DoveSyncTest is DoveBase {
         assert(syncerPercentage <= 5000);
         vm.recordLogs();
         // use non standard sync so we can manually finalize
-        uint256[] memory order = new uint[](4);
+        uint256[] memory order = new uint[](3);
         order[0] = 2;
-        order[1] = 3;
-        order[2] = 0;
-        order[3] = 1;
-        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+        order[1] = 0;
+        order[2] = 1;
+        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
         vm.broadcast(syncer);
