@@ -336,7 +336,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     /// @notice Syncs to the L1.
     /// @dev Dependent on SG.
     function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable override {
-        if (msg.value < (sgFee *2) + hyperlaneFee) revert MsgValueTooLow();
+        if (msg.value < (sgFee * 2) + hyperlaneFee) revert MsgValueTooLow();
 
         address _token0 = token0;
         address _token1 = token1;

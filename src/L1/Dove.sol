@@ -290,15 +290,16 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
 
         if (messageType == Codec.SYNC_TO_L1) {
             (
-                uint256 syncID, Codec.SyncerMetadata memory sm,
-                Codec.PartialSync memory pSyncA, Codec.PartialSync memory pSyncB
+                uint256 syncID,
+                Codec.SyncerMetadata memory sm,
+                Codec.PartialSync memory pSyncA,
+                Codec.PartialSync memory pSyncB
             ) = Codec.decodeSyncToL1(payload);
             _syncFromL2(origin, syncID, Sync(pSyncA, pSyncB, sm));
-
         } else if (messageType == Codec.BURN_VOUCHERS) {
             Codec.VouchersBurnPayload memory vbp = Codec.decodeVouchersBurn(payload);
             _completeVoucherBurns(origin, vbp);
-        } 
+        }
     }
 
     function syncL2(uint32 destinationDomain, address pair) external payable override {
@@ -352,9 +353,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         }
     }
 
-    function _syncFromL2(uint32 origin, uint256 syncID, Sync memory sync)
-        internal
-    {
+    function _syncFromL2(uint32 origin, uint256 syncID, Sync memory sync) internal {
         // can proceed with full sync since we got the two HyperLane messages
         // have to check if SG swaps are completed
         if (lastBridged0[origin][syncID] > 0 && lastBridged1[origin][syncID] > 0) {
@@ -379,11 +378,10 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     /// @notice These tokens are simply added back to the reserves.
     /// @dev    This should be an authenticated call, only callable by the operator.
     /// @dev    The sync should be followed by a sync on the L2.
-    function _finalizeSyncFromL2(
-        uint32 srcDomain,
-        uint256 syncID,
-        Sync memory sync
-    ) internal returns (bool hasFailed) {
+    function _finalizeSyncFromL2(uint32 srcDomain, uint256 syncID, Sync memory sync)
+        internal
+        returns (bool hasFailed)
+    {
         (ERC20 _token0, ERC20 _token1) = (ERC20(token0), ERC20(token1));
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         // re-arrange in correct order the sync's partial syncs
@@ -436,7 +434,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
             sync.pSyncB.pairBalance,
             sync.pSyncA.earmarkedAmount,
             sync.pSyncB.earmarkedAmount
-            );
+        );
         localSyncID[srcDomain]++;
         uint256 balance0 = ERC20(sync.pSyncA.token).balanceOf(address(this));
         uint256 balance1 = ERC20(sync.pSyncB.token).balanceOf(address(this));

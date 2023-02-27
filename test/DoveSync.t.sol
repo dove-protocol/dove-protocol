@@ -297,7 +297,7 @@ contract DoveSyncTest is DoveBase {
         payloads[0] = abi.decode(logs[LZEventsIndexes[0]].data, (bytes));
         payloads[1] = abi.decode(logs[LZEventsIndexes[1]].data, (bytes));
         payloads[2] = logs[HLEventsIndexes[0]].data;
-        
+
         _handleSGMessage(L2_FORK_ID, payloads[0]);
         _handleSGMessage(L2_FORK_ID, payloads[1]);
         dove.sync();

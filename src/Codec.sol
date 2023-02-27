@@ -34,18 +34,8 @@ library Codec {
             SYNC_TO_L1,
             syncID,
             SyncerMetadata(syncer, syncerPercentage),
-            PartialSync(
-                L1Token0,
-                pairVoucherBalance0,
-                voucherDelta0,
-                balance0
-            ),
-            PartialSync(
-                L1Token1,
-                pairVoucherBalance1,
-                voucherDelta1,
-                balance1
-            )
+            PartialSync(L1Token0, pairVoucherBalance0, voucherDelta0, balance0),
+            PartialSync(L1Token1, pairVoucherBalance1, voucherDelta1, balance1)
         );
     }
 
