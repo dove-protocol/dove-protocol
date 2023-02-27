@@ -26,9 +26,7 @@ import {TypeCasts} from "src/hyperlane/TypeCasts.sol";
 import {ILayerZeroEndpoint} from "./utils/ILayerZeroEndpoint.sol";
 import {LayerZeroPacket} from "./utils/LZPacket.sol";
 
-import {ProtocolActions} from "./utils/ProtocolActions.sol";
-
-contract TestBase is ProtocolActions, Minter {
+contract TestBase is TestUtils, Minter {
     // ----------------------------------------------------------------------------------------------------------
     // CONSTANTS, VARIABLES, MAPPINGS, ADDRESSES, CONTRACTS
     // ----------------------------------------------------------------------------------------------------------

@@ -1,13 +1,10 @@
 pragma solidity ^0.8.15;
 
-import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {TestBaseAssertions} from "../TestBaseAssertions.sol";
 import {Minter} from "../utils/Minter.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
-import {L1ActorDoveRouter} from "./actors/L1ActorDoveRouter.sol";
-
-contract BaseInvariant is StdInvariant, TestBaseAssertions {
+contract BaseInvariant is TestBaseAssertions {
 
     // --------------------------------------------------------------------------------------------------------
     // Dove Invariants
