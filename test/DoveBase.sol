@@ -211,13 +211,12 @@ contract DoveBase is Test, Helper {
     }
 
     function _standardSyncToL1(uint256 fromFork) internal {
-        uint256[] memory order = new uint[](4);
+        uint256[] memory order = new uint[](3);
         order[0] = 0;
         order[1] = 1;
         order[2] = 2;
-        order[3] = 3;
 
-        _syncToL1(fromFork, order, _handleSGMessage, _handleSGMessage, _handleHLMessage, _handleHLMessage);
+        _syncToL1(fromFork, order, _handleSGMessage, _handleSGMessage, _handleHLMessage);
     }
 
     function _syncToL1(
@@ -225,8 +224,7 @@ contract DoveBase is Test, Helper {
         uint256[] memory order,
         function(uint256, bytes memory) internal one,
         function(uint256, bytes memory) internal two,
-        function(uint256, bytes memory) internal three,
-        function(uint256, bytes memory) internal four
+        function(uint256, bytes memory) internal three
     ) internal {
         /*
             Simulate syncing to L1.
@@ -248,16 +246,14 @@ contract DoveBase is Test, Helper {
 
         // first two payloads are LZ
         // last two are HL
-        bytes[] memory payloads = new bytes[](4);
+        bytes[] memory payloads = new bytes[](3);
         payloads[0] = abi.decode(logs[LZEventsIndexes[0]].data, (bytes));
         payloads[1] = abi.decode(logs[LZEventsIndexes[1]].data, (bytes));
         payloads[2] = logs[HLEventsIndexes[0]].data;
-        payloads[3] = logs[HLEventsIndexes[1]].data;
 
         one(fromFork, payloads[order[0]]);
         two(fromFork, payloads[order[1]]);
         three(fromFork, payloads[order[2]]);
-        four(fromFork, payloads[order[3]]);
     }
 
     function _handleSGMessage(uint256 fromFork, bytes memory payload) internal {

@@ -91,10 +91,9 @@ contract DoveSyncTest is DoveBase {
 
         uint256[] memory order = new uint[](4);
         order[0] = 2;
-        order[1] = 3;
         order[2] = 0;
         order[3] = 1;
-        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
         // given messages weren't in expected order, sync should still be pending
@@ -122,10 +121,9 @@ contract DoveSyncTest is DoveBase {
 
         uint256[] memory order = new uint[](4);
         order[0] = 2;
-        order[1] = 3;
         order[2] = 0;
         order[3] = 1;
-        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
         dove.finalizeSyncFromL2(L2_DOMAIN, 0);
@@ -239,10 +237,9 @@ contract DoveSyncTest is DoveBase {
 
         uint256[] memory order = new uint[](4);
         order[0] = 2;
-        order[1] = 3;
         order[2] = 0;
         order[3] = 1;
-        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
         // shouldn't have changed because the sync still pending
@@ -334,10 +331,9 @@ contract DoveSyncTest is DoveBase {
         // use non standard sync so we can manually finalize
         uint256[] memory order = new uint[](4);
         order[0] = 2;
-        order[1] = 3;
         order[2] = 0;
         order[3] = 1;
-        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
         vm.broadcast(syncer);

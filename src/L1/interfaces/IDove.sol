@@ -32,9 +32,9 @@ interface IDove {
     error NoStargateSwaps();
 
     struct Sync {
-        Codec.SyncToL1Payload partialSyncA;
-        Codec.SyncToL1Payload partialSyncB;
-        Codec.SyncerMetadata syncerMetadata;
+        Codec.PartialSync pSyncA;
+        Codec.PartialSync pSyncB;
+        Codec.SyncerMetadata sm;
     }
 
     struct BurnClaim {

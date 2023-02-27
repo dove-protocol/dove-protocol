@@ -5,7 +5,7 @@ library Codec {
     uint256 public constant SYNC_TO_L1 = 2;
     uint256 public constant SYNC_TO_L2 = 3;
 
-    struct SyncToL1Payload {
+    struct PartialSync {
         address token;
         uint256 tokensForDove; // tokens to send to Dove, aka vouchers held by pair burnt
         uint256 earmarkedAmount; // tokens to earmark aka vouchers
@@ -19,10 +19,14 @@ library Codec {
 
     function encodeSyncToL1(
         uint256 syncID,
-        address L1Token,
-        uint256 pairVoucherBalance,
-        uint256 voucherDelta,
-        uint256 balance,
+        address L1Token0,
+        uint256 pairVoucherBalance0,
+        uint256 voucherDelta0,
+        uint256 balance0,
+        address L1Token1,
+        uint256 pairVoucherBalance1,
+        uint256 voucherDelta1,
+        uint256 balance1,
         address syncer,
         uint64 syncerPercentage
     ) internal pure returns (bytes memory) {
@@ -30,18 +34,29 @@ library Codec {
             SYNC_TO_L1,
             syncID,
             SyncerMetadata(syncer, syncerPercentage),
-            SyncToL1Payload(L1Token, pairVoucherBalance, voucherDelta, balance)
+            PartialSync(
+                L1Token0,
+                pairVoucherBalance0,
+                voucherDelta0,
+                balance0
+            ),
+            PartialSync(
+                L1Token1,
+                pairVoucherBalance1,
+                voucherDelta1,
+                balance1
+            )
         );
     }
 
     function decodeSyncToL1(bytes calldata _payload)
         internal
         pure
-        returns (uint256, SyncerMetadata memory, SyncToL1Payload memory)
+        returns (uint256, SyncerMetadata memory, PartialSync memory, PartialSync memory)
     {
-        (, uint256 syncID, SyncerMetadata memory syncerMetadata, SyncToL1Payload memory payload) =
-            abi.decode(_payload, (uint256, uint256, SyncerMetadata, SyncToL1Payload));
-        return (syncID, syncerMetadata, payload);
+        (, uint256 syncID, SyncerMetadata memory syncerMetadata, PartialSync memory pSyncA, PartialSync memory pSyncB) =
+            abi.decode(_payload, (uint256, uint256, SyncerMetadata, PartialSync, PartialSync));
+        return (syncID, syncerMetadata, pSyncA, pSyncB);
     }
 
     /*##############################################################################################################################*/

@@ -336,65 +336,26 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     /// @notice Syncs to the L1.
     /// @dev Dependent on SG.
     function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable override {
-        if (msg.value < (sgFee + hyperlaneFee) * 2) revert MsgValueTooLow();
+        if (msg.value < (sgFee *2) + hyperlaneFee) revert MsgValueTooLow();
 
         address _token0 = token0;
         address _token1 = token1;
         // balance before getting accumulated fees
         uint256 _balance0 = STL.balanceOf(_token0, address(this));
         uint256 _balance1 = STL.balanceOf(_token1, address(this));
-        (uint256 fees0, uint256 fees1) = feesAccumulator.take();
 
-        uint32 destDomain = factory.destDomain();
-        uint16 destChainId = factory.destChainId();
+        uint256 pairVoucher0Balance = voucher0.balanceOf(address(this));
+        uint256 pairVoucher1Balance = voucher1.balanceOf(address(this));
 
-        IStargateRouter stargateRouter = IStargateRouter(factory.stargateRouter());
+        // Sends the HL message first to avoid stack too deep!
         {
-            uint256 pairVoucher0Balance = voucher0.balanceOf(address(this));
-            // swap token0
-            STL.safeApprove(_token0, address(stargateRouter), _balance0 + fees0);
-            stargateRouter.swap{value: sgFee}(
-                destChainId,
-                sgConfig.srcPoolId0,
-                sgConfig.dstPoolId0,
-                payable(msg.sender),
-                _balance0 + fees0,
-                _balance0,
-                IStargateRouter.lzTxObj(200000, 0, "0x"),
-                abi.encodePacked(L1Target),
-                "1"
-            );
+            uint32 destDomain = factory.destDomain();
             bytes memory payload = Codec.encodeSyncToL1(
                 syncID,
                 L1Token0,
                 pairVoucher0Balance,
                 voucher0Delta - pairVoucher0Balance,
                 _balance0,
-                msg.sender,
-                this.getSyncerPercentage()
-            );
-            bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-            hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
-            reserve0 = ref0 + _balance0 - (voucher0Delta - pairVoucher0Balance);
-        }
-
-        {
-            uint256 pairVoucher1Balance = voucher1.balanceOf(address(this));
-            // swap token1
-            STL.safeApprove(_token1, address(stargateRouter), _balance1 + fees1);
-            stargateRouter.swap{value: sgFee}(
-                destChainId,
-                sgConfig.srcPoolId1,
-                sgConfig.dstPoolId1,
-                payable(msg.sender),
-                _balance1 + fees1,
-                _balance1,
-                IStargateRouter.lzTxObj(200000, 0, "0x"),
-                abi.encodePacked(L1Target),
-                "1"
-            );
-            bytes memory payload = Codec.encodeSyncToL1(
-                syncID,
                 L1Token1,
                 pairVoucher1Balance,
                 voucher1Delta - pairVoucher1Balance,
@@ -402,12 +363,44 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
                 msg.sender,
                 this.getSyncerPercentage()
             );
+            // send HL message
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
-            reserve1 = ref1 + _balance1 - (voucher1Delta - pairVoucher1Balance);
         }
 
-        emit SyncToL1Initiated(_balance0, _balance1, fees0, fees1);
+        (uint256 fees0, uint256 fees1) = feesAccumulator.take();
+        uint16 destChainId = factory.destChainId();
+        IStargateRouter stargateRouter = IStargateRouter(factory.stargateRouter());
+
+        // swap token0
+        STL.safeApprove(_token0, address(stargateRouter), _balance0 + fees0);
+        stargateRouter.swap{value: sgFee}(
+            destChainId,
+            sgConfig.srcPoolId0,
+            sgConfig.dstPoolId0,
+            payable(msg.sender),
+            _balance0 + fees0,
+            _balance0,
+            IStargateRouter.lzTxObj(200000, 0, "0x"),
+            abi.encodePacked(L1Target),
+            "1"
+        );
+        reserve0 = ref0 + _balance0 - (voucher0Delta - pairVoucher0Balance);
+
+        // swap token1
+        STL.safeApprove(_token1, address(stargateRouter), _balance1 + fees1);
+        stargateRouter.swap{value: sgFee}(
+            destChainId,
+            sgConfig.srcPoolId1,
+            sgConfig.dstPoolId1,
+            payable(msg.sender),
+            _balance1 + fees1,
+            _balance1,
+            IStargateRouter.lzTxObj(200000, 0, "0x"),
+            abi.encodePacked(L1Target),
+            "1"
+        );
+        reserve1 = ref1 + _balance1 - (voucher1Delta - pairVoucher1Balance);
 
         ref0 = reserve0;
         ref1 = reserve1;
@@ -415,6 +408,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         voucher1Delta = 0;
         syncID++;
         lastSyncTimestamp = block.timestamp;
+
+        emit SyncToL1Initiated(_balance0, _balance1, fees0, fees1);
     }
 
     /// @notice Allows user to burn his L2 vouchers to get the L1 tokens.
