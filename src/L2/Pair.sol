@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
-import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {SafeTransferLib as STL} from "solady/utils/SafeTransferLib.sol";
 
 import {Voucher} from "./Voucher.sol";
 import {FeesAccumulator} from "./FeesAccumulator.sol";
@@ -128,21 +128,21 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
 
     // TODO : rename to reserve0???
     function balance0() public view returns (uint256) {
-        return ref0 + ERC20(token0).balanceOf(address(this)) - voucher0Delta;
+        return ref0 + STL.balanceOf(token0, address(this)) - voucher0Delta;
     }
 
     function balance1() public view returns (uint256) {
-        return ref1 + ERC20(token1).balanceOf(address(this)) - voucher1Delta;
+        return ref1 + STL.balanceOf(token1, address(this)) - voucher1Delta;
     }
 
     // Accrue fees on token0
     function _update0(uint256 amount) internal {
-        SafeTransferLib.safeTransfer(ERC20(token0), address(feesAccumulator), amount);
+        STL.safeTransfer(token0, address(feesAccumulator), amount);
     }
 
     // Accrue fees on token1
     function _update1(uint256 amount) internal {
-        SafeTransferLib.safeTransfer(ERC20(token1), address(feesAccumulator), amount);
+        STL.safeTransfer(token1, address(feesAccumulator), amount);
     }
 
     // update reserves and, on the first call per block, price accumulators
@@ -209,7 +209,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
                 // difference between our token balance and what user needs
                 (uint256 toSend, uint256 toMint) =
                     _balance0 >= amount0Out ? (amount0Out, 0) : (_balance0, amount0Out - _balance0);
-                if (toSend > 0) SafeTransferLib.safeTransfer(ERC20(_token0), to, toSend);
+                if (toSend > 0) STL.safeTransfer(_token0, to, toSend);
                 if (toMint > 0) {
                     voucher0.mint(to, toMint);
                     voucher0Delta += toMint;
@@ -219,7 +219,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             if (amount1Out > 0) {
                 (uint256 toSend, uint256 toMint) =
                     _balance1 >= amount1Out ? (amount1Out, 0) : (_balance1, amount1Out - _balance1);
-                if (toSend > 0) SafeTransferLib.safeTransfer(ERC20(_token1), to, toSend);
+                if (toSend > 0) STL.safeTransfer(_token1, to, toSend);
                 if (toMint > 0) {
                     voucher1.mint(to, toMint);
                     voucher1Delta += toMint;
@@ -320,8 +320,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         voucher0.transferFrom(msg.sender, address(this), amount0);
         voucher1.transferFrom(msg.sender, address(this), amount1);
 
-        SafeTransferLib.safeTransfer(ERC20(token0), msg.sender, amount0);
-        SafeTransferLib.safeTransfer(ERC20(token1), msg.sender, amount1);
+        STL.safeTransfer(token0, msg.sender, amount0);
+        STL.safeTransfer(token1, msg.sender, amount1);
 
         emit VouchersYeeted(msg.sender, amount0, amount1);
     }
@@ -338,11 +338,11 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable override {
         if (msg.value < (sgFee + hyperlaneFee) * 2) revert MsgValueTooLow();
 
-        ERC20 _token0 = ERC20(token0);
-        ERC20 _token1 = ERC20(token1);
+        address _token0 = token0;
+        address _token1 = token1;
         // balance before getting accumulated fees
-        uint256 _balance0 = _token0.balanceOf(address(this));
-        uint256 _balance1 = _token1.balanceOf(address(this));
+        uint256 _balance0 = STL.balanceOf(_token0, address(this));
+        uint256 _balance1 = STL.balanceOf(_token1, address(this));
         (uint256 fees0, uint256 fees1) = feesAccumulator.take();
 
         uint32 destDomain = factory.destDomain();
@@ -352,7 +352,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         {
             uint256 pairVoucher0Balance = voucher0.balanceOf(address(this));
             // swap token0
-            _token0.approve(address(stargateRouter), _balance0 + fees0);
+            STL.safeApprove(_token0, address(stargateRouter), _balance0 + fees0);
             stargateRouter.swap{value: sgFee}(
                 destChainId,
                 sgConfig.srcPoolId0,
@@ -381,7 +381,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         {
             uint256 pairVoucher1Balance = voucher1.balanceOf(address(this));
             // swap token1
-            _token1.approve(address(stargateRouter), _balance1 + fees1);
+            STL.safeApprove(_token1, address(stargateRouter), _balance1 + fees1);
             stargateRouter.swap{value: sgFee}(
                 destChainId,
                 sgConfig.srcPoolId1,
