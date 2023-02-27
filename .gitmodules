@@ -8,3 +8,7 @@
 [submodule "lib/pigeon"]
 	path = lib/pigeon
 	url = https://github.com/exp-table/pigeon
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = https://github.com/foundry/forge-std
+	branch = v1.4.0
