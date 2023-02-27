@@ -286,17 +286,22 @@ contract DoveSyncTest is DoveBase {
         vm.recordLogs();
         pair.syncToL1{value: 800 ether}(200 ether, 200 ether);
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        bytes[] memory payloads = new bytes[](4);
-        payloads[0] = abi.decode(logs[10].data, (bytes));
-        payloads[1] = abi.decode(logs[21].data, (bytes));
-        payloads[2] = logs[12].data;
-        payloads[3] = logs[23].data;
 
+        // to find LZ events
+        uint256[2] memory LZEventsIndexes =
+            _findSyncingEvents(logs, 0xe9bded5f24a4168e4f3bf44e00298c993b22376aad8c58c7dda9718a54cbea82);
+        // to find mock mailbox events
+        uint256[2] memory HLEventsIndexes =
+            _findSyncingEvents(logs, 0x3b31784f245377d844a88ed832a668978c700fd9d25d80e8bf5ef168c6bffa20);
+        bytes[] memory payloads = new bytes[](3);
+        payloads[0] = abi.decode(logs[LZEventsIndexes[0]].data, (bytes));
+        payloads[1] = abi.decode(logs[LZEventsIndexes[1]].data, (bytes));
+        payloads[2] = logs[HLEventsIndexes[0]].data;
+        
         _handleSGMessage(L2_FORK_ID, payloads[0]);
         _handleSGMessage(L2_FORK_ID, payloads[1]);
         dove.sync();
         _handleHLMessage(L2_FORK_ID, payloads[2]);
-        _handleHLMessage(L2_FORK_ID, payloads[3]);
 
         // ################################
 
