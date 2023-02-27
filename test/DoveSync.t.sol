@@ -89,10 +89,10 @@ contract DoveSyncTest is DoveBase {
         uint256 L2R0 = pair.reserve0(); // USDC virtual reserve
         uint256 L2R1 = pair.reserve1(); // DAI virtual reserve
 
-        uint256[] memory order = new uint[](4);
+        uint256[] memory order = new uint[](3);
         order[0] = 2;
-        order[2] = 0;
-        order[3] = 1;
+        order[1] = 0;
+        order[2] = 1;
         _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
@@ -119,10 +119,10 @@ contract DoveSyncTest is DoveBase {
         uint256 voucher0Balance = pair.voucher0().totalSupply();
         uint256 voucher1Balance = pair.voucher1().totalSupply();
 
-        uint256[] memory order = new uint[](4);
+        uint256[] memory order = new uint[](3);
         order[0] = 2;
-        order[2] = 0;
-        order[3] = 1;
+        order[1] = 0;
+        order[2] = 1;
         _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
@@ -235,10 +235,10 @@ contract DoveSyncTest is DoveBase {
 
         // ######## ATTACK FINISHED ########
 
-        uint256[] memory order = new uint[](4);
+        uint256[] memory order = new uint[](3);
         order[0] = 2;
-        order[2] = 0;
-        order[3] = 1;
+        order[1] = 0;
+        order[2] = 1;
         _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
@@ -329,10 +329,10 @@ contract DoveSyncTest is DoveBase {
         assert(syncerPercentage <= 5000);
         vm.recordLogs();
         // use non standard sync so we can manually finalize
-        uint256[] memory order = new uint[](4);
+        uint256[] memory order = new uint[](3);
         order[0] = 2;
-        order[2] = 0;
-        order[3] = 1;
+        order[1] = 0;
+        order[2] = 1;
         _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
