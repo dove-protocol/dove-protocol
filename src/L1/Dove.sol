@@ -4,7 +4,7 @@ pragma solidity ^0.8.15;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {Owned} from "solmate/auth/Owned.sol";
-import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {SafeTransferLib as STL} from "solady/utils/SafeTransferLib.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 
 import {Fountain} from "./Fountain.sol";
@@ -164,7 +164,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     }
 
     function _update0(uint256 amount) internal {
-        SafeTransferLib.safeTransfer(ERC20(token0), address(feesDistributor), amount);
+        STL.safeTransfer(token0, address(feesDistributor), amount);
         uint256 _ratio = amount * 1e18 / totalSupply; // 1e18 adjustment is removed during claim
         if (_ratio > 0) {
             index0 += _ratio;
@@ -173,7 +173,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
 
     // Accrue fees on token1
     function _update1(uint256 amount) internal {
-        SafeTransferLib.safeTransfer(ERC20(token1), address(feesDistributor), amount);
+        STL.safeTransfer(token1, address(feesDistributor), amount);
         uint256 _ratio = amount * 1e18 / totalSupply;
         if (_ratio > 0) {
             index1 += _ratio;
@@ -228,9 +228,9 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         if (this.isLiquidityLocked()) revert LiquidityLocked();
         _claimFees(to);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
-        (ERC20 _token0, ERC20 _token1) = (ERC20(token0), ERC20(token1));
-        uint256 _balance0 = _token0.balanceOf(address(this));
-        uint256 _balance1 = _token1.balanceOf(address(this));
+        (address _token0, address _token1) = (token0, token1);
+        uint256 _balance0 = STL.balanceOf(_token0, address(this));
+        uint256 _balance1 = STL.balanceOf(_token1, address(this));
         uint256 _liquidity = balanceOf[address(this)];
 
         uint256 _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
@@ -242,10 +242,10 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         _updateFor(to);
         _burn(address(this), _liquidity);
 
-        SafeTransferLib.safeTransfer(_token0, to, amount0);
-        SafeTransferLib.safeTransfer(_token1, to, amount1);
-        _balance0 = _token0.balanceOf(address(this));
-        _balance1 = _token1.balanceOf(address(this));
+        STL.safeTransfer(_token0, to, amount0);
+        STL.safeTransfer(_token1, to, amount1);
+        _balance0 = STL.balanceOf(_token0, address(this));
+        _balance1 = STL.balanceOf(_token1, address(this));
 
         _update(_balance0, _balance1, _reserve0, _reserve1);
         emit Burn(msg.sender, amount0, amount1, to);
@@ -382,7 +382,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         internal
         returns (bool hasFailed)
     {
-        (ERC20 _token0, ERC20 _token1) = (ERC20(token0), ERC20(token1));
+        (address _token0, address _token1) = (token0, token1);
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         // re-arrange in correct order the sync's partial syncs
         if (sync.pSyncA.token == token1) {
@@ -403,8 +403,8 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
             uint256 fees1 = LB1 - sync.pSyncB.pairBalance;
 
             // send over the fees to syncer
-            SafeTransferLib.safeTransfer(_token0, sync.sm.syncer, fees0 * sync.sm.syncerPercentage / 10000);
-            SafeTransferLib.safeTransfer(_token1, sync.sm.syncer, fees1 * sync.sm.syncerPercentage / 10000);
+            STL.safeTransfer(_token0, sync.sm.syncer, fees0 * sync.sm.syncerPercentage / 10000);
+            STL.safeTransfer(_token1, sync.sm.syncer, fees1 * sync.sm.syncerPercentage / 10000);
             fees0 -= fees0 * sync.sm.syncerPercentage / 10000;
             fees1 -= fees1 * sync.sm.syncerPercentage / 10000;
 
@@ -421,11 +421,11 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
             marked0[srcDomain] += sync.pSyncA.earmarkedAmount;
             marked1[srcDomain] += sync.pSyncB.earmarkedAmount;
             // put earmarked tokens on the side
-            SafeTransferLib.safeTransfer(ERC20(sync.pSyncA.token), address(fountain), sync.pSyncA.earmarkedAmount);
-            SafeTransferLib.safeTransfer(ERC20(sync.pSyncB.token), address(fountain), sync.pSyncB.earmarkedAmount);
+            STL.safeTransfer(sync.pSyncA.token, address(fountain), sync.pSyncA.earmarkedAmount);
+            STL.safeTransfer(sync.pSyncB.token, address(fountain), sync.pSyncB.earmarkedAmount);
 
-            SafeTransferLib.safeTransfer(ERC20(sync.pSyncA.token), address(this), sync.pSyncA.tokensForDove);
-            SafeTransferLib.safeTransfer(ERC20(sync.pSyncB.token), address(this), sync.pSyncB.tokensForDove);
+            STL.safeTransfer(sync.pSyncA.token, address(this), sync.pSyncA.tokensForDove);
+            STL.safeTransfer(sync.pSyncB.token, address(this), sync.pSyncB.tokensForDove);
         }
         emit SyncFinalized(
             srcDomain,
