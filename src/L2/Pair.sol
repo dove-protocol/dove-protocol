@@ -381,7 +381,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             payable(msg.sender),
             _balance0 + fees0,
             _balance0,
-            IStargateRouter.lzTxObj(200000, 0, "0x"),
+            IStargateRouter.lzTxObj(50000, 0, "0x"),
             abi.encodePacked(L1Target),
             "1"
         );
@@ -396,7 +396,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             payable(msg.sender),
             _balance1 + fees1,
             _balance1,
-            IStargateRouter.lzTxObj(200000, 0, "0x"),
+            IStargateRouter.lzTxObj(50000, 0, "0x"),
             abi.encodePacked(L1Target),
             "1"
         );
