@@ -16,11 +16,33 @@ contract L2Actor is StdUtils {
         router = L2Router(_router);
     }
 
-    /*function swap(uint256 _amountIn) external {
+    function swapFrom0(uint256 _amountIn) external {
         uint256 boundedAmountIn = bound(_amountIn, 1, ERC20Mock(pair.token0()).balanceOf(address(this)));
 
-        uint256 amountOut = pair.getAmountOut(_amountInBounded, tokenIn, tokenOut);
+        uint256 amountOut = router.getAmountOut(boundedAmountIn, pair.token0(), pair.token1());
 
-        //router.swapExactTokensForTokensSimple(amountIn, amountOutMin,tokenFrom,tokenTo,to,deadline)
-    }*/
+        router.swapExactTokensForTokensSimple(
+            boundedAmountIn,
+            amountOut,
+            pair.token0(),
+            pair.token1(),
+            address(this),
+            block.timestamp + 1000
+        );
+    }
+
+    function swapFrom1(uint256 _amountIn) external {
+        uint256 boundedAmountIn = bound(_amountIn, 1, ERC20Mock(pair.token1()).balanceOf(address(this)));
+
+        uint256 amountOut = router.getAmountOut(boundedAmountIn, pair.token1(), pair.token0());
+
+        router.swapExactTokensForTokensSimple(
+            boundedAmountIn,
+            amountOut,
+            pair.token1(),
+            pair.token0(),
+            address(this),
+            block.timestamp + 1000
+        );
+    }
 }

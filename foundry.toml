@@ -10,8 +10,9 @@ optimizer = true
 optimizer_runs = 1_000
 
 [fuzz]
-runs = 1_000
+runs = 1024
 
 # Extreme Fuzzing CI Profile :P
 [profile.fuzz.ci]
 runs = 100_000
+
