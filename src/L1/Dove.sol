@@ -288,7 +288,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
 
         uint256 messageType = abi.decode(payload, (uint256));
 
-        if (messageType == Codec.SYNC_TO_L1) {
+        if (Codec.getType(payload) == Codec.SYNC_TO_L1) {
             (
                 uint256 syncID,
                 Codec.SyncerMetadata memory sm,
