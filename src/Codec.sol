@@ -5,10 +5,12 @@ library Codec {
     uint256 public constant SYNC_TO_L1 = 2;
     uint256 public constant SYNC_TO_L2 = 3;
 
-    function getType(bytes calldata) internal pure returns (uint256 msgType) {
+    function getType(bytes calldata payload) internal pure returns (uint256 msgType) {
         assembly {
-            let load := calldataload(0x44)
-            msgType := shr(253, load)
+            let ptr := mload(0x40)
+            calldatacopy(ptr, payload.offset, 32)
+            msgType := shr(253, mload(ptr))
+
         }
     }
 
