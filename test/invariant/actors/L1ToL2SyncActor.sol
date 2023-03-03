@@ -1,19 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
+import { Vm } from "forge-std/Vm.sol";
+import { TestBaseAssertions } from "../../TestBaseAssertions.sol";
+import { Pair } from "../../../src/L2/Pair.sol";
 import { Dove } from "../../../src/L1/Dove.sol";
-import { L1Router } from "../../../src/L1/L1Router.sol";
+import { L1Router } from "../../../src/L1/L1router.sol";
 import { ERC20Mock } from "../../mocks/ERC20Mock.sol";
-import { StdUtils } from "forge-std/StdUtils.sol";
 
-contract L1Actor is StdUtils {
+contract L1ToL2SyncActor is TestBaseAssertions {
 
+    Pair public pair;
     Dove public dove;
     L1Router public router;
 
-    constructor (address _dove, address _router) {
+    constructor (address _pair, address _dove, address _router) {
+        pair = Pair(_pair);
         dove = Dove(_dove);
         router = L1Router(_router);
+    }
+
+    function syncReserves() external {
+        dove.syncL2(L2_DOMAIN, address(pair));
     }
 
     function deposit(

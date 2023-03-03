@@ -56,7 +56,7 @@ contract CrossChainActor is TestBaseAssertions {
     function withdraw(
         uint256 liquidity
     ) external {
-        vm.selectFork(L2_FORK_ID);
+        vm.selectFork(L1_FORK_ID);
         uint256 boundedLiquidity = constrictToRange(liquidity, 0, ERC20Mock(address(dove)).balanceOf(address(this)));
 
         (uint256 _amount0Min, uint256 _amount1Min) = 

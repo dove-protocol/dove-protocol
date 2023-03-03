@@ -32,6 +32,7 @@ contract TestBase is TestUtils, Minter {
     // ----------------------------------------------------------------------------------------------------------
 
     /// constants
+    address internal BASE;
     // time
     uint256 internal constant ONE_DAY = 1 days;
     uint256 internal constant ONE_MONTH = ONE_YEAR / 12;
@@ -99,6 +100,7 @@ contract TestBase is TestUtils, Minter {
     // Base Setup, Deploy DAI & USDC DOVE/PAIR | Chains: Polygon
     // ----------------------------------------------------------------------------------------------------------
     function setUp() public virtual {
+        BASE = address(this);
         vm.makePersistent(address(this));
         // set fork id constants for all chains
         _setForks();

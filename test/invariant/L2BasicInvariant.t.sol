@@ -29,7 +29,6 @@ contract L2BasicInvariant is BaseInvariant {
         Minter.mintDAIL1(pair01Poly.token0(), address(actor), 2 ** 25);
         Minter.mintUSDCL1(pair01Poly.token1(), address(actor), 2 ** 13);
 
-        //targetContract(address(actor));
         targetSelector(fuzzSelector);
     }
 
