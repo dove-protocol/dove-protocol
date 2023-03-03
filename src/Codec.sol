@@ -19,9 +19,9 @@ library Codec {
 
     struct PartialSync {
         address token;
-        uint256 tokensForDove; // tokens to send to Dove, aka vouchers held by pair burnt
-        uint256 earmarkedAmount; // tokens to earmark aka vouchers
-        uint256 pairBalance; // token balance of the pair
+        uint128 tokensForDove; // tokens to send to Dove, aka vouchers held by pair burnt
+        uint128 earmarkedAmount; // tokens to earmark aka vouchers
+        uint128 pairBalance; // token balance of the pair
     }
 
     struct SyncerMetadata {
@@ -44,29 +44,50 @@ library Codec {
     ) internal pure returns (bytes memory payload) {
         assembly {
             payload := mload(0x40) // free mem ptr
-            mstore(payload, 0x120) // store length
+            mstore(payload, 0xC0) // store length
             /*
                 fpacket is split into the following, left to right
 
                 3 bits  | 16 bits | 14 bits | 160 bits |
-                --------|---------|---------|----------|
-                msgType | syncID  | syncer% | syncer |
+                --------|---------|---------|----------| = 193 bits occupied
+                msgType | syncID  | syncer% | syncer   |
             */
             let fpacket := shl(253, SYNC_TO_L1) // 3 bits
             fpacket := or(fpacket, shl(237, syncID)) // 16 bits
             fpacket := or(fpacket, shl(223, syncerPercentage)) // 14 bits
             fpacket := or(fpacket, shl(63, syncer)) // 160 bits
             mstore(add(payload, 0x20), fpacket) // 1 memory "slot" used so far
-            mstore(add(payload, 0x40), L1Token0) // 1 memory "slot" used so far
-            mstore(add(payload, 0x60), pairVoucherBalance0) // 2 memory "slots" used so far
-            mstore(add(payload, 0x80), voucherDelta0) // 3 memory "slots" used so far
-            mstore(add(payload, 0xA0), balance0) // 4 memory "slots" used so far
-            mstore(add(payload, 0xC0), L1Token1) // 5 memory "slots" used so far
-            mstore(add(payload, 0xE0), pairVoucherBalance1) // 6 memory "slots" used so far
-            mstore(add(payload, 0x100), voucherDelta1) // 7 memory "slots" used so far
-            mstore(add(payload, 0x120), balance1) // 8 memory "slots" used so far
+            /*
+            mem   |--------- 0x40 ---------|--------- 0x60 ---------|--------- 0x80 ---------|--------- 0xA0 ---------|--------- 0xC0 ---------|
+            var   |      L1T0     | TFD0   | TFD0 |    EA0    | PB0 | PB0 |   L1T1   |  TFD1 | TFD1 |    EA1    | PB1 | PB1 |   0x00   | 0x00 |
+            bytes |       20      |  12    |  4   |    16     | 12  |  4  |    20    |   8   | 8    |    16     |  8  | 8   |    0     |  0   |
+            bits  |      160      |  96    |  32  |    128    | 96  |  32 |    160   |   64  | 64   |    128    |  64 | 64  |    0     |  0   |
+                                  >---------------<           >-----------<          >--------------<           >-----------<
+            */
+            fpacket := shl(96, L1Token0)
+            // at this point, only the 96 upper bits are saved, 32 bits left to save
+            fpacket := or(fpacket, shr(32, pairVoucherBalance0))
+            mstore(add(payload, 0x40), fpacket)
+
+            fpacket := shl(224, pairVoucherBalance0)
+            fpacket := or(fpacket, shl(96, voucherDelta0))
+            fpacket := or(fpacket, shr(32, balance0))
+            mstore(add(payload, 0x60), fpacket)
+
+            fpacket := shl(224, balance0)
+            fpacket := or(fpacket, shl(64, L1Token1))
+            fpacket := or(fpacket, shr(64, pairVoucherBalance1))
+            mstore(add(payload, 0x80), fpacket)
+
+            fpacket := shl(192, pairVoucherBalance1)
+            fpacket := or(fpacket, shl(64, voucherDelta1))
+            fpacket := or(fpacket, shr(64, balance1))
+            mstore(add(payload, 0xA0), fpacket)
+
+            fpacket := shl(192, balance1)
+            mstore(add(payload, 0xC0), fpacket)
             // update free mem ptr
-            mstore(0x40, add(payload, 0x140))
+            mstore(0x40, add(payload, 0xe0))
         }
     }
 
@@ -82,16 +103,23 @@ library Codec {
             // syncer%
             mstore(sm, and(shr(223, fpacket), 0x3FFF))
             mstore(add(sm, 0x20), and(shr(63, fpacket), 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF))
+            /*
+            mem   |--------- 0x40 ---------|--------- 0x60 ---------|--------- 0x80 ---------|--------- 0xA0 ---------|--------- 0xC0 ---------|
+            var   |      L1T0     | TFD0   | TFD0 |    EA0    | PB0 | PB0 |   L1T1   |  TFD1 | TFD1 |    EA1    | PB1 | PB1 |   0x00   | 0x00 |
+            bytes |       20      |  12    |  4   |    16     | 12  |  4  |    20    |   8   | 8    |    16     |  8  | 8   |    0     |  0   |
+            bits  |      160      |  96    |  32  |    128    | 96  |  32 |    160   |   64  | 64   |    128    |  64 | 64  |    0     |  0   |
+                                  >---------------<           >-----------<          >--------------<           >-----------<
+            */
             // psyncA
-            mstore(pSyncA, mload(add(_payload, 0x40)))
-            mstore(add(pSyncA, 0x20), mload(add(_payload, 0x60)))
-            mstore(add(pSyncA, 0x40), mload(add(_payload, 0x80)))
-            mstore(add(pSyncA, 0x60), mload(add(_payload, 0xA0)))
+            mstore(pSyncA, shr(96, mload(add(_payload, 0x40))))
+            mstore(add(pSyncA, 0x20), shr(128, mload(add(_payload, 0x54)))) // tokensForDove
+            mstore(add(pSyncA, 0x40), shr(128, mload(add(_payload, 0x64)))) // earmarked
+            mstore(add(pSyncA, 0x60), shr(128, mload(add(_payload, 0x74)))) // balance
             // psyncB
-            mstore(pSyncB, mload(add(_payload, 0xC0)))
-            mstore(add(pSyncB, 0x20), mload(add(_payload, 0xE0)))
-            mstore(add(pSyncB, 0x40), mload(add(_payload, 0x100)))
-            mstore(add(pSyncB, 0x60), mload(add(_payload, 0x120)))
+            mstore(pSyncB, shr(96, mload(add(_payload, 0x84)))) // token
+            mstore(add(pSyncB, 0x20), shr(128, mload(add(_payload, 0x98))))
+            mstore(add(pSyncB, 0x40), shr(128, mload(add(_payload, 0xA8))))
+            mstore(add(pSyncB, 0x60), shr(128, mload(add(_payload, 0xB8))))
         }
     }
 

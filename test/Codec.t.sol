@@ -24,13 +24,13 @@ contract CodecTest is Test {
     function testEncodeAndDecodeSyncToL1(
         uint256 syncID,
         address L1Token0,
-        uint256 pairVoucherBalance0,
-        uint256 voucherDelta0, 
-        uint256 balance0,
+        uint128 pairVoucherBalance0,
+        uint128 voucherDelta0, 
+        uint128 balance0,
         address L1Token1,
-        uint256 pairVoucherBalance1,
-        uint256 voucherDelta1,
-        uint256 balance1,
+        uint128 pairVoucherBalance1,
+        uint128 voucherDelta1,
+        uint128 balance1,
         address syncer,
         uint64 syncerPercentage
     ) public {
@@ -52,12 +52,24 @@ contract CodecTest is Test {
             syncerPercentage
         );
 
+        console.logBytes(encoded);
+
         (
             syncID_,
             sm,
             pSyncA,
             pSyncB
         ) = Codec.decodeSyncToL1(encoded);
+
+        console.log("psyncA.token", pSyncA.token);
+        console.log("psyncA.tokensForDove", pSyncA.tokensForDove);
+        console.log("psyncA.earmarkedAmount", pSyncA.earmarkedAmount);
+        console.log("psyncA.pairBalance", pSyncA.pairBalance);
+
+        console.log("psyncB.token", pSyncB.token);
+        console.log("psyncB.tokensForDove", pSyncB.tokensForDove);
+        console.log("psyncB.earmarkedAmount", pSyncB.earmarkedAmount);
+        console.log("psyncB.pairBalance", pSyncB.pairBalance);
 
 
         Typer typer = new Typer();
