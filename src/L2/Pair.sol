@@ -424,7 +424,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         if (amount0 > 0) voucher0.burn(msg.sender, amount0);
         if (amount1 > 0) voucher1.burn(msg.sender, amount1);
         (amount0, amount1) = _getL1Ordering(amount0, amount1);
-        bytes memory payload = Codec.encodeVouchersBurn(msg.sender, amount0, amount1);
+        bytes memory payload = Codec.encodeVouchersBurn(msg.sender, uint128(amount0), uint128(amount1));
         bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destDomain);
 

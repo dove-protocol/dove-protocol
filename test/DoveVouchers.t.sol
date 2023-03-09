@@ -60,8 +60,9 @@ contract DoveVouchersTest is DoveBase {
 
         vm.selectFork(L1_FORK_ID);
 
-        assertEq(dove.marked1(L2_DOMAIN), voucher0Supply);
-        assertEq(dove.marked0(L2_DOMAIN), voucher1Supply - voucher1BalanceOfBeef);
+        (uint128 realMarked0, uint128 realMarked1) = dove.marked(L2_DOMAIN);
+        assertEq(realMarked0, voucher1Supply - voucher1BalanceOfBeef);
+        assertEq(realMarked1, voucher0Supply);
         // reserves should not have changed
         assertEq(dove.reserve0(), L1R0);
         assertEq(dove.reserve1(), L1R1);
@@ -76,8 +77,9 @@ contract DoveVouchersTest is DoveBase {
 
         vm.selectFork(L1_FORK_ID);
 
-        assertEq(dove.marked1(L2_DOMAIN), voucher0Supply);
-        assertEq(dove.marked0(L2_DOMAIN), voucher1Supply - voucher1BalanceOfBeef);
+        (realMarked0, realMarked1) = dove.marked(L2_DOMAIN);
+        assertEq(realMarked0, voucher1Supply - voucher1BalanceOfBeef);
+        assertEq(realMarked1, voucher0Supply);
         // reserves should not have changed
         assertEq(dove.reserve0(), L1R0);
         assertEq(dove.reserve1(), L1R1);

@@ -144,11 +144,11 @@ library Codec {
 
     struct VouchersBurnPayload {
         address user;
-        uint256 amount0;
-        uint256 amount1;
+        uint128 amount0;
+        uint128 amount1;
     }
 
-    function encodeVouchersBurn(address user, uint256 amount0, uint256 amount1) internal pure returns (bytes memory) {
+    function encodeVouchersBurn(address user, uint128 amount0, uint128 amount1) internal pure returns (bytes memory) {
         return abi.encode(BURN_VOUCHERS, VouchersBurnPayload(user, amount0, amount1));
     }
 

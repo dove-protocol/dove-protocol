@@ -35,9 +35,12 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     Fountain public feesDistributor;
     Fountain public fountain;
 
+    struct Marked {
+        uint128 marked0;
+        uint128 marked1;
+    }
     /// @notice domain id [hyperlane] => earmarked tokens
-    mapping(uint32 => uint256) public marked0;
-    mapping(uint32 => uint256) public marked1;
+    mapping(uint32 => Marked) public marked;
     mapping(uint32 => mapping(uint16 => Sync)) public syncs;
     mapping(uint32 => mapping(address => BurnClaim)) public burnClaims;
 
@@ -322,13 +325,12 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     function claimBurn(uint32 srcDomain, address user) external override {
         BurnClaim memory burnClaim = burnClaims[srcDomain][user];
 
-        uint256 amount0 = burnClaim.amount0;
-        uint256 amount1 = burnClaim.amount1;
+        uint128 amount0 = burnClaim.amount0;
+        uint128 amount1 = burnClaim.amount1;
 
         delete burnClaims[srcDomain][user];
-
-        marked0[srcDomain] -= amount0;
-        marked1[srcDomain] -= amount1;
+        marked[srcDomain].marked0 -= amount0;
+        marked[srcDomain].marked1 -= amount1;
         fountain.squirt(user, amount0, amount1);
     }
 
@@ -338,7 +340,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
 
     function _completeVoucherBurns(uint32 srcDomain, Codec.VouchersBurnPayload memory vbp) internal {
         // if not enough to satisfy, just save the claim
-        if (vbp.amount0 > marked0[srcDomain] || vbp.amount1 > marked1[srcDomain]) {
+        if (vbp.amount0 > marked[srcDomain].marked0 || vbp.amount1 > marked[srcDomain].marked1) {
             // cumulate burns
             BurnClaim memory burnClaim = burnClaims[srcDomain][vbp.user];
             burnClaims[srcDomain][vbp.user] =
@@ -346,8 +348,8 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
             emit BurnClaimCreated(srcDomain, vbp.user, vbp.amount0, vbp.amount1);
         } else {
             // update earmarked tokens
-            marked0[srcDomain] -= vbp.amount0;
-            marked1[srcDomain] -= vbp.amount1;
+            marked[srcDomain].marked0 -= vbp.amount0;
+            marked[srcDomain].marked1 -= vbp.amount1;
             fountain.squirt(vbp.user, vbp.amount0, vbp.amount1);
             emit BurnClaimed(srcDomain, vbp.user, vbp.amount0, vbp.amount1);
         }
@@ -418,8 +420,8 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         {
             reserve0 = _reserve0 + sync.pSyncA.pairBalance - sync.pSyncA.earmarkedAmount;
             reserve1 = _reserve1 + sync.pSyncB.pairBalance - sync.pSyncB.earmarkedAmount;
-            marked0[srcDomain] += sync.pSyncA.earmarkedAmount;
-            marked1[srcDomain] += sync.pSyncB.earmarkedAmount;
+            marked[srcDomain].marked0 += sync.pSyncA.earmarkedAmount;
+            marked[srcDomain].marked1 += sync.pSyncB.earmarkedAmount;
             // put earmarked tokens on the side
             STL.safeTransfer(sync.pSyncA.token, address(fountain), sync.pSyncA.earmarkedAmount);
             STL.safeTransfer(sync.pSyncB.token, address(fountain), sync.pSyncB.earmarkedAmount);

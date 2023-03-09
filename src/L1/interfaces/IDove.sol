@@ -38,8 +38,8 @@ interface IDove {
     }
 
     struct BurnClaim {
-        uint256 amount0;
-        uint256 amount1;
+        uint128 amount0;
+        uint128 amount1;
     }
 
     function claimFeesFor(address recipient) external returns (uint256 claimed0, uint256 claimed1);
