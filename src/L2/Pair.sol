@@ -60,8 +60,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     uint128 internal ref0;
     uint128 internal ref1;
     // amount of vouchers minted since last L1->L2 sync
-    uint256 internal voucher0Delta;
-    uint256 internal voucher1Delta;
+    uint128 internal voucher0Delta;
+    uint128 internal voucher1Delta;
 
     uint256 constant FEE = 300;
 
@@ -213,7 +213,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
                 if (toSend > 0) STL.safeTransfer(_token0, to, toSend);
                 if (toMint > 0) {
                     voucher0.mint(to, toMint);
-                    voucher0Delta += toMint;
+                    voucher0Delta += uint128(toMint);
                 }
             }
             // optimistically mints vouchers
@@ -223,7 +223,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
                 if (toSend > 0) STL.safeTransfer(_token1, to, toSend);
                 if (toMint > 0) {
                     voucher1.mint(to, toMint);
-                    voucher1Delta += toMint;
+                    voucher1Delta += uint128(toMint);
                 }
             }
             //if (data.length > 0) IBaseV1Callee(to).hook(msg.sender, amount0Out, amount1Out, data);
@@ -345,8 +345,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         uint256 _balance0 = STL.balanceOf(_token0, address(this));
         uint256 _balance1 = STL.balanceOf(_token1, address(this));
 
-        uint256 pairVoucher0Balance = voucher0.balanceOf(address(this));
-        uint256 pairVoucher1Balance = voucher1.balanceOf(address(this));
+        uint128 pairVoucher0Balance = uint128(voucher0.balanceOf(address(this)));
+        uint128 pairVoucher1Balance = uint128(voucher1.balanceOf(address(this)));
 
         // Sends the HL message first to avoid stack too deep!
         {
@@ -386,7 +386,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             abi.encodePacked(L1Target),
             "1"
         );
-        reserve0 = ref0 + uint128(_balance0) - uint128(voucher0Delta - pairVoucher0Balance);
+        reserve0 = ref0 + uint128(_balance0) - voucher0Delta - pairVoucher0Balance;
 
         // swap token1
         STL.safeApprove(_token1, address(stargateRouter), _balance1 + fees1);
@@ -401,7 +401,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             abi.encodePacked(L1Target),
             "1"
         );
-        reserve1 = ref1 + uint128(_balance1) - uint128(voucher1Delta - pairVoucher1Balance);
+        reserve1 = ref1 + uint128(_balance1) - voucher1Delta - pairVoucher1Balance;
 
         ref0 = reserve0;
         ref1 = reserve1;

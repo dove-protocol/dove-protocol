@@ -270,7 +270,11 @@ contract DoveSyncTest is DoveBase {
 
         // pre-sync values to compare to post-sync
         uint256 voucher0Delta = uint256(vm.load(address(pair), bytes32(uint256(20))));
-        uint256 voucher1Delta = uint256(vm.load(address(pair), bytes32(uint256(21))));
+        uint256 voucher1Delta = uint256(vm.load(address(pair), bytes32(uint256(20))));
+        assembly {
+            voucher0Delta := and(voucher0Delta, 0xffffffffffffffffffffffffffffffff)
+            voucher1Delta := shr(128, voucher1Delta)
+        }
         uint256 balance0OfPair = L2Token0.balanceOf(address(pair));
         uint256 balance1OfPair = L2Token1.balanceOf(address(pair));
         vm.selectFork(L1_FORK_ID);
