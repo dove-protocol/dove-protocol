@@ -51,6 +51,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
 
     uint64 internal immutable decimals0;
     uint64 internal immutable decimals1;
+    uint64 internal syncID;
+    uint64 internal lastSyncTimestamp;
 
     IL2Factory.SGConfig internal sgConfig;
 
@@ -60,9 +62,6 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     // amount of vouchers minted since last L1->L2 sync
     uint256 internal voucher0Delta;
     uint256 internal voucher1Delta;
-
-    uint256 internal syncID;
-    uint256 internal lastSyncTimestamp;
 
     uint256 constant FEE = 300;
 
@@ -109,7 +108,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         );
         feesAccumulator = new FeesAccumulator(_token0, _token1);
 
-        lastSyncTimestamp = block.timestamp;
+        lastSyncTimestamp = uint64(block.timestamp);
     }
 
     /*###############################################################
@@ -409,7 +408,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         voucher0Delta = 0;
         voucher1Delta = 0;
         syncID++;
-        lastSyncTimestamp = block.timestamp;
+        lastSyncTimestamp = uint64(block.timestamp);
 
         emit SyncToL1Initiated(_balance0, _balance1, fees0, fees1);
     }
