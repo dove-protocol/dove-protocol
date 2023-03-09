@@ -29,8 +29,8 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     address public token0;
     address public token1;
 
-    uint256 public reserve0;
-    uint256 public reserve1;
+    uint128 public reserve0;
+    uint128 public reserve1;
 
     Fountain public feesDistributor;
     Fountain public fountain;
@@ -191,16 +191,16 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         return block.timestamp > t0 && block.timestamp < t0 + LIQUIDITY_LOCK_PERIOD;
     }
 
-    function _update(uint256 balance0, uint256 balance1, uint256 _reserve0, uint256 _reserve1) internal {
-        reserve0 = balance0;
-        reserve1 = balance1;
+    function _update(uint256 balance0, uint256 balance1) internal {
+        reserve0 = uint128(balance0);
+        reserve1 = uint128(balance1);
         emit Updated(reserve0, reserve1);
     }
 
     function mint(address to) external override nonReentrant returns (uint256 liquidity) {
         if (this.isLiquidityLocked()) revert LiquidityLocked();
         _claimFees(to);
-        (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
+        (uint128 _reserve0, uint128 _reserve1) = (reserve0, reserve1);
         uint256 _balance0 = ERC20(token0).balanceOf(address(this));
         uint256 _balance1 = ERC20(token1).balanceOf(address(this));
         uint256 _amount0 = _balance0 - _reserve0;
@@ -220,7 +220,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         _updateFor(to);
         _mint(to, liquidity);
 
-        _update(_balance0, _balance1, _reserve0, _reserve1);
+        _update(_balance0, _balance1);
         emit Mint(msg.sender, _amount0, _amount1);
     }
 
@@ -247,12 +247,12 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         _balance0 = STL.balanceOf(_token0, address(this));
         _balance1 = STL.balanceOf(_token1, address(this));
 
-        _update(_balance0, _balance1, _reserve0, _reserve1);
+        _update(_balance0, _balance1);
         emit Burn(msg.sender, amount0, amount1, to);
     }
 
     function sync() external override nonReentrant {
-        _update(ERC20(token0).balanceOf(address(this)), ERC20(token1).balanceOf(address(this)), reserve0, reserve1);
+        _update(ERC20(token0).balanceOf(address(this)), ERC20(token1).balanceOf(address(this)));
     }
 
     /*###############################################################
@@ -383,7 +383,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         returns (bool hasFailed)
     {
         (address _token0, address _token1) = (token0, token1);
-        (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
+        (uint128 _reserve0, uint128 _reserve1) = (reserve0, reserve1);
         // re-arrange in correct order the sync's partial syncs
         if (sync.pSyncA.token == token1) {
             (sync.pSyncA, sync.pSyncB) = (sync.pSyncB, sync.pSyncA);
@@ -438,7 +438,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         localSyncID[srcDomain]++;
         uint256 balance0 = ERC20(sync.pSyncA.token).balanceOf(address(this));
         uint256 balance1 = ERC20(sync.pSyncB.token).balanceOf(address(this));
-        _update(balance0, balance1, _reserve0, _reserve1);
+        _update(balance0, balance1);
     }
 
     /*###############################################################
@@ -463,7 +463,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
                             VIEW FUNCTIONS
     ###############################################################*/
 
-    function getReserves() external view override returns (uint256, uint256) {
+    function getReserves() external view override returns (uint128, uint128) {
         return (reserve0, reserve1);
     }
 }
