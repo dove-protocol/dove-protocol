@@ -269,8 +269,8 @@ contract DoveSyncTest is DoveBase {
         _doSomeSwaps();
 
         // pre-sync values to compare to post-sync
-        uint256 voucher0Delta = uint256(vm.load(address(pair), bytes32(uint256(20))));
-        uint256 voucher1Delta = uint256(vm.load(address(pair), bytes32(uint256(20))));
+        uint256 voucher0Delta = uint256(vm.load(address(pair), bytes32(uint256(19))));
+        uint256 voucher1Delta = uint256(vm.load(address(pair), bytes32(uint256(19))));
         assembly {
             voucher0Delta := and(voucher0Delta, 0xffffffffffffffffffffffffffffffff)
             voucher1Delta := shr(128, voucher1Delta)

@@ -30,14 +30,14 @@ library Codec {
     }
 
     function encodeSyncToL1(
-        uint256 syncID,
+        uint16 syncID,
         address L1Token0,
-        uint256 pairVoucherBalance0,
-        uint256 voucherDelta0, 
+        uint128 pairVoucherBalance0,
+        uint128 voucherDelta0, 
         uint256 balance0,
         address L1Token1,
-        uint256 pairVoucherBalance1,
-        uint256 voucherDelta1,
+        uint128 pairVoucherBalance1,
+        uint128 voucherDelta1,
         uint256 balance1,
         address syncer,
         uint64 syncerPercentage
@@ -94,7 +94,7 @@ library Codec {
     function decodeSyncToL1(bytes memory _payload)
         internal
         pure
-        returns (uint256 syncID, SyncerMetadata memory sm, PartialSync memory pSyncA, PartialSync memory pSyncB)
+        returns (uint16 syncID, SyncerMetadata memory sm, PartialSync memory pSyncA, PartialSync memory pSyncB)
     {
         assembly {
             let fpacket := mload(add(_payload, 0x20))

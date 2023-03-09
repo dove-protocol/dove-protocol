@@ -16,13 +16,13 @@ contract Typer is Test {
 
 contract CodecTest is Test {
 
-    uint256 syncID_;
+    uint16 syncID_;
     Codec.SyncerMetadata sm;
     Codec.PartialSync pSyncA;
     Codec.PartialSync pSyncB;
 
     function testEncodeAndDecodeSyncToL1(
-        uint256 syncID,
+        uint16 syncID,
         address L1Token0,
         uint128 pairVoucherBalance0,
         uint128 voucherDelta0, 
@@ -34,8 +34,6 @@ contract CodecTest is Test {
         address syncer,
         uint64 syncerPercentage
     ) public {
-
-        syncID = StdUtils.bound(syncID, 0, 3);
         syncerPercentage = uint64(StdUtils.bound(uint(syncerPercentage), 0, 10000));
 
         bytes memory encoded = Codec.encodeSyncToL1(
@@ -52,24 +50,12 @@ contract CodecTest is Test {
             syncerPercentage
         );
 
-        console.logBytes(encoded);
-
         (
             syncID_,
             sm,
             pSyncA,
             pSyncB
         ) = Codec.decodeSyncToL1(encoded);
-
-        console.log("psyncA.token", pSyncA.token);
-        console.log("psyncA.tokensForDove", pSyncA.tokensForDove);
-        console.log("psyncA.earmarkedAmount", pSyncA.earmarkedAmount);
-        console.log("psyncA.pairBalance", pSyncA.pairBalance);
-
-        console.log("psyncB.token", pSyncB.token);
-        console.log("psyncB.tokensForDove", pSyncB.tokensForDove);
-        console.log("psyncB.earmarkedAmount", pSyncB.earmarkedAmount);
-        console.log("psyncB.pairBalance", pSyncB.pairBalance);
 
 
         Typer typer = new Typer();

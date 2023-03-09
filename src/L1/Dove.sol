@@ -38,16 +38,16 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     /// @notice domain id [hyperlane] => earmarked tokens
     mapping(uint32 => uint256) public marked0;
     mapping(uint32 => uint256) public marked1;
-    mapping(uint32 => mapping(uint256 => Sync)) public syncs;
+    mapping(uint32 => mapping(uint16 => Sync)) public syncs;
     mapping(uint32 => mapping(address => BurnClaim)) public burnClaims;
 
     mapping(uint32 => bytes32) public trustedRemoteLookup;
     mapping(uint16 => bytes) public sgTrustedBridge;
+    // lastBridged[domain][syncID]
+    mapping(uint32 => mapping(uint16 => uint256)) internal lastBridged0;
+    mapping(uint32 => mapping(uint16 => uint256)) internal lastBridged1;
 
-    mapping(uint32 => mapping(uint256 => uint256)) internal lastBridged0;
-    mapping(uint32 => mapping(uint256 => uint256)) internal lastBridged1;
-
-    mapping(uint32 => uint256) internal localSyncID;
+    mapping(uint32 => uint16) internal localSyncID;
 
     // index0 and index1 are used to accumulate fees, this is split out from normal trades to keep the swap "clean"
     // this further allows LP holders to easily claim fees for tokens they have/staked
@@ -273,7 +273,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         if (keccak256(_srcAddress) != keccak256(sgTrustedBridge[_srcChainId])) revert NotTrusted();
 
         uint32 domain = SGHyperlaneConverter.sgToHyperlane(_srcChainId);
-        uint256 syncID = localSyncID[domain];
+        uint16 syncID = localSyncID[domain];
         if (_token == token0) {
             lastBridged0[domain][syncID] += _bridgedAmount;
         } else if (_token == token1) {
@@ -290,7 +290,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
 
         if (Codec.getType(payload) == Codec.SYNC_TO_L1) {
             (
-                uint256 syncID,
+                uint16 syncID,
                 Codec.SyncerMetadata memory sm,
                 Codec.PartialSync memory pSyncA,
                 Codec.PartialSync memory pSyncB
@@ -308,7 +308,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destinationDomain);
     }
 
-    function finalizeSyncFromL2(uint32 originDomain, uint256 syncID) external override {
+    function finalizeSyncFromL2(uint32 originDomain, uint16 syncID) external override {
         if (!(lastBridged0[originDomain][syncID] > 0 && lastBridged1[originDomain][syncID] > 0)) {
             revert NoStargateSwaps();
         }
@@ -353,7 +353,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         }
     }
 
-    function _syncFromL2(uint32 origin, uint256 syncID, Sync memory sync) internal {
+    function _syncFromL2(uint32 origin, uint16 syncID, Sync memory sync) internal {
         // can proceed with full sync since we got the two HyperLane messages
         // have to check if SG swaps are completed
         if (lastBridged0[origin][syncID] > 0 && lastBridged1[origin][syncID] > 0) {
@@ -378,7 +378,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     /// @notice These tokens are simply added back to the reserves.
     /// @dev    This should be an authenticated call, only callable by the operator.
     /// @dev    The sync should be followed by a sync on the L2.
-    function _finalizeSyncFromL2(uint32 srcDomain, uint256 syncID, Sync memory sync)
+    function _finalizeSyncFromL2(uint32 srcDomain, uint16 syncID, Sync memory sync)
         internal
         returns (bool hasFailed)
     {

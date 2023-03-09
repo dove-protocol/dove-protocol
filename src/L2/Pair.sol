@@ -51,8 +51,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
 
     uint64 internal immutable decimals0;
     uint64 internal immutable decimals1;
-    uint64 internal syncID;
     uint64 internal lastSyncTimestamp;
+    uint16 internal syncID;
 
     IL2Factory.SGConfig internal sgConfig;
 
