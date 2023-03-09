@@ -17,6 +17,8 @@ import "./interfaces/IL2Factory.sol";
 
 import "../Codec.sol";
 
+import "forge-std/console.sol";
+
 /// The AMM logic is taken from https://github.com/transmissions11/solidly/blob/master/contracts/BaseV1-core.sol
 
 contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
