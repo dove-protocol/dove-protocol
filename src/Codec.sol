@@ -127,11 +127,11 @@ library Codec {
 
     struct SyncToL2Payload {
         address token0;
-        uint256 reserve0;
-        uint256 reserve1;
+        uint128 reserve0;
+        uint128 reserve1;
     }
 
-    function encodeSyncToL2(address token0, uint256 reserve0, uint256 reserve1) internal pure returns (bytes memory) {
+    function encodeSyncToL2(address token0, uint128 reserve0, uint128 reserve1) internal pure returns (bytes memory) {
         return abi.encode(SYNC_TO_L2, SyncToL2Payload(token0, reserve0, reserve1));
     }
 

@@ -39,8 +39,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     address public L1Token1;
     Voucher public voucher1;
 
-    uint256 public reserve0;
-    uint256 public reserve1;
+    uint128 public reserve0;
+    uint128 public reserve1;
     uint256 public blockTimestampLast;
     uint256 public reserve0CumulativeLast;
     uint256 public reserve1CumulativeLast;
@@ -53,8 +53,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     IL2Factory.SGConfig internal sgConfig;
 
     ///@notice "reference" reserves on L1
-    uint256 internal ref0;
-    uint256 internal ref1;
+    uint128 internal ref0;
+    uint128 internal ref1;
     // amount of vouchers minted since last L1->L2 sync
     uint256 internal voucher0Delta;
     uint256 internal voucher1Delta;
@@ -119,7 +119,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         public
         view
         override
-        returns (uint256 _reserve0, uint256 _reserve1, uint256 _blockTimestampLast)
+        returns (uint128 _reserve0, uint128 _reserve1, uint256 _blockTimestampLast)
     {
         _reserve0 = reserve0;
         _reserve1 = reserve1;
@@ -154,8 +154,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             reserve1CumulativeLast += _reserve1 * timeElapsed;
         }
 
-        reserve0 = _balance0;
-        reserve1 = _balance1;
+        reserve0 = uint128(_balance0);
+        reserve1 = uint128(_balance1);
         blockTimestampLast = blockTimestamp;
         emit Sync(reserve0, reserve1);
     }
@@ -190,7 +190,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         //require(!BaseV1Factory(factory).isPaused());
         if (!(amount0Out > 0 || amount1Out > 0)) revert InsufficientOutputAmount();
 
-        (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
+        (uint128 _reserve0, uint128 _reserve1) = (reserve0, reserve1);
         if (!(amount0Out < _reserve0 && amount1Out < _reserve1)) revert InsufficientLiquidity();
 
         uint256 _balance0;
@@ -385,7 +385,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             abi.encodePacked(L1Target),
             "1"
         );
-        reserve0 = ref0 + _balance0 - (voucher0Delta - pairVoucher0Balance);
+        reserve0 = ref0 + uint128(_balance0) - uint128(voucher0Delta - pairVoucher0Balance);
 
         // swap token1
         STL.safeApprove(_token1, address(stargateRouter), _balance1 + fees1);
@@ -400,7 +400,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             abi.encodePacked(L1Target),
             "1"
         );
-        reserve1 = ref1 + _balance1 - (voucher1Delta - pairVoucher1Balance);
+        reserve1 = ref1 + uint128(_balance1) - uint128(voucher1Delta - pairVoucher1Balance);
 
         ref0 = reserve0;
         ref1 = reserve1;
