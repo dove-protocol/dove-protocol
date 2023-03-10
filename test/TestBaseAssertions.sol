@@ -13,29 +13,43 @@ contract TestBaseAssertions is TestBase {
 
     /// Dove
 
-    function assertDoveBurnClaims(address user, Dove.BurnClaim memory burnClaim, uint256 _amount0, uint256 _amount1)
-        internal
-    {
+    function assertDoveBurnClaims(
+        Dove.BurnClaim memory burnClaim, 
+        uint256 _amount0, 
+        uint256 _amount1
+    ) internal {
         assertEq(burnClaim.amount0, _amount0);
         assertEq(burnClaim.amount1, _amount1);
     }
 
     // assert state of earmarked tokens from "domainID" within "dove"
-    function assertDoveMarkedTokens(Dove dove, uint32 domainID, uint256 markedAmount0, uint256 markedAmount1)
-        internal
-    {
-        assertEq(dove.marked0(domainID), markedAmount0);
-        assertEq(dove.marked1(domainID), markedAmount1);
+    function assertDoveMarkedTokens(
+        Dove.Marked memory _marked,
+        uint128 markedAmount0,
+        uint128 markedAmount1
+    ) internal {
+        assertEq(_marked.marked0, markedAmount0);
+        assertEq(_marked.marked1, markedAmount1);
     }
 
     // assert claimable tokens for "owner" within "dove"
-    function assertDoveSupplyIndex(Dove dove, address recipient, uint256 supplyIndex0, uint256 supplyIndex1) internal {
+    function assertDoveSupplyIndex(
+        Dove dove, 
+        address recipient, 
+        uint256 supplyIndex0, 
+        uint256 supplyIndex1
+    ) internal {
         assertEq(dove.supplyIndex0(recipient), supplyIndex0);
         assertEq(dove.supplyIndex1(recipient), supplyIndex1);
     }
 
     // assert claimable tokens for "owner" within "dove"
-    function assertDoveClaimable(Dove dove, address owner, uint256 claimable0, uint256 claimable1) internal {
+    function assertDoveClaimable(
+        Dove dove, 
+        address owner, 
+        uint256 claimable0, 
+        uint256 claimable1
+    ) internal {
         assertEq(dove.claimable0(owner), claimable0);
         assertEq(dove.claimable1(owner), claimable1);
     }
@@ -55,7 +69,12 @@ contract TestBaseAssertions is TestBase {
     /// Pair
 
     // assert reserve state of "pair" from "forkID"
-    function assertPairReserves(Pair pair, uint256 forkID, uint256 reserve0, uint256 reserve1) internal {
+    function assertPairReserves(
+        Pair pair, 
+        uint256 forkID, 
+        uint256 reserve0, 
+        uint256 reserve1
+    ) internal {
         vm.selectFork(forkID);
         assertEq(pair.reserve0(), reserve0);
         assertEq(pair.reserve1(), reserve1);
@@ -74,29 +93,17 @@ contract TestBaseAssertions is TestBase {
     }
 
     // assert reserve state of "pair" from "forkID"
-    function assertPairBalances(Pair pair, uint256 forkID, uint256 _balance0, uint256 _balance1) internal {
+    function assertPairBalances(
+        Pair pair, 
+        uint256 forkID, 
+        uint128 _balance0,
+        uint128 _balance1
+    ) internal {
         vm.selectFork(forkID);
         assertEq(pair.balance0(), _balance0);
         assertEq(pair.balance1(), _balance1);
     }
 
-    /// Sync
+    /// Sync Assertions
 
-    // assert state of "_sync" within "syncID" from "domainID" within "dove" is correct
-    function assertDoveSyncContents(
-        Dove.Sync memory _sync,
-        uint256 tokensForDoveA,
-        uint256 earmarkedAmountA,
-        uint256 pairBalanceA,
-        uint256 tokensForDoveB,
-        uint256 earmarkedAmountB,
-        uint256 pairBalanceB
-    ) internal {
-        assertEq(_sync.partialSyncA.tokensForDove, tokensForDoveA);
-        assertEq(_sync.partialSyncA.earmarkedAmount, tokensForDoveA);
-        assertEq(_sync.partialSyncA.pairBalance, tokensForDoveA);
-        assertEq(_sync.partialSyncB.tokensForDove, tokensForDoveA);
-        assertEq(_sync.partialSyncB.earmarkedAmount, tokensForDoveA);
-        assertEq(_sync.partialSyncB.pairBalance, tokensForDoveA);
-    }
 }

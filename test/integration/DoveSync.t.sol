@@ -59,8 +59,9 @@ contract DoveSyncTest is DoveBase {
         // have to swap vouchers assert because the ordering of the tokens on L2
         // is not identical to the one on L1 and here it happens that on L1
         // it's [DAI, USDC] and on L2 it's [USDC, DAI]
-        assertEq(dove.marked0(L2_DOMAIN), voucher1Balance);
-        assertEq(dove.marked1(L2_DOMAIN), voucher0Balance);
+        (uint128 a, uint128 b) = dove.marked(L2_DOMAIN);
+        assertEq(a, voucher1Balance);
+        assertEq(b, voucher0Balance);
         assertEq(L1Token0.balanceOf(address(dove.fountain())), voucher1Balance);
         assertEq(L1Token1.balanceOf(address(dove.fountain())), voucher0Balance);
         // // check reserves impacted properly
@@ -89,22 +90,25 @@ contract DoveSyncTest is DoveBase {
         uint256 L2R0 = pair.reserve0(); // USDC virtual reserve
         uint256 L2R1 = pair.reserve1(); // DAI virtual reserve
 
-        uint256[] memory order = new uint[](4);
+        uint256[] memory order = new uint[](3);
         order[0] = 2;
-        order[1] = 3;
-        order[2] = 0;
-        order[3] = 1;
-        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+        order[1] = 0;
+        order[2] = 1;
+        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
-        // given messages weren't in expected order, sync should still be pending
-        assertEq(dove.marked0(L2_DOMAIN), 0);
-        assertEq(dove.marked1(L2_DOMAIN), 0);
+        {
+            // given messages weren't in expected order, sync should still be pending
+            (uint128 realMarked0, uint128 realMarked1) = dove.marked(L2_DOMAIN);
+            assertEq(realMarked0, 0);
+            assertEq(realMarked1, 0);
 
-        dove.finalizeSyncFromL2(L2_DOMAIN, 0);
+            dove.finalizeSyncFromL2(L2_DOMAIN, 0);
 
-        assertEq(dove.marked0(L2_DOMAIN), voucher1Balance);
-        assertEq(dove.marked1(L2_DOMAIN), voucher0Balance);
+            (realMarked0, realMarked1) = dove.marked(L2_DOMAIN);
+            assertEq(realMarked0, voucher1Balance);
+            assertEq(realMarked1, voucher0Balance);
+        }
         assertEq(L1Token0.balanceOf(address(dove.fountain())), voucher1Balance);
         assertEq(L1Token1.balanceOf(address(dove.fountain())), voucher0Balance);
         assertEq(dove.reserve0(), L2R1);
@@ -120,12 +124,11 @@ contract DoveSyncTest is DoveBase {
         uint256 voucher0Balance = pair.voucher0().totalSupply();
         uint256 voucher1Balance = pair.voucher1().totalSupply();
 
-        uint256[] memory order = new uint[](4);
+        uint256[] memory order = new uint[](3);
         order[0] = 2;
-        order[1] = 3;
-        order[2] = 0;
-        order[3] = 1;
-        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+        order[1] = 0;
+        order[2] = 1;
+        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
         dove.finalizeSyncFromL2(L2_DOMAIN, 0);
@@ -237,12 +240,11 @@ contract DoveSyncTest is DoveBase {
 
         // ######## ATTACK FINISHED ########
 
-        uint256[] memory order = new uint[](4);
+        uint256[] memory order = new uint[](3);
         order[0] = 2;
-        order[1] = 3;
-        order[2] = 0;
-        order[3] = 1;
-        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+        order[1] = 0;
+        order[2] = 1;
+        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
         // shouldn't have changed because the sync still pending
@@ -256,9 +258,7 @@ contract DoveSyncTest is DoveBase {
         logs = vm.getRecordedLogs();
         assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k);
         // fees should have gone up by almost 100 each given the attacker sent them
-        bytes32 feesTopic = 0xe47e312e14ed22581dccdf9557c3dd18d0ef990e87fc3f6dcf6bcdde1d13d1e8;
-        Vm.Log memory feesLog = _findOneLog(logs, feesTopic);
-        (uint256 fees0, uint256 fees1) = abi.decode(feesLog.data, (uint256, uint256));
+        (uint256 fees0, uint256 fees1) = _extractFees(logs);
         // todo : actually retrieved bridged amounts and not use a margin error
         assertApproxEqAbs(fees0, 136666666666666666666 + 10 ** 20, 10 ** 18);
         assertApproxEqAbs(fees1, 166566667 + 10 ** 8, 10 ** 6);
@@ -274,13 +274,16 @@ contract DoveSyncTest is DoveBase {
         _doSomeSwaps();
 
         // pre-sync values to compare to post-sync
-        uint256 voucher0Delta = uint256(vm.load(address(pair), bytes32(uint256(21))));
-        uint256 voucher1Delta = uint256(vm.load(address(pair), bytes32(uint256(22))));
+        uint256 voucher0Delta = uint256(vm.load(address(pair), bytes32(uint256(19))));
+        uint256 voucher1Delta = uint256(vm.load(address(pair), bytes32(uint256(19))));
+        assembly {
+            voucher0Delta := and(voucher0Delta, 0xffffffffffffffffffffffffffffffff)
+            voucher1Delta := shr(128, voucher1Delta)
+        }
         uint256 balance0OfPair = L2Token0.balanceOf(address(pair));
         uint256 balance1OfPair = L2Token1.balanceOf(address(pair));
         vm.selectFork(L1_FORK_ID);
-        uint256 marked0 = dove.marked0(L2_DOMAIN);
-        uint256 marked1 = dove.marked1(L2_DOMAIN);
+        (uint128 marked0, uint128 marked1) = dove.marked(L2_DOMAIN);
         uint256 balance0OfFountain = L1Token0.balanceOf(address(dove.fountain()));
         uint256 balance1OfFountain = L1Token1.balanceOf(address(dove.fountain()));
         uint256 reserve0 = dove.reserve0();
@@ -291,17 +294,24 @@ contract DoveSyncTest is DoveBase {
         vm.recordLogs();
         pair.syncToL1{value: 800 ether}(200 ether, 200 ether);
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        bytes[] memory payloads = new bytes[](4);
-        payloads[0] = abi.decode(logs[10].data, (bytes));
-        payloads[1] = abi.decode(logs[21].data, (bytes));
-        payloads[2] = logs[12].data;
-        payloads[3] = logs[23].data;
 
-        _handleSGMessage(L2_FORK_ID, payloads[0]);
-        _handleSGMessage(L2_FORK_ID, payloads[1]);
-        dove.sync();
-        _handleHLMessage(L2_FORK_ID, payloads[2]);
-        _handleHLMessage(L2_FORK_ID, payloads[3]);
+        {
+            // to find LZ events
+            uint256[2] memory LZEventsIndexes =
+                _findSyncingEvents(logs, 0xe9bded5f24a4168e4f3bf44e00298c993b22376aad8c58c7dda9718a54cbea82);
+            // to find mock mailbox events
+            uint256[2] memory HLEventsIndexes =
+                _findSyncingEvents(logs, 0x3b31784f245377d844a88ed832a668978c700fd9d25d80e8bf5ef168c6bffa20);
+            bytes[] memory payloads = new bytes[](3);
+            payloads[0] = abi.decode(logs[LZEventsIndexes[0]].data, (bytes));
+            payloads[1] = abi.decode(logs[LZEventsIndexes[1]].data, (bytes));
+            payloads[2] = logs[HLEventsIndexes[0]].data;
+
+            _handleSGMessage(L2_FORK_ID, payloads[0]);
+            _handleSGMessage(L2_FORK_ID, payloads[1]);
+            dove.sync();
+            _handleHLMessage(L2_FORK_ID, payloads[2]);
+        }
 
         // ################################
 
@@ -312,19 +322,52 @@ contract DoveSyncTest is DoveBase {
 
         // the equivalent of L2 token0/1 on L1 is the opposite due to the
         // addresses
-        assertEq(dove.marked0(L2_DOMAIN), marked1 + voucher1Delta);
-        assertEq(dove.marked1(L2_DOMAIN), marked0 + voucher0Delta);
+        (uint128 realMarked0, uint128 realMarked1) = dove.marked(L2_DOMAIN);
+        assertEq(realMarked0, marked1 + voucher1Delta);
+        assertEq(realMarked1, marked0 + voucher0Delta);
         assertEq(L1Token0.balanceOf(address(dove.fountain())), balance0OfFountain + voucher1Delta);
         assertEq(L1Token1.balanceOf(address(dove.fountain())), balance1OfFountain + voucher0Delta);
         assertEq(dove.reserve0(), reserve0 + balance1OfPair - voucher1Delta);
         assertEq(dove.reserve1(), reserve1 + balance0OfPair - voucher0Delta);
     }
 
-    function _findOneLog(Vm.Log[] memory logs, bytes32 topic) internal returns (Vm.Log memory) {
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == topic) {
-                return logs[i];
-            }
+    function testSyncerRewards(uint256 timeElapsed) external {
+        address syncer = address(0xfeed);
+        _syncToL2(L2_FORK_ID);
+        vm.selectFork(L2_FORK_ID);
+        _doSomeSwaps();
+        vm.selectFork(L2_FORK_ID);
+        // we ain't going that far
+        timeElapsed = timeElapsed % 2 ** 64;
+        vm.warp(block.timestamp + timeElapsed);
+        uint256 syncerPercentage = pair.getSyncerPercentage();
+        assert(syncerPercentage >= 0);
+        assert(syncerPercentage <= 5000);
+        vm.recordLogs();
+        // use non standard sync so we can manually finalize
+        uint256[] memory order = new uint[](3);
+        order[0] = 2;
+        order[1] = 0;
+        order[2] = 1;
+        _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
+
+        vm.selectFork(L1_FORK_ID);
+        vm.broadcast(syncer);
+        dove.finalizeSyncFromL2(L2_DOMAIN, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        (uint256 LPFees0, uint256 LPFees1) = _extractFees(logs);
+
+        uint256 syncerBalance0 = L1Token0.balanceOf(syncer);
+        uint256 syncerBalance1 = L1Token1.balanceOf(syncer);
+
+        // syncer balances aka fees cannot be bigger than what LPs got
+        assert(syncerBalance0 <= LPFees0);
+        assert(syncerBalance1 <= LPFees1);
+
+        if (syncerPercentage > 0) {
+            assert(syncerBalance0 > 0);
+            assert(syncerBalance1 > 0);
         }
     }
 }
