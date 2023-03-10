@@ -24,16 +24,16 @@ import {MailboxMock} from "./mocks/MailboxMock.sol";
 /*
     Some of the calculations rely on the state of SG pools at the hardcoded fork blocks.
 
-    A test contract with Multiple L2 AMMs deployed (Polygon & Optimism).
+    A test contract with the following simplifying assumption ; there is only one L2 AMM.
 
-    Given the addresses of token0/1 on L1, L2 and L3, it should be noted that...
+    Given the addresses of token0/1 on L1 and L2, it should be noted that ;
 
-    L1          L2                  L3
-    token0      token1+voucher1     token1+voucher1
-    token1      token0+voucher0     token0+voucher0
-    marked0     voucher1            voucher1
-    marked1     voucher0            voucher0        */
-contract DoveBaseMulti is Test, Minter {
+    L1          L2
+    token0      token1+voucher1
+    token1      token0+voucher0
+    marked0     voucher1
+    marked1     voucher0*/
+contract DoveBase is Test, Minter {
     mapping(uint256 => uint32) forkToDomain;
     mapping(uint256 => uint16) forkToChainId;
     mapping(uint256 => address) forkToPair;
@@ -63,35 +63,19 @@ contract DoveBaseMulti is Test, Minter {
     ERC20Mock L2Token0;
     ERC20Mock L2Token1;
 
-    // L3
-    address constant L3SGRouter = 0xB0D502E938ed5f4df2E681fE6E419ff29631d62b;
-    InterchainGasPaymasterMock gasMasterL3;
-    MailboxMock mailboxL3;
-    ILayerZeroEndpoint lzEndpointL3;
-
-    L2Factory factoryL3;
-    L2Router routerL3;
-    Pair pair2;
-    ERC20Mock L3Token0;
-    ERC20Mock L3Token1;
-
     // Misc
+
     uint256 L1_FORK_ID;
     uint256 L2_FORK_ID;
-    uint256 L3_FORK_ID;
     uint16 constant L1_CHAIN_ID = 101;
     uint16 constant L2_CHAIN_ID = 109;
-    uint16 constant L3_CHAIN_ID = 111;
     uint32 constant L1_DOMAIN = 1;
     uint32 constant L2_DOMAIN = 137;
-    uint32 constant L3_DOMAIN = 10;
 
     address pairAddress;
-    address pair2Address;
 
     string RPC_ETH_MAINNET = vm.envString("ETH_MAINNET_RPC_URL");
     string RPC_POLYGON_MAINNET = vm.envString("POLYGON_MAINNET_RPC_URL");
-    string RPC_OPTIMISM_MAINNET = vm.envString("OPTIMISM_MAINNET_RPC_URL");
 
     uint256 constant initialLiquidity0 = 10 ** 25;
     uint256 constant initialLiquidity1 = 10 ** 13;
@@ -141,14 +125,10 @@ contract DoveBaseMulti is Test, Minter {
             type(uint256).max
         );
 
-        // set SG bridges as trusted for both Polygon and Optimism
+        // set SG bridges as trusted
         vm.broadcast(address(factoryL1));
         dove.addStargateTrustedBridge(
             109, 0x9d1B1669c73b033DFe47ae5a0164Ab96df25B944, 0x296F55F8Fb28E498B858d0BcDA06D955B2Cb3f97
-        );
-        vm.broadcast(address(factoryL1));
-        dove.addStargateTrustedBridge(
-            111, 0x701a95707A0290AC8B90b3719e8EE5b210360883, 0x296F55F8Fb28E498B858d0BcDA06D955B2Cb3f97
         );
 
         forkToDomain[L1_FORK_ID] = L1_DOMAIN;
@@ -197,58 +177,10 @@ contract DoveBaseMulti is Test, Minter {
         forkToPair[L2_FORK_ID] = address(pair);
         forkToMailbox[L2_FORK_ID] = address(mailboxL2);
 
-        /*
-            Set all the L3 stuff.
-        */
-
-        L3_FORK_ID = vm.createSelectFork(RPC_OPTIMISM_MAINNET, 68636494);
-
-        gasMasterL3 = new InterchainGasPaymasterMock();
-        mailboxL3 = new MailboxMock(L3_DOMAIN);
-        lzEndpointL3 = ILayerZeroEndpoint(0x3c2269811836af69497E5F486A85D7316753cf62);
-
-        L3Token0 = ERC20Mock(0x7F5c764cBc14f9669B88837ca1490cCa17c31607); // USDC
-        L3Token1 = ERC20Mock(0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1); // DAI
-
-        // deploy factory
-        factoryL3 = new L2Factory(address(gasMasterL3), address(mailboxL3), L3SGRouter, L1_CHAIN_ID, L1_DOMAIN);
-        // deploy router
-        routerL3 = new L2Router(address(factoryL3));
-        //IL2Factory.SGConfig memory sgConfig =
-        //IL2Factory.SGConfig({srcPoolId0: 1, dstPoolId0: 1, srcPoolId1: 3, dstPoolId1: 3});
-        pair2 = Pair(
-            factoryL3.createPair(
-                address(L3Token1), address(L3Token0), sgConfig, address(L1Token0), address(L1Token1), address(dove)
-            )
-        );
-
-        pair2Address = address(pair2);
-
-        vm.label(pair2Address, "PairL3");
-
-        vm.broadcast(0x625E7708f30cA75bfd92586e17077590C60eb4cD);
-        L3Token0.transfer(address(this), 10 ** 13);
-        vm.broadcast(0xad32aA4Bff8b61B4aE07E3BA437CF81100AF0cD7);
-        L3Token1.transfer(address(this), 10 ** 25);
-
-        L3Token0.approve(address(pair), type(uint256).max);
-        L3Token1.approve(address(pair), type(uint256).max);
-        L3Token0.approve(address(routerL3), type(uint256).max);
-        L3Token1.approve(address(routerL3), type(uint256).max);
-
-        forkToDomain[L3_FORK_ID] = L3_DOMAIN;
-        forkToChainId[L3_FORK_ID] = L3_CHAIN_ID;
-        forkToPair[L3_FORK_ID] = address(pair2);
-        forkToMailbox[L3_FORK_ID] = address(mailboxL3);
-
         // ---------------------------------------------
-        // Add L2 & L3 as trusted remotes
         vm.selectFork(L1_FORK_ID);
         vm.broadcast(address(factoryL1));
         dove.addTrustedRemote(L2_DOMAIN, bytes32(uint256(uint160(address(pair)))));
-        vm.selectFork(L1_FORK_ID);
-        vm.broadcast(address(factoryL1));
-        dove.addTrustedRemote(L3_DOMAIN, bytes32(uint256(uint160(address(pair2)))));
     }
 
     function _burnVouchers(uint256 fromFork, address user, uint256 amount0, uint256 amount1) internal {
@@ -279,13 +211,12 @@ contract DoveBaseMulti is Test, Minter {
     }
 
     function _standardSyncToL1(uint256 fromFork) internal {
-        uint256[] memory order = new uint[](4);
+        uint256[] memory order = new uint[](3);
         order[0] = 0;
         order[1] = 1;
         order[2] = 2;
-        order[3] = 3;
 
-        _syncToL1(fromFork, order, _handleSGMessage, _handleSGMessage, _handleHLMessage, _handleHLMessage);
+        _syncToL1(fromFork, order, _handleSGMessage, _handleSGMessage, _handleHLMessage);
     }
 
     function _syncToL1(
@@ -293,8 +224,7 @@ contract DoveBaseMulti is Test, Minter {
         uint256[] memory order,
         function(uint256, bytes memory) internal one,
         function(uint256, bytes memory) internal two,
-        function(uint256, bytes memory) internal three,
-        function(uint256, bytes memory) internal four
+        function(uint256, bytes memory) internal three
     ) internal {
         /*
             Simulate syncing to L1.
@@ -316,16 +246,14 @@ contract DoveBaseMulti is Test, Minter {
 
         // first two payloads are LZ
         // last two are HL
-        bytes[] memory payloads = new bytes[](4);
+        bytes[] memory payloads = new bytes[](3);
         payloads[0] = abi.decode(logs[LZEventsIndexes[0]].data, (bytes));
         payloads[1] = abi.decode(logs[LZEventsIndexes[1]].data, (bytes));
         payloads[2] = logs[HLEventsIndexes[0]].data;
-        payloads[3] = logs[HLEventsIndexes[1]].data;
 
         one(fromFork, payloads[order[0]]);
         two(fromFork, payloads[order[1]]);
         three(fromFork, payloads[order[2]]);
-        four(fromFork, payloads[order[3]]);
     }
 
     function _handleSGMessage(uint256 fromFork, bytes memory payload) internal {
@@ -398,6 +326,8 @@ contract DoveBaseMulti is Test, Minter {
         routerL2.swapExactTokensForTokensSimple(
             amount0In, amount1Out, pair.token0(), pair.token1(), address(0xbeef), block.timestamp + 1000
         );
+        uint256 voucher0Delta = uint256(vm.load(address(pair), bytes32(uint256(21))));
+        uint256 voucher1Delta = uint256(vm.load(address(pair), bytes32(uint256(22))));
         /*
             Napkin math
             Balances after fees
@@ -485,4 +415,19 @@ contract DoveBaseMulti is Test, Minter {
     }
 
     receive() external payable {}
+
+    function _findOneLog(Vm.Log[] memory logs, bytes32 topic) internal returns (Vm.Log memory) {
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] == topic) {
+                return logs[i];
+            }
+        }
+    }
+
+    function _extractFees(Vm.Log[] memory logs) internal returns (uint256, uint256) {
+        bytes32 feesTopic = 0xe47e312e14ed22581dccdf9557c3dd18d0ef990e87fc3f6dcf6bcdde1d13d1e8;
+        Vm.Log memory feesLog = _findOneLog(logs, feesTopic);
+        (uint256 fees0, uint256 fees1) = abi.decode(feesLog.data, (uint256, uint256));
+        return (fees0, fees1);
+    }
 }

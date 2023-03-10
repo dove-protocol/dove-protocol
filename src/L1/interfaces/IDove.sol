@@ -10,12 +10,12 @@ interface IDove {
     event Claim(address indexed recipient, uint256 amount0, uint256 amount1);
     event FeesUpdated(address recipient, uint256 amount0, uint256 amount1);
     event FeesTransferred(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
-    event Updated(uint256 reserve0, uint256 reserve1);
-    event Bridged(uint256 indexed srcChainId, uint256 syncId, address token, uint256 amount);
-    event SyncPending(uint256 indexed srcDomain, uint256 syncID);
+    event Updated(uint128 reserve0, uint128 reserve1);
+    event Bridged(uint256 indexed srcChainId, uint16 syncID, address token, uint256 amount);
+    event SyncPending(uint256 indexed srcDomain, uint16 syncID);
     event SyncFinalized(
         uint256 indexed srcDomain,
-        uint256 syncID,
+        uint16 syncID,
         uint256 pairBalance0,
         uint256 pairBalance1,
         uint256 earmarkedAmount0,
@@ -32,13 +32,14 @@ interface IDove {
     error NoStargateSwaps();
 
     struct Sync {
-        Codec.SyncToL1Payload partialSyncA;
-        Codec.SyncToL1Payload partialSyncB;
+        Codec.PartialSync pSyncA;
+        Codec.PartialSync pSyncB;
+        Codec.SyncerMetadata sm;
     }
 
     struct BurnClaim {
-        uint256 amount0;
-        uint256 amount1;
+        uint128 amount0;
+        uint128 amount1;
     }
 
     function token0() external view returns (address _token0);
@@ -51,7 +52,7 @@ interface IDove {
     function burn(address to) external returns (uint256 amount0, uint256 amount1);
     function sync() external;
     function syncL2(uint32 destinationDomain, address pair) external payable;
-    function finalizeSyncFromL2(uint32 originDomain, uint256 syncID) external;
+    function finalizeSyncFromL2(uint32 originDomain, uint16 syncID) external;
     function claimBurn(uint32 srcDomain, address user) external;
-    function getReserves() external view returns (uint256 reserve0, uint256 reserve1);
+    function getReserves() external view returns (uint128 reserve0, uint128 reserve1);
 }

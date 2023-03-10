@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
-import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {SafeTransferLib as STL} from "solady/utils/SafeTransferLib.sol";
 
 import {Voucher} from "./Voucher.sol";
 import {FeesAccumulator} from "./FeesAccumulator.sol";
@@ -16,6 +16,8 @@ import "./interfaces/IStargateRouter.sol";
 import "./interfaces/IL2Factory.sol";
 
 import "../Codec.sol";
+
+import "forge-std/console.sol";
 
 /// The AMM logic is taken from https://github.com/transmissions11/solidly/blob/master/contracts/BaseV1-core.sol
 
@@ -39,8 +41,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     address public L1Token1;
     Voucher public voucher1;
 
-    uint256 public reserve0;
-    uint256 public reserve1;
+    uint128 public reserve0;
+    uint128 public reserve1;
     uint256 public blockTimestampLast;
     uint256 public reserve0CumulativeLast;
     uint256 public reserve1CumulativeLast;
@@ -49,17 +51,17 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
 
     uint64 internal immutable decimals0;
     uint64 internal immutable decimals1;
+    uint64 internal lastSyncTimestamp;
+    uint16 internal syncID;
 
     IL2Factory.SGConfig internal sgConfig;
 
     ///@notice "reference" reserves on L1
-    uint256 internal ref0;
-    uint256 internal ref1;
+    uint128 internal ref0;
+    uint128 internal ref1;
     // amount of vouchers minted since last L1->L2 sync
-    uint256 internal voucher0Delta;
-    uint256 internal voucher1Delta;
-
-    uint256 internal syncID;
+    uint128 internal voucher0Delta;
+    uint128 internal voucher1Delta;
 
     uint256 constant FEE = 300;
 
@@ -105,6 +107,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             token1_.decimals()
         );
         feesAccumulator = new FeesAccumulator(_token0, _token1);
+
+        lastSyncTimestamp = uint64(block.timestamp);
     }
 
     /*###############################################################
@@ -116,7 +120,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         public
         view
         override
-        returns (uint256 _reserve0, uint256 _reserve1, uint256 _blockTimestampLast)
+        returns (uint128 _reserve0, uint128 _reserve1, uint256 _blockTimestampLast)
     {
         _reserve0 = reserve0;
         _reserve1 = reserve1;
@@ -125,21 +129,21 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
 
     // TODO : rename to reserve0???
     function balance0() public view returns (uint256) {
-        return ref0 + ERC20(token0).balanceOf(address(this)) - voucher0Delta;
+        return ref0 + STL.balanceOf(token0, address(this)) - voucher0Delta;
     }
 
     function balance1() public view returns (uint256) {
-        return ref1 + ERC20(token1).balanceOf(address(this)) - voucher1Delta;
+        return ref1 + STL.balanceOf(token1, address(this)) - voucher1Delta;
     }
 
     // Accrue fees on token0
     function _update0(uint256 amount) internal {
-        SafeTransferLib.safeTransfer(ERC20(token0), address(feesAccumulator), amount);
+        STL.safeTransfer(token0, address(feesAccumulator), amount);
     }
 
     // Accrue fees on token1
     function _update1(uint256 amount) internal {
-        SafeTransferLib.safeTransfer(ERC20(token1), address(feesAccumulator), amount);
+        STL.safeTransfer(token1, address(feesAccumulator), amount);
     }
 
     // update reserves and, on the first call per block, price accumulators
@@ -151,8 +155,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             reserve1CumulativeLast += _reserve1 * timeElapsed;
         }
 
-        reserve0 = _balance0;
-        reserve1 = _balance1;
+        reserve0 = uint128(_balance0);
+        reserve1 = uint128(_balance1);
         blockTimestampLast = blockTimestamp;
         emit Sync(reserve0, reserve1);
     }
@@ -187,7 +191,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         //require(!BaseV1Factory(factory).isPaused());
         if (!(amount0Out > 0 || amount1Out > 0)) revert InsufficientOutputAmount();
 
-        (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
+        (uint128 _reserve0, uint128 _reserve1) = (reserve0, reserve1);
         if (!(amount0Out < _reserve0 && amount1Out < _reserve1)) revert InsufficientLiquidity();
 
         uint256 _balance0;
@@ -206,20 +210,20 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
                 // difference between our token balance and what user needs
                 (uint256 toSend, uint256 toMint) =
                     _balance0 >= amount0Out ? (amount0Out, 0) : (_balance0, amount0Out - _balance0);
-                if (toSend > 0) SafeTransferLib.safeTransfer(ERC20(_token0), to, toSend);
+                if (toSend > 0) STL.safeTransfer(_token0, to, toSend);
                 if (toMint > 0) {
                     voucher0.mint(to, toMint);
-                    voucher0Delta += toMint;
+                    voucher0Delta += uint128(toMint);
                 }
             }
             // optimistically mints vouchers
             if (amount1Out > 0) {
                 (uint256 toSend, uint256 toMint) =
                     _balance1 >= amount1Out ? (amount1Out, 0) : (_balance1, amount1Out - _balance1);
-                if (toSend > 0) SafeTransferLib.safeTransfer(ERC20(_token1), to, toSend);
+                if (toSend > 0) STL.safeTransfer(_token1, to, toSend);
                 if (toMint > 0) {
                     voucher1.mint(to, toMint);
-                    voucher1Delta += toMint;
+                    voucher1Delta += uint128(toMint);
                 }
             }
             //if (data.length > 0) IBaseV1Callee(to).hook(msg.sender, amount0Out, amount1Out, data);
@@ -317,82 +321,97 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         voucher0.transferFrom(msg.sender, address(this), amount0);
         voucher1.transferFrom(msg.sender, address(this), amount1);
 
-        SafeTransferLib.safeTransfer(ERC20(token0), msg.sender, amount0);
-        SafeTransferLib.safeTransfer(ERC20(token1), msg.sender, amount1);
+        STL.safeTransfer(token0, msg.sender, amount0);
+        STL.safeTransfer(token1, msg.sender, amount1);
 
         emit VouchersYeeted(msg.sender, amount0, amount1);
+    }
+
+    function getSyncerPercentage() external view returns (uint64) {
+        // reaches 50% over 24h => 0.06 bps per second
+        uint256 bps = ((block.timestamp - lastSyncTimestamp) * 6) / 100;
+        bps = bps >= 5000 ? 5000 : bps;
+        return uint64(bps);
     }
 
     /// @notice Syncs to the L1.
     /// @dev Dependent on SG.
     function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable override {
-        if (msg.value < (sgFee + hyperlaneFee) * 2) revert MsgValueTooLow();
+        if (msg.value < (sgFee * 2) + hyperlaneFee) revert MsgValueTooLow();
 
-        ERC20 _token0 = ERC20(token0);
-        ERC20 _token1 = ERC20(token1);
+        address _token0 = token0;
+        address _token1 = token1;
         // balance before getting accumulated fees
-        uint256 _balance0 = _token0.balanceOf(address(this));
-        uint256 _balance1 = _token1.balanceOf(address(this));
+        uint256 _balance0 = STL.balanceOf(_token0, address(this));
+        uint256 _balance1 = STL.balanceOf(_token1, address(this));
+
+        uint128 pairVoucher0Balance = uint128(voucher0.balanceOf(address(this)));
+        uint128 pairVoucher1Balance = uint128(voucher1.balanceOf(address(this)));
+
+        // Sends the HL message first to avoid stack too deep!
+        {
+            uint32 destDomain = factory.destDomain();
+            bytes memory payload = Codec.encodeSyncToL1(
+                syncID,
+                L1Token0,
+                pairVoucher0Balance,
+                voucher0Delta - pairVoucher0Balance,
+                _balance0,
+                L1Token1,
+                pairVoucher1Balance,
+                voucher1Delta - pairVoucher1Balance,
+                _balance1,
+                msg.sender,
+                this.getSyncerPercentage()
+            );
+            // send HL message
+            bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
+            hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
+        }
+
         (uint256 fees0, uint256 fees1) = feesAccumulator.take();
-
-        uint32 destDomain = factory.destDomain();
         uint16 destChainId = factory.destChainId();
-
         IStargateRouter stargateRouter = IStargateRouter(factory.stargateRouter());
 
-        {
-            uint256 pairVoucher0Balance = voucher0.balanceOf(address(this));
-            // swap token0
-            _token0.approve(address(stargateRouter), _balance0 + fees0);
-            stargateRouter.swap{value: sgFee}(
-                destChainId,
-                sgConfig.srcPoolId0,
-                sgConfig.dstPoolId0,
-                payable(msg.sender),
-                _balance0 + fees0,
-                _balance0,
-                IStargateRouter.lzTxObj(200000, 0, "0x"),
-                abi.encodePacked(L1Target),
-                "1"
-            );
-            bytes memory payload = Codec.encodeSyncToL1(
-                syncID, L1Token0, pairVoucher0Balance, voucher0Delta - pairVoucher0Balance, _balance0
-            );
-            bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-            hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
-            reserve0 = ref0 + _balance0 - (voucher0Delta - pairVoucher0Balance);
-        }
+        // swap token0
+        STL.safeApprove(_token0, address(stargateRouter), _balance0 + fees0);
+        stargateRouter.swap{value: sgFee}(
+            destChainId,
+            sgConfig.srcPoolId0,
+            sgConfig.dstPoolId0,
+            payable(msg.sender),
+            _balance0 + fees0,
+            _balance0,
+            IStargateRouter.lzTxObj(50000, 0, "0x"),
+            abi.encodePacked(L1Target),
+            "1"
+        );
+        reserve0 = ref0 + uint128(_balance0) - voucher0Delta - pairVoucher0Balance;
 
-        {
-            uint256 pairVoucher1Balance = voucher1.balanceOf(address(this));
-            // swap token1
-            _token1.approve(address(stargateRouter), _balance1 + fees1);
-            stargateRouter.swap{value: sgFee}(
-                destChainId,
-                sgConfig.srcPoolId1,
-                sgConfig.dstPoolId1,
-                payable(msg.sender),
-                _balance1 + fees1,
-                _balance1,
-                IStargateRouter.lzTxObj(200000, 0, "0x"),
-                abi.encodePacked(L1Target),
-                "1"
-            );
-            bytes memory payload = Codec.encodeSyncToL1(
-                syncID, L1Token1, pairVoucher1Balance, voucher1Delta - pairVoucher1Balance, _balance1
-            );
-            bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-            hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
-            reserve1 = ref1 + _balance1 - (voucher1Delta - pairVoucher1Balance);
-        }
-
-        emit SyncToL1Initiated(_balance0, _balance1, fees0, fees1);
+        // swap token1
+        STL.safeApprove(_token1, address(stargateRouter), _balance1 + fees1);
+        stargateRouter.swap{value: sgFee}(
+            destChainId,
+            sgConfig.srcPoolId1,
+            sgConfig.dstPoolId1,
+            payable(msg.sender),
+            _balance1 + fees1,
+            _balance1,
+            IStargateRouter.lzTxObj(50000, 0, "0x"),
+            abi.encodePacked(L1Target),
+            "1"
+        );
+        reserve1 = ref1 + uint128(_balance1) - voucher1Delta - pairVoucher1Balance;
 
         ref0 = reserve0;
         ref1 = reserve1;
         voucher0Delta = 0;
         voucher1Delta = 0;
         syncID++;
+
+        lastSyncTimestamp = uint64(block.timestamp);
+
+        emit SyncToL1Initiated(_balance0, _balance1, fees0, fees1);
     }
 
     /// @notice Allows user to burn his L2 vouchers to get the L1 tokens.
@@ -406,7 +425,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         if (amount0 > 0) voucher0.burn(msg.sender, amount0);
         if (amount1 > 0) voucher1.burn(msg.sender, amount1);
         (amount0, amount1) = _getL1Ordering(amount0, amount1);
-        bytes memory payload = Codec.encodeVouchersBurn(msg.sender, amount0, amount1);
+        bytes memory payload = Codec.encodeVouchersBurn(msg.sender, uint128(amount0), uint128(amount1));
         bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
         hyperlaneGasMaster.payGasFor{value: msg.value}(id, destDomain);
 

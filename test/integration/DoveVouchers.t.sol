@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import "../DoveBaseSingle.sol";
+import "../DoveBase.sol";
 
-contract DoveVouchersTest is DoveBaseSingle {
+contract DoveVouchersTest is DoveBase {
     function setUp() external {
         _setUp();
     }
