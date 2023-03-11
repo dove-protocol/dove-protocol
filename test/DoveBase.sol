@@ -326,6 +326,8 @@ contract DoveBase is Test, Helper {
         routerL2.swapExactTokensForTokensSimple(
             amount0In, amount1Out, pair.token0(), pair.token1(), address(0xbeef), block.timestamp + 1000
         );
+        uint256 voucher0Delta = uint256(vm.load(address(pair), bytes32(uint256(21))));
+        uint256 voucher1Delta = uint256(vm.load(address(pair), bytes32(uint256(22))));
         /*
             Napkin math
             Balances after fees

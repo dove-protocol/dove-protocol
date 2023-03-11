@@ -122,10 +122,12 @@ contract DoveMultiSyncTest is DoveBase {
         vm.selectFork(L1_FORK_ID);
         assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k, "F for curve");
 
-        assertEq(dove.marked0(L2_DOMAIN), expectedMarked0);
-        assertEq(dove.marked1(L2_DOMAIN), expectedMarked1);
-        assertEq(dove.marked0(L3_DOMAIN), expectedMarked0);
-        assertEq(dove.marked1(L3_DOMAIN), expectedMarked1);
+        (uint128 a, uint128 b) = dove.marked(L2_DOMAIN);
+        assertEq(a, expectedMarked0);
+        assertEq(b, expectedMarked1);
+        (a, b) = dove.marked(L3_DOMAIN);
+        assertEq(a, expectedMarked0);
+        assertEq(b, expectedMarked1);
 
         // todo : remove magic numbers and find out amounts by parsing logs
         // bridged0 = 166569749000000000000
@@ -167,10 +169,12 @@ contract DoveMultiSyncTest is DoveBase {
         vm.selectFork(L1_FORK_ID);
         assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k, "F for curve");
 
-        assertEq(dove.marked0(L2_DOMAIN), expectedMarked0);
-        assertEq(dove.marked1(L2_DOMAIN), expectedMarked1);
-        assertEq(dove.marked0(L3_DOMAIN), expectedMarked0);
-        assertEq(dove.marked1(L3_DOMAIN), expectedMarked1);
+        (uint128 a, uint128 b) = dove.marked(L2_DOMAIN);
+        assertEq(a, expectedMarked0);
+        assertEq(b, expectedMarked1);
+        (a, b) = dove.marked(L3_DOMAIN);
+        assertEq(a, expectedMarked0);
+        assertEq(b, expectedMarked1);
 
         // todo : remove magic numbers and find out amounts by parsing logs
         // bridged0 = 49833333333333333333334

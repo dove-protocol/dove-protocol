@@ -1,6 +1,6 @@
 cache/
 out/
-
+.gas-snapshot-main
 # Ignore Environment Variables!
 .env
 .env.prod

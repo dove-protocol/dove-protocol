@@ -10,11 +10,11 @@ interface IPair {
         uint256 amount1Out,
         address indexed to
     );
-    event Sync(uint256 reserve0, uint256 reserve1);
+    event Sync(uint128 reserve0, uint128 reserve1);
     event VouchersYeeted(address sender, uint256 amount0, uint256 amount1);
     event VouchersBurnInitiated(address sender, uint256 amount0, uint256 amount1);
     event SyncToL1Initiated(uint256 amount0, uint256 amount1, uint256 fees0, uint256 fees1);
-    event SyncedFromL1(uint256 reserve0, uint256 reserve1);
+    event SyncedFromL1(uint128 reserve0, uint128 reserve1);
 
     error InsufficientOutputAmount();
     error InsufficientLiquidity();
@@ -26,7 +26,7 @@ interface IPair {
     error WrongOrigin();
     error NotDove();
 
-    function getReserves() external view returns (uint256 reserve0, uint256 reserve1, uint256 blockTimestampLast);
+    function getReserves() external view returns (uint128 reserve0, uint128 reserve1, uint256 blockTimestampLast);
     function balance0() external view returns (uint256);
     function balance1() external view returns (uint256);
     function currentCumulativePrices()
