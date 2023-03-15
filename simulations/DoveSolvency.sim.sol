@@ -7,6 +7,7 @@ contract DoveSolvencySim is DoveBase {
 
     uint128 originalReserve0;
     uint128 originalReserve1;
+    uint16 syncID;
 
     function setUp() external {
         _setUp();
@@ -18,6 +19,7 @@ contract DoveSolvencySim is DoveBase {
     function test() external {
         _resetL2();
         _syncToL2(L2_FORK_ID);
+        syncID++;
         _singleSwap();
         _standardSyncToL1(L2_FORK_ID);
 
@@ -25,6 +27,7 @@ contract DoveSolvencySim is DoveBase {
         vm.selectFork(L2_FORK_ID);
         _singleSwap();
         _standardSyncToL1(L2_FORK_ID); // <-- should fail !!
+        syncID++;
 
     }
 
@@ -67,6 +70,14 @@ contract DoveSolvencySim is DoveBase {
         forkToPair[L2_FORK_ID] = address(pair);
         forkToMailbox[L2_FORK_ID] = address(mailboxL2);
 
+        uint16 lsyncID = syncID;
+        bytes32 slot = vm.load(address(pair), bytes32(uint256(16)));
+        // syncID is at slot 16, offset 28
+        assembly {
+            slot := or(shl(224, lsyncID), slot)
+        }
+        vm.store(address(pair), bytes32(uint256(16)), slot);
+
         // ---------------------------------------------
         vm.selectFork(L1_FORK_ID);
         vm.broadcast(address(factoryL1));
@@ -75,7 +86,7 @@ contract DoveSolvencySim is DoveBase {
         (uint256 oldReserve0, uint256 oldReserve1) = dove.getReserves();
         uint256 loriginalReserve0 = uint256(originalReserve0);
         // temporarily use original reserves for the sync
-        bytes32 slot = bytes32(uint256(originalReserve1));
+        slot = bytes32(uint256(originalReserve1));
         assembly {
             slot := or(shl(128, slot), loriginalReserve0)
         }
