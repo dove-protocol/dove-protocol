@@ -425,9 +425,6 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
             // put earmarked tokens on the side
             STL.safeTransfer(sync.pSyncA.token, address(fountain), sync.pSyncA.earmarkedAmount);
             STL.safeTransfer(sync.pSyncB.token, address(fountain), sync.pSyncB.earmarkedAmount);
-
-            STL.safeTransfer(sync.pSyncA.token, address(this), sync.pSyncA.tokensForDove);
-            STL.safeTransfer(sync.pSyncB.token, address(this), sync.pSyncB.tokensForDove);
         }
         emit SyncFinalized(
             srcDomain,
