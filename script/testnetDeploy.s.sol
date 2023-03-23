@@ -27,8 +27,8 @@ contract testnetDeployDAMM is Script {
     uint256 AVAX_FORK_ID;
 
     /// Chain IDs
-    uint16 constant L1_CHAIN_ID = 10121;   // ETH goerli
-    uint16 constant ARB_CHAIN_ID = 10143;  // ARB goerli
+    uint16 constant L1_CHAIN_ID = 10121; // ETH goerli
+    uint16 constant ARB_CHAIN_ID = 10143; // ARB goerli
     uint16 constant POLY_CHAIN_ID = 10109; // POLY mumbai
     uint16 constant AVAX_CHAIN_ID = 10106; // AVAX fuji
 
@@ -53,8 +53,8 @@ contract testnetDeployDAMM is Script {
     address constant mailboxAVAX = 0xCC737a94FecaeC165AbCf12dED095BB13F037685;
 
     /// Hyperlane DOMAINS
-    uint32 constant L1_DOMAIN = 5;       // ETH goerli
-    uint32 constant ARB_DOMAIN = 137;    // ARB goerli
+    uint32 constant L1_DOMAIN = 5; // ETH goerli
+    uint32 constant ARB_DOMAIN = 137; // ARB goerli
     uint32 constant POLY_DOMAIN = 80001; // POLY mumbai
     uint32 constant AVAX_DOMAIN = 43113; // AVAX fuji
 
@@ -86,28 +86,28 @@ contract testnetDeployDAMM is Script {
     address constant ARB_USDT = 0x533046F316590C19d99c74eE661c6d541b64471C;
     address constant ARB_USDC = 0x6aAd876244E7A1Ad44Ec4824Ce813729E5B6C291;
     // POLY mumbai
-    address constant POLY_USDT = 0x533046F316590C19d99c74eE661c6d541b64471C;
+    address constant POLY_USDT = 0x6Fc340be8e378c2fF56476409eF48dA9a3B781a0;
     address constant POLY_USDC = 0x742DfA5Aa70a8212857966D491D67B09Ce7D6ec7;
     // AVAX fuji
     address constant AVAX_USDT = 0x134Dc38AE8C853D1aa2103d5047591acDAA16682;
     address constant AVAX_USDC = 0x4A0D1092E9df255cf95D72834Ea9255132782318;
 
     /// RPCs
-    string RPC_ETH_GOELRI = vm.envString("ETH_GOERLI_RPC_URL");
-    string RPC_ARB_GOELRI = vm.envString("ARBITRUM_MAINNET_RPC_URL");
+    string RPC_ETH_GOERLI = vm.envString("ETH_GOERLI_RPC_URL");
+    string RPC_ARB_GOERLI = vm.envString("ARBITRUM_GOERLI_RPC_URL");
     string RPC_POLY_MUMBAI = vm.envString("POLYGON_MUMBAI_RPC_URL");
     string RPC_AVAX_FUJI = vm.envString("AVALANCHE_FUJI_RPC_URL");
 
     /// Deploy v1
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("TESTNET_PRIVATE_KEY");
-        vm.startBroadcast(deployerPrivateKey);
 
         // --------------- Deployment L1 -------------------
-        
-        L1_FORK_ID = vm.createSelectFork(RPC_ETH_GOELRI);
 
-        // deploy L1 factory 
+        L1_FORK_ID = vm.createSelectFork(RPC_ETH_GOERLI);
+        vm.startBroadcast(deployerPrivateKey);
+
+        // deploy L1 factory
         L1Factory factoryL1 = new L1Factory(
             gasMasterL1, // InterchainGasPaymaster L1 Goerli done
             mailboxL1,   // HL mailbox L1 Goerli done
@@ -118,9 +118,9 @@ contract testnetDeployDAMM is Script {
         L1Router routerL1 = new L1Router(address(factoryL1));
 
         // deploy initial dove(s)
-        doveUSDTUSDC = Dove(
-            factoryL1.createPair(USDT, USDC)
-        );
+        doveUSDTUSDC = Dove(factoryL1.createPair(USDT, USDC));
+
+        vm.stopBroadcast();
 
         // set SG bridges as trusted for dove(s), L1 factory must call
         vm.broadcast(address(factoryL1));
@@ -132,13 +132,18 @@ contract testnetDeployDAMM is Script {
         vm.broadcast(address(factoryL1));
         doveUSDTUSDC.addStargateTrustedBridge(AVAX_CHAIN_ID, sgBridgeAVAX, sgBridgeL1);
 
+        vm.startBroadcast(deployerPrivateKey);
+
         // Set SGConfig for all pools
         IL2Factory.SGConfig memory sgConfigUSDTUSDC =
             IL2Factory.SGConfig({srcPoolId0: 1, dstPoolId0: 1, srcPoolId1: 2, dstPoolId1: 2});
 
+        vm.stopBroadcast();
+
         // --------------- Switch to L2 (ARBITRUM) -------------------
 
-        ARB_FORK_ID = vm.createSelectFork(RPC_ARB_GOELRI);
+        ARB_FORK_ID = vm.createSelectFork(RPC_ARB_GOERLI);
+        vm.startBroadcast(deployerPrivateKey);
 
         // deploy L2 factory
         L2Factory factoryARB = new L2Factory(
@@ -153,21 +158,14 @@ contract testnetDeployDAMM is Script {
         L2Router routerARB = new L2Router(address(factoryARB));
 
         // Deploy pair(s)
-        pairARBUSDTUSDC = Pair(
-            factoryARB.createPair(
-                ARB_USDC,
-                ARB_USDT,
-                sgConfigUSDTUSDC, 
-                USDT,
-                USDC,
-                address(doveUSDTUSDC)
-            )
-        );
-
+        pairARBUSDTUSDC =
+            Pair(factoryARB.createPair(ARB_USDC, ARB_USDT, sgConfigUSDTUSDC, USDT, USDC, address(doveUSDTUSDC)));
+        vm.stopBroadcast();
 
         // --------------- Switch to L2 (POLYGON) -------------------
 
         POLY_FORK_ID = vm.createSelectFork(RPC_POLY_MUMBAI);
+        vm.startBroadcast(deployerPrivateKey);
 
         // deploy L2 factory
         L2Factory factoryPOLY = new L2Factory(
@@ -181,20 +179,14 @@ contract testnetDeployDAMM is Script {
         // deploy router (factory addr)
         L2Router routerPOLY = new L2Router(address(factoryPOLY));
 
-        pairPOLYUSDTUSDC = Pair(
-            factoryARB.createPair(
-                POLY_USDC,
-                POLY_USDT,
-                sgConfigUSDTUSDC, 
-                USDT,
-                USDC,
-                address(doveUSDTUSDC)
-            )
-        );
+        pairPOLYUSDTUSDC =
+            Pair(factoryPOLY.createPair(POLY_USDC, POLY_USDT, sgConfigUSDTUSDC, USDT, USDC, address(doveUSDTUSDC)));
+        vm.stopBroadcast();
 
         // --------------- Switch to "L2" (AVALANCHE) -------------------
 
         AVAX_FORK_ID = vm.createSelectFork(RPC_AVAX_FUJI);
+        vm.startBroadcast(deployerPrivateKey);
 
         // deploy L2 factory
         L2Factory factoryAVAX = new L2Factory(
@@ -210,33 +202,20 @@ contract testnetDeployDAMM is Script {
 
         // Deploy pair(s)
         pairAVAXUSDTUSDC = Pair(
-            factoryAVAX.createPair(
-                AVAX_USDC,
-                AVAX_USDT,
-                sgConfigUSDTUSDC, 
-                AVAX_USDT,
-                AVAX_USDC,
-                address(doveUSDTUSDC)
-            )
+            factoryAVAX.createPair(AVAX_USDC, AVAX_USDT, sgConfigUSDTUSDC, AVAX_USDT, AVAX_USDC, address(doveUSDTUSDC))
         );
+        vm.stopBroadcast();
 
         // --------------- Switch back to L1 -------------------
 
         vm.selectFork(L1_FORK_ID);
+        vm.startBroadcast(address(factoryL1));
 
         // L1 factory adds trusted remotes to dove(s) for each pair(s)
-        doveUSDTUSDC.addTrustedRemote(
-            ARB_DOMAIN,
-            bytes32(uint256(uint160(address(pairARBUSDTUSDC))))
-        );
-        doveUSDTUSDC.addTrustedRemote(
-            POLY_DOMAIN,
-            bytes32(uint256(uint160(address(pairPOLYUSDTUSDC))))
-        );
-        doveUSDTUSDC.addTrustedRemote(
-            AVAX_DOMAIN,
-            bytes32(uint256(uint160(address(pairAVAXUSDTUSDC))))
-        );
+
+        doveUSDTUSDC.addTrustedRemote(ARB_DOMAIN, bytes32(uint256(uint160(address(pairARBUSDTUSDC)))));
+        doveUSDTUSDC.addTrustedRemote(POLY_DOMAIN, bytes32(uint256(uint160(address(pairPOLYUSDTUSDC)))));
+        doveUSDTUSDC.addTrustedRemote(AVAX_DOMAIN, bytes32(uint256(uint160(address(pairAVAXUSDTUSDC)))));
 
         vm.stopBroadcast();
     }
