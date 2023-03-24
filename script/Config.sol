@@ -113,14 +113,14 @@ library Configs {
 
     function getETHGoerliDAMMDeployedConfig() internal pure returns (dAMMDeployedConfig memory) {
         return dAMMDeployedConfig({
-            dove: address(0),
-            factory: address(0),
+            dove: 0x309EffB54b31C278Ed1c6F4bf85C6145b63Ee97f,
+            factory: 0x5fEeD6701497460a6ff6d48b90bf8F514a9C5e9B,
             arbiDomain: ARB_DOMAIN,
             polyDomain: POLY_DOMAIN,
             avaxDomain: AVAX_DOMAIN,
-            pairArbi: address(0),
-            pairPoly: address(0),
-            pairAvax: address(0)
+            pairArbi: 0x7De0Ca730B756a8953AA28D284069B8B2Db8C420,
+            pairPoly: 0xccBf25F63db94B8215A18deAe0ca717c7B2817ca,
+            pairAvax: 0x67C2e796dd93Cc711277164481ADD7baefF34184
         });
     }
 

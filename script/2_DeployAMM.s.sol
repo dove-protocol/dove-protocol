@@ -33,7 +33,7 @@ contract DeployAMM is Script {
             RPC_URL = vm.envString("POLYGON_MUMBAI_RPC_URL");
         } else if (keccak256(abi.encodePacked(layer)) == keccak256(abi.encodePacked("avalanche"))) {
             config = Configs.getAvaxFujiConfig();
-            RPC_URL = vm.envString("AVAX_FUJI_RPC_URL");
+            RPC_URL = vm.envString("AVALANCHE_FUJI_RPC_URL");
         } else {
             revert("Invalid network");
         }
