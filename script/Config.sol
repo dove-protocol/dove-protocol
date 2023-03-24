@@ -8,7 +8,7 @@ library Configs {
 
     /// Hyperlane DOMAINS
     uint32 constant L1_DOMAIN = 5; // ETH goerli
-    uint32 constant ARB_DOMAIN = 137; // ARB goerli
+    uint32 constant ARB_DOMAIN = 421613; // ARB goerli
     uint32 constant POLY_DOMAIN = 80001; // POLY mumbai
     uint32 constant AVAX_DOMAIN = 43113; // AVAX fuji
 
