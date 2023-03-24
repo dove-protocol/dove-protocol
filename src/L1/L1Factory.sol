@@ -55,6 +55,19 @@ contract L1Factory is IL1Factory {
         isPaused = _state;
     }
 
+    /// TODO: only temporary, remove after testing
+    function addStargateTrustedBridge(address dove, uint16 chainId, address remote, address local) external {
+        if (msg.sender != pauser) revert OnlyPauser();
+
+        Dove(dove).addStargateTrustedBridge(chainId, remote, local);
+    }
+
+    function addTrustedRemote(address dove, uint32 origin, bytes32 sender) external {
+        if (msg.sender != pauser) revert OnlyPauser();
+
+        Dove(dove).addTrustedRemote(origin, sender);
+    }
+
     function pairCodeHash() external pure override returns (bytes32) {
         return keccak256(type(Dove).creationCode);
     }
