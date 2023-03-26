@@ -48,8 +48,8 @@ contract DeployAMM is Script {
             config.hlGasMaster,
             config.hlMailbox,
             config.sgRouter,
-            config.sgChainId,
-            config.hlDomainId
+            config.sgDestChainId,
+            config.hlDestDomainId
         );
 
         // deploy router (factory addr)

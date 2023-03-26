@@ -2,15 +2,15 @@ pragma solidity ^0.8.15;
 
 library Configs {
     /// Current deployed contracts
-    address constant dove = 0xb347Cd2d6634206F5B56Fd4C7111af0743e1023E;
-    address constant factory = 0xE84718320DaEFE1C5C46986efC8eb2Ba84830Dfc;
-    address constant router = 0x6bA98DcD124bCb8F9608EbBAC05C36163b937923;
-    address constant pairArbi = 0x7CF4cBE24ec3a856dB80343C0BdC57D156c91E86;
-    address constant pairPoly = 0x5C24F3e8106706d4C72Fdf277A0b8da3dFccfd77;
-    address constant pairAvax = 0x462af32b09515e778E4D65ddA2a37B46EEb8Dff4;
-    address constant routerArbi = 0x092215A23f62C68FFf42e0D4e55240FD3EF5cfe7;
-    address constant routerPoly = 0xF0E8Ea65dc3b311a9dA2BC9f155ea6cb3d78323a;
-    address constant routerAvax = 0x2237bD04400a644084A3FAAfA11bfD634a08A18E;
+    address constant dove = 0x13b156E036f6D91482b7136302A2D1fF0c5FDcF8;
+    address constant factory = 0xF86761DC42adf7E7398A7DE4c2F6A2316eae807a;
+    address constant router = 0x399CD1eB15a570BCd63d68FE6E073cB81730d9E4;
+    address constant pairArbi = 0x78818F4784B9A1f272F4dcDE1ED09fF182bAF407;
+    address constant pairPoly = 0x1aC3E28E97864296fE8b0fEA9cBCf77604bf0c4E;
+    address constant pairAvax = 0x51fb7aDdE04fB8d45BF02B254C6DfbFA3aFaE916;
+    address constant routerArbi = 0x88BDec3893364f43194eAbe01312cd3d49AC0d2B;
+    address constant routerPoly = 0x3a11F5DD35790B0DcD80A0330FD20EAfBf0873Ae;
+    address constant routerAvax = 0x4CCB891607C911Fd65e56D03bd850F9bB71e043C;
 
     address constant hlGasMaster = 0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a;
     address constant hlMailbox = 0xCC737a94FecaeC165AbCf12dED095BB13F037685;
@@ -69,10 +69,10 @@ library Configs {
         address L1Token1;
         address sgRouter;
         address sgBridge;
-        uint16 sgChainId;
+        uint16 sgDestChainId;
         address hlMailbox;
         address hlGasMaster;
-        uint32 hlDomainId;
+        uint32 hlDestDomainId;
     }
 
     struct dAMMConfig {
@@ -148,10 +148,10 @@ library Configs {
             L1Token1: USDC,
             sgRouter: sgRouterARB,
             sgBridge: sgBridgeARB,
-            sgChainId: ARB_CHAIN_ID,
+            sgDestChainId: L1_CHAIN_ID,
             hlMailbox: hlMailbox,
             hlGasMaster: hlGasMaster,
-            hlDomainId: ARB_DOMAIN
+            hlDestDomainId: L1_DOMAIN
         });
     }
 
@@ -164,10 +164,10 @@ library Configs {
             L1Token1: USDC,
             sgRouter: sgRouterPOLY,
             sgBridge: sgBridgePOLY,
-            sgChainId: POLY_CHAIN_ID,
+            sgDestChainId: L1_CHAIN_ID,
             hlMailbox: hlMailbox,
             hlGasMaster: hlGasMaster,
-            hlDomainId: POLY_DOMAIN
+            hlDestDomainId: L1_DOMAIN
         });
     }
 
@@ -180,10 +180,10 @@ library Configs {
             L1Token1: USDC,
             sgRouter: sgRouterAVAX,
             sgBridge: sgBridgeAVAX,
-            sgChainId: AVAX_CHAIN_ID,
+            sgDestChainId: L1_CHAIN_ID,
             hlMailbox: hlMailbox,
             hlGasMaster: hlGasMaster,
-            hlDomainId: AVAX_DOMAIN
+            hlDestDomainId: L1_DOMAIN
         });
     }
 }

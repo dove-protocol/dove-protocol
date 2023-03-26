@@ -48,19 +48,19 @@ contract AddRemotesDAMM is Script {
             type(uint256).max
         );
 
-        ERC20(config.dove).approve(address(routerL1), type(uint256).max);
+        // ERC20(config.dove).approve(address(routerL1), type(uint256).max);
 
-        routerL1.removeLiquidity(
-            config.token0,
-            config.token1,
-            ERC20(config.dove).balanceOf(address(msg.sender)),
-            200000000000,
-            200000000000,
-            address(msg.sender),
-            type(uint256).max
-        );
+        // routerL1.removeLiquidity(
+        //     config.token0,
+        //     config.token1,
+        //     ERC20(config.dove).balanceOf(address(msg.sender)),
+        //     200000000000,
+        //     200000000000,
+        //     address(msg.sender),
+        //     type(uint256).max
+        // );
 
-        Dove(config.dove).syncL2{value: 1 ether}(421613, 0x87042d892c930107615360B50D0768F514522682);
+        Dove(config.dove).syncL2{value: 0.5 ether}(421613, 0x87042d892c930107615360B50D0768F514522682);
 
         vm.stopBroadcast();
     }
