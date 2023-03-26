@@ -1,9 +1,18 @@
 pragma solidity ^0.8.15;
 
 library Configs {
-    address constant dove = 0x309EffB54b31C278Ed1c6F4bf85C6145b63Ee97f;
+    /// Current deployed contracts
+    address constant dove = 0xb347Cd2d6634206F5B56Fd4C7111af0743e1023E;
+    address constant factory = 0xE84718320DaEFE1C5C46986efC8eb2Ba84830Dfc;
+    address constant router = 0x6bA98DcD124bCb8F9608EbBAC05C36163b937923;
+    address constant pairArbi = 0x7CF4cBE24ec3a856dB80343C0BdC57D156c91E86;
+    address constant pairPoly = 0x5C24F3e8106706d4C72Fdf277A0b8da3dFccfd77;
+    address constant pairAvax = 0x462af32b09515e778E4D65ddA2a37B46EEb8Dff4;
+    address constant routerArbi = 0x092215A23f62C68FFf42e0D4e55240FD3EF5cfe7;
+    address constant routerPoly = 0xF0E8Ea65dc3b311a9dA2BC9f155ea6cb3d78323a;
+    address constant routerAvax = 0x2237bD04400a644084A3FAAfA11bfD634a08A18E;
 
-    address constant hlGasMaster = 0xF90cB82a76492614D07B82a7658917f3aC811Ac1;
+    address constant hlGasMaster = 0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a;
     address constant hlMailbox = 0xCC737a94FecaeC165AbCf12dED095BB13F037685;
 
     /// Hyperlane DOMAINS
@@ -85,6 +94,9 @@ library Configs {
     struct dAMMDeployedConfig {
         address dove;
         address factory;
+        address router;
+        address token0;
+        address token1;
         uint32 arbiDomain;
         uint32 polyDomain;
         uint32 avaxDomain;
@@ -113,14 +125,17 @@ library Configs {
 
     function getETHGoerliDAMMDeployedConfig() internal pure returns (dAMMDeployedConfig memory) {
         return dAMMDeployedConfig({
-            dove: 0x309EffB54b31C278Ed1c6F4bf85C6145b63Ee97f,
-            factory: 0x5fEeD6701497460a6ff6d48b90bf8F514a9C5e9B,
+            dove: dove,
+            factory: factory,
+            router: router,
+            token0: USDT,
+            token1: USDC,
             arbiDomain: ARB_DOMAIN,
             polyDomain: POLY_DOMAIN,
             avaxDomain: AVAX_DOMAIN,
-            pairArbi: 0x7De0Ca730B756a8953AA28D284069B8B2Db8C420,
-            pairPoly: 0xccBf25F63db94B8215A18deAe0ca717c7B2817ca,
-            pairAvax: 0x67C2e796dd93Cc711277164481ADD7baefF34184
+            pairArbi: pairArbi,
+            pairPoly: pairPoly,
+            pairAvax: pairAvax
         });
     }
 
