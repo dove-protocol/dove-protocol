@@ -23,7 +23,7 @@ contract DeployAMM is Script {
         Configs.AMMConfig memory config;
 
         IL2Factory.SGConfig memory sgConfigUSDTUSDC =
-            IL2Factory.SGConfig({srcPoolId0: 1, dstPoolId0: 1, srcPoolId1: 2, dstPoolId1: 2});
+            IL2Factory.SGConfig({srcPoolId0: 2, dstPoolId0: 2, srcPoolId1: 1, dstPoolId1: 1});
 
         if (keccak256(abi.encodePacked(layer)) == keccak256(abi.encodePacked("arbitrum"))) {
             config = Configs.getArbiGoerliConfig();
