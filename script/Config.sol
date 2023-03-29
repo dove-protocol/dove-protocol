@@ -2,22 +2,22 @@ pragma solidity ^0.8.15;
 
 library Configs {
     /// Current deployed contracts
-    address constant dove = 0x13b156E036f6D91482b7136302A2D1fF0c5FDcF8;
-    address constant factory = 0xF86761DC42adf7E7398A7DE4c2F6A2316eae807a;
-    address constant router = 0x399CD1eB15a570BCd63d68FE6E073cB81730d9E4;
-    address constant pairArbi = 0x78818F4784B9A1f272F4dcDE1ED09fF182bAF407;
-    address constant pairPoly = 0x1aC3E28E97864296fE8b0fEA9cBCf77604bf0c4E;
-    address constant pairAvax = 0x51fb7aDdE04fB8d45BF02B254C6DfbFA3aFaE916;
-    address constant routerArbi = 0x88BDec3893364f43194eAbe01312cd3d49AC0d2B;
-    address constant routerPoly = 0x3a11F5DD35790B0DcD80A0330FD20EAfBf0873Ae;
-    address constant routerAvax = 0x4CCB891607C911Fd65e56D03bd850F9bB71e043C;
+    address constant dove = 0x4cEe61a7641390b71225cD64FB6cE7CA30E7e151;
+    address constant factory = 0xA3bB990Ae34B504FA02D2aEf75A7626bf40bA3d5;
+    address constant router = 0x5Aebb6E8f23782Af574232D5E0eA95Ec1EEa3587;
+    address constant pairArbi = 0xD348BcCdbB17d7ff2A3D48952aa4f2886F151256;
+    address constant pairPoly = 0xDA3fEC084E9958268F650dA21817860ba2D2988d;
+    address constant pairAvax = 0x3c30d2c818ad1fe7B44595A3CF264A97dcE566cE;
+    address constant routerArbi = 0x0eCd916D0DD87433bf2772D8d6363c7A770a5Ab5;
+    address constant routerPoly = 0xa9582De37b16C0d28E89c2F02a66692642F3B487;
+    address constant routerAvax = 0x0656AB5c74a804076ce027ae5BB3eF91dc45f665;
 
     address constant hlGasMaster = 0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a;
     address constant hlMailbox = 0xCC737a94FecaeC165AbCf12dED095BB13F037685;
 
     /// Hyperlane DOMAINS
     uint32 constant L1_DOMAIN = 5; // ETH goerli
-    uint32 constant ARB_DOMAIN = 421613; // ARB goerli
+    uint32 constant ARBI_DOMAIN = 421613; // ARB goerli
     uint32 constant POLY_DOMAIN = 80001; // POLY mumbai
     uint32 constant AVAX_DOMAIN = 43113; // AVAX fuji
 
@@ -130,7 +130,7 @@ library Configs {
             router: router,
             token0: USDT,
             token1: USDC,
-            arbiDomain: ARB_DOMAIN,
+            arbiDomain: ARBI_DOMAIN,
             polyDomain: POLY_DOMAIN,
             avaxDomain: AVAX_DOMAIN,
             pairArbi: pairArbi,
