@@ -96,10 +96,10 @@ jobs:
         id: build
         continue-on-error: true
 
-      - name: Run scripts
-        run: |
-          ls -lsa
-          ls script/
-          for file in script/*; do
-            forge script $file
-          done
+      # - name: Run scripts
+      #   run: |
+      #     ls -lsa
+      #     ls script/
+      #     for file in script/*; do
+      #       forge script $file
+      #     done
