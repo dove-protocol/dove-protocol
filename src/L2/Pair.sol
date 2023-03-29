@@ -17,8 +17,6 @@ import "./interfaces/IL2Factory.sol";
 
 import "../Codec.sol";
 
-import "forge-std/console.sol";
-
 /// The AMM logic is taken from https://github.com/transmissions11/solidly/blob/master/contracts/BaseV1-core.sol
 
 contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
@@ -115,7 +113,6 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
                             AMM LOGIC
     ###############################################################*/
 
-    // TODO ; use balance0() instrad of reserrve0???
     function getReserves()
         public
         view
@@ -127,7 +124,6 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         _blockTimestampLast = blockTimestampLast;
     }
 
-    // TODO : rename to reserve0???
     function balance0() public view returns (uint256) {
         return ref0 + STL.balanceOf(token0, address(this)) - voucher0Delta;
     }
@@ -210,6 +206,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
                 // difference between our token balance and what user needs
                 (uint256 toSend, uint256 toMint) =
                     _balance0 >= amount0Out ? (amount0Out, 0) : (_balance0, amount0Out - _balance0);
+                if (voucher0.totalSupply() + toMint > (balance0() * factory.voucherLimiter()) / 10000) revert Voucher0LimitReached();
                 if (toSend > 0) STL.safeTransfer(_token0, to, toSend);
                 if (toMint > 0) {
                     voucher0.mint(to, toMint);
@@ -220,6 +217,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             if (amount1Out > 0) {
                 (uint256 toSend, uint256 toMint) =
                     _balance1 >= amount1Out ? (amount1Out, 0) : (_balance1, amount1Out - _balance1);
+                if (voucher1.totalSupply() + toMint > (balance1() * factory.voucherLimiter()) / 10000) revert Voucher1LimitReached();
                 if (toSend > 0) STL.safeTransfer(_token1, to, toSend);
                 if (toMint > 0) {
                     voucher1.mint(to, toMint);
@@ -384,7 +382,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             _balance0,
             IStargateRouter.lzTxObj(50000, 0, "0x"),
             abi.encodePacked(L1Target),
-            "1"
+            abi.encode(syncID)
         );
         reserve0 = ref0 + uint128(_balance0) - voucher0Delta - pairVoucher0Balance;
 
@@ -399,7 +397,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             _balance1,
             IStargateRouter.lzTxObj(50000, 0, "0x"),
             abi.encodePacked(L1Target),
-            "1"
+            abi.encode(syncID)
         );
         reserve1 = ref1 + uint128(_balance1) - voucher1Delta - pairVoucher1Balance;
 
