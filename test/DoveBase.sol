@@ -198,6 +198,7 @@ contract DoveBase is Test, Helper {
 
     function _syncToL2(uint256 toFork) internal {
         vm.selectFork(L1_FORK_ID);
+
         vm.recordLogs();
         dove.syncL2{value: 1 ether}(forkToChainId[toFork], forkToPair[toFork]);
         Vm.Log[] memory logs = vm.getRecordedLogs();
