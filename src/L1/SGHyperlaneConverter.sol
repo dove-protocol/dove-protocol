@@ -6,15 +6,24 @@ library SGHyperlaneConverter {
 
     function sgToHyperlane(uint16 sgIdentifier) internal pure returns (uint32 domain) {
         // TODO: add mainnet chains
-        // arbitrum goerli
         if (sgIdentifier == 10143) {
+            // arbitrum goerli
             return 421613;
-            // polygon mumbai
         } else if (sgIdentifier == 10109) {
+            // polygon mumbai
             return 80001;
-            // avalanche fuji
         } else if (sgIdentifier == 10106) {
+            // avalanche fuji
             return 43113;
+        } else if (sgIdentifier == 110) {
+            // arbi
+            return 42161;
+        } else if (sgIdentifier == 111) {
+            // optimism
+            return 10;
+        } else if (sgIdentifier == 109) {
+            /// polygon
+            return 137;
         } else {
             revert InvalidChain(sgIdentifier);
         }
