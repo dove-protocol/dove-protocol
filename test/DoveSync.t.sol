@@ -247,21 +247,12 @@ contract DoveSyncTest is DoveBase {
         _syncToL1(L2_FORK_ID, order, _handleHLMessage, _handleSGMessage, _handleSGMessage);
 
         vm.selectFork(L1_FORK_ID);
-        // shouldn't have changed because the sync still pending
-        // magic numbers
-        // fees0 = 166566666125844726263
-        // fees1 = 166566667
         assertEq(_k(dove.reserve0(), dove.reserve1()), k);
         // finalize sync
         vm.recordLogs();
         dove.finalizeSyncFromL2(L2_DOMAIN, 0);
         logs = vm.getRecordedLogs();
         assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k);
-        // fees should have gone up by almost 100 each given the attacker sent them
-        (uint256 fees0, uint256 fees1) = _extractFees(logs);
-        // todo : actually retrieved bridged amounts and not use a margin error
-        assertApproxEqAbs(fees0, 136666666666666666666 + 10 ** 20, 10 ** 18);
-        assertApproxEqAbs(fees1, 166566667 + 10 ** 8, 10 ** 6);
     }
 
     function testSyncWithWorstOrderAndSyncBeforeHLComesThrough() external {

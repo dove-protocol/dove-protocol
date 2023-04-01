@@ -42,6 +42,11 @@ interface IDove {
         uint128 amount1;
     }
 
+    struct Marked {
+        uint128 marked0;
+        uint128 marked1;
+    }
+
     function claimFeesFor(address recipient) external returns (uint256 claimed0, uint256 claimed1);
     function isLiquidityLocked() external view returns (bool);
     function mint(address to) external returns (uint256 liquidity);

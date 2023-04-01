@@ -35,10 +35,6 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     Fountain public feesDistributor;
     Fountain public fountain;
 
-    struct Marked {
-        uint128 marked0;
-        uint128 marked1;
-    }
     /// @notice domain id [hyperlane] => earmarked tokens
     mapping(uint32 => Marked) public marked;
     mapping(uint32 => mapping(uint16 => Sync)) public syncs;

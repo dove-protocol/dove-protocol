@@ -115,7 +115,10 @@ contract DoveMultiSyncTest is DoveBase {
         assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k, "F for curve");
         k = _k(dove.reserve0(), dove.reserve1());
 
+        vm.recordLogs();
         _standardSyncToL1(L3_FORK_ID);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        SyncEventAsStruct memory syncEvent = _extractSyncFinalizedEvent(logs);
 
         // Reminder that both L2s underwent same exact changes
         // check # of earmarked tokens in both Dove and the fountain
@@ -129,18 +132,9 @@ contract DoveMultiSyncTest is DoveBase {
         assertEq(a, expectedMarked0);
         assertEq(b, expectedMarked1);
 
-        // todo : remove magic numbers and find out amounts by parsing logs
-        // bridged0 = 166569749000000000000
-        // bridged1 = 166566667
-        // fees0    = 166566666125844726263
-        // fees1    = 166566667
-
-        uint256 pairBalance0 = 166569749000000000000 - 166566666125844726263;
-        uint256 pairBalance1 = 166566667 - 166566667;
-
         // check that reserves were impacted properly
-        assertEq(dove.reserve0(), initialR0 + (2 * pairBalance0) - (2 * expectedMarked0));
-        assertEq(dove.reserve1(), initialR1 + (2 * pairBalance1) - (2 * expectedMarked1));
+        assertEq(dove.reserve0(), initialR0 + (2 * syncEvent.pairBalance0) - (2 * expectedMarked0), "reserve0 not impacted properly");
+        assertEq(dove.reserve1(), initialR1 + (2 * syncEvent.pairBalance1) - (2 * expectedMarked1), "reserve1 not impacted properly");
     }
 
     function testSyncsWithVouchers() external {
@@ -162,7 +156,11 @@ contract DoveMultiSyncTest is DoveBase {
         assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k, "F for curve");
         k = _k(dove.reserve0(), dove.reserve1());
 
+
+        vm.recordLogs();
         _standardSyncToL1(L3_FORK_ID);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        SyncEventAsStruct memory syncEvent = _extractSyncFinalizedEvent(logs);
 
         // Reminder that both L2s underwent same exact changes
         // check # of earmarked tokens in both Dove and the fountain
@@ -176,18 +174,9 @@ contract DoveMultiSyncTest is DoveBase {
         assertEq(a, expectedMarked0);
         assertEq(b, expectedMarked1);
 
-        // todo : remove magic numbers and find out amounts by parsing logs
-        // bridged0 = 49833333333333333333334
-        // bridged1 = 0
-        // fees0    = 136666666666666666666
-        // fees1    = 166566667
-
-        uint256 pairBalance0 = 49833333333333333333334;
-        uint256 pairBalance1 = 0;
-
         // check that reserves were impacted properly
-        assertEq(dove.reserve0(), initialR0 + (2 * pairBalance0) - (2 * expectedMarked0));
-        assertEq(dove.reserve1(), initialR1 + (2 * pairBalance1) - (2 * expectedMarked1));
+        assertEq(dove.reserve0(), initialR0 + (2 * syncEvent.pairBalance0) - (2 * expectedMarked0), "reserve0 not impacted properly");
+        assertEq(dove.reserve1(), initialR1 + (2 * syncEvent.pairBalance1) - (2 * expectedMarked1), "reserve1 not impacted properly");
     }
 
     function _doSomeSwapsOnL3() internal {
@@ -202,37 +191,10 @@ contract DoveMultiSyncTest is DoveBase {
         routerL3.swapExactTokensForTokensSimple(
             amount0In, amount1Out, pair2.token0(), pair2.token1(), address(0xbeef), block.timestamp + 1000
         );
-        /*
-            Napkin math
-            Balances after fees
-
-            0xbeef trades 50000000000 usdc for 49833330250459178059597 dai
-            Not enough held in Pair, so will have to voucher mint entire amount out in dai
-
-            erc20       pair                        0xbeef  
-            DAI         0                           0 
-            USDC        49833333334                 0
-            vDAI        0                           49833330250459178059597
-            vUSDC       0                           0
-
-        */
         amount1In = 50000 * 10 ** 18; // 50k dai
         amount0Out = pair2.getAmountOut(amount1In, pair2.token1());
         routerL3.swapExactTokensForTokensSimple(
             amount1In, amount0Out, pair2.token1(), pair2.token0(), address(0xbeef), block.timestamp + 1000
         );
-        /*
-            Napkin math
-            Balances after fees
-
-            0xbeef trades 50000000000000000000000 dai for 49833336416 usdc
-            Not enough held in Pair, so will have to voucher mint 3082 vUSDC
-
-            erc20       pair                        0xbeef  
-            DAI         49833333333333333333334     0
-            USDC        0                           49833333334     
-            vDAI        0                           49833330250459178059597
-            vUSDC       0                           3082
-        */
     }
 }

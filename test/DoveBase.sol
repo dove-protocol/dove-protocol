@@ -428,4 +428,18 @@ contract DoveBase is Test, Helper {
         (uint256 fees0, uint256 fees1) = abi.decode(feesLog.data, (uint256, uint256));
         return (fees0, fees1);
     }
+
+    struct SyncEventAsStruct {
+        uint16 syncID;
+        uint256 pairBalance0;
+        uint256 pairBalance1;
+        uint256 earmarkedAmount0;
+        uint256 earmarkedAmount1;
+    }
+
+    function _extractSyncFinalizedEvent(Vm.Log[] memory logs) internal returns (SyncEventAsStruct memory) {
+        bytes32 syncTopic = 0x8fc53761dbb4ee9f828686a2030c18f3a7ddd0209f7a4ddd618909da358706a3;
+        Vm.Log memory syncLog = _findOneLog(logs, syncTopic);
+        return abi.decode(syncLog.data, (SyncEventAsStruct));
+    }
 }
