@@ -17,7 +17,7 @@ import {ILayerZeroEndpoint} from "./utils/ILayerZeroEndpoint.sol";
 import {LayerZeroPacket} from "./utils/LZPacket.sol";
 import {Helper} from "./utils/Helper.sol";
 
-import {ERC20Mock} from "./mocks/ERC20Mock.sol";
+import {ERC20Mock, ERC20} from "./mocks/ERC20Mock.sol";
 import {InterchainGasPaymasterMock} from "./mocks/InterchainGasPaymasterMock.sol";
 import {MailboxMock} from "./mocks/MailboxMock.sol";
 
@@ -326,19 +326,17 @@ contract DoveBase is Test, Helper {
         routerL2.swapExactTokensForTokensSimple(
             amount0In, amount1Out, pair.token0(), pair.token1(), address(0xbeef), block.timestamp + 1000
         );
-        uint256 voucher0Delta = uint256(vm.load(address(pair), bytes32(uint256(21))));
-        uint256 voucher1Delta = uint256(vm.load(address(pair), bytes32(uint256(22))));
         /*
             Napkin math
             Balances after fees
 
-            0xbeef trades 50000000000 usdc for 49833330250459178059597 dai
+            0xbeef trades 50000000000 usdc for 49849996912331970457171 dai
             Not enough held in Pair, so will have to voucher mint entire amount out in dai
 
             erc20       pair                        0xbeef  
             DAI         0                           0 
-            USDC        49833333334                 0
-            vDAI        0                           49833330250459178059597
+            USDC        49850000000                 0
+            vDAI        0                           49849996912331970457171
             vUSDC       0                           0
 
         */
@@ -351,14 +349,14 @@ contract DoveBase is Test, Helper {
             Napkin math
             Balances after fees
 
-            0xbeef trades 50000000000000000000000 dai for 49833336416 usdc
-            Not enough held in Pair, so will have to voucher mint 3082 vUSDC
+            0xbeef trades 50000000000000000000000 dai for 49850003087 usdc
+            Not enough held in Pair, so will have to voucher mint 3087 vUSDC
 
             erc20       pair                        0xbeef  
-            DAI         49833333333333333333334     0
-            USDC        0                           49833333334     
-            vDAI        0                           49833330250459178059597
-            vUSDC       0                           3082
+            DAI         49850000000000000000000     0
+            USDC        0                           49850000000     
+            vDAI        0                           49849996912331970457171
+            vUSDC       0                           3087
         */
     }
 

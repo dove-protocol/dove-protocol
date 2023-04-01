@@ -61,7 +61,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     uint128 internal voucher0Delta;
     uint128 internal voucher1Delta;
 
-    uint256 constant FEE = 300;
+    uint256 constant FEE = 30; // 0.03%
 
     /*###############################################################
                             CONSTRUCTOR
@@ -234,8 +234,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
 
         {
             // scope for reserve{0,1}Adjusted, avoids stack too deep errors
-            if (amount0In > 0) _update0(amount0In / FEE); // accrue fees for token0 and move them out of pool
-            if (amount1In > 0) _update1(amount1In / FEE); // accrue fees for token1 and move them out of pool
+            if (amount0In > 0) _update0((amount0In * FEE) / 10000); // accrue fees for token0 and move them out of pool
+            if (amount1In > 0) _update1((amount1In * FEE) / 10000); // accrue fees for token1 and move them out of pool
             _balance0 = balance0(); // since we removed tokens, we need to reconfirm balances, can also simply use previous balance - amountIn/ 10000, but doing balanceOf again as safety check
             _balance1 = balance1();
             // The curve, either x3y+y3x for stable pools, or x*y for volatile pools
@@ -285,7 +285,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
 
     function getAmountOut(uint256 amountIn, address tokenIn) external view override returns (uint256) {
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
-        amountIn -= amountIn / FEE; // remove fee from amount received
+        amountIn -= (amountIn * FEE) / 10000; // remove fee from amount received
         return _getAmountOut(amountIn, tokenIn, _reserve0, _reserve1);
     }
 
@@ -384,7 +384,8 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             abi.encodePacked(L1Target),
             abi.encode(syncID)
         );
-        reserve0 = ref0 + uint128(_balance0) - voucher0Delta - pairVoucher0Balance;
+        // re-query balance because not guaranteed SG swaps entire amount
+        ref0 = ref0 + uint128(_balance0) - voucher0Delta;
 
         // swap token1
         STL.safeApprove(_token1, address(stargateRouter), _balance1 + fees1);
@@ -399,14 +400,14 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             abi.encodePacked(L1Target),
             abi.encode(syncID)
         );
-        reserve1 = ref1 + uint128(_balance1) - voucher1Delta - pairVoucher1Balance;
+        ref1 = ref1 + uint128(_balance1) - voucher1Delta;
 
-        ref0 = reserve0;
-        ref1 = reserve1;
         voucher0Delta = 0;
         voucher1Delta = 0;
         syncID++;
         lastSyncTimestamp = uint64(block.timestamp);
+
+        _update(balance0(), balance1(), reserve0, reserve1);
 
         emit SyncToL1Initiated(_balance0, _balance1, fees0, fees1);
     }
