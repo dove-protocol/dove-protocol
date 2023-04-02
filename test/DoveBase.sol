@@ -34,6 +34,8 @@ import {MailboxMock} from "./mocks/MailboxMock.sol";
     marked0     voucher1
     marked1     voucher0*/
 contract DoveBase is Test, Minter {
+    address internal BASE;
+
     mapping(uint256 => uint32) forkToDomain;
     mapping(uint256 => uint16) forkToChainId;
     mapping(uint256 => address) forkToPair;
@@ -81,6 +83,7 @@ contract DoveBase is Test, Minter {
     uint256 constant initialLiquidity1 = 10 ** 13;
 
     function _setUp() internal {
+        BASE = address(this);
         vm.makePersistent(address(this));
         L1_FORK_ID = vm.createSelectFork(RPC_ETH_MAINNET, 16299272);
 

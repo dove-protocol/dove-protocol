@@ -3,18 +3,10 @@ pragma solidity ^0.8.15;
 
 import { Dove } from "../../../src/L1/Dove.sol";
 import { L1Router } from "../../../src/L1/L1Router.sol";
+import { DoveBase } from "../../DoveBase.sol";
 import { ERC20Mock } from "../../mocks/ERC20Mock.sol";
-import { StdUtils } from "forge-std/StdUtils.sol";
 
-contract L1Actor is StdUtils {
-
-    Dove public dove;
-    L1Router public router;
-
-    constructor (address _dove, address _router) {
-        dove = Dove(_dove);
-        router = L1Router(_router);
-    }
+contract L1Actor is DoveBase {
 
     function deposit(
         uint256 _amountADesired,
@@ -26,9 +18,9 @@ contract L1Actor is StdUtils {
         uint256 boundedDesiredB = bound(_amountBDesired, 1001, _maxB);
 
         (uint256 _amountMinA, uint256 _amountMinB, uint256 liquidity) = 
-            router.quoteAddLiquidity(dove.token0(), dove.token1(), boundedDesiredA, boundedDesiredB);
+            routerL1.quoteAddLiquidity(dove.token0(), dove.token1(), boundedDesiredA, boundedDesiredB);
 
-        router.addLiquidity(
+        routerL1.addLiquidity(
             dove.token0(),
             dove.token1(),
             boundedDesiredA,
@@ -46,10 +38,10 @@ contract L1Actor is StdUtils {
         uint256 boundedLiquidity = bound(liquidity, 0, ERC20Mock(address(dove)).balanceOf(address(this)));
 
         (uint256 _amount0Min, uint256 _amount1Min) = 
-            router.quoteRemoveLiquidity(dove.token0(), dove.token1(), boundedLiquidity);
+            routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), boundedLiquidity);
 
-        dove.approve(address(router), type(uint256).max);
-        router.removeLiquidity(
+        dove.approve(address(routerL1), type(uint256).max);
+        routerL1.removeLiquidity(
             dove.token0(),
             dove.token1(),
             boundedLiquidity,

@@ -2,23 +2,13 @@
 pragma solidity ^0.8.15;
 
 import { Vm } from "forge-std/Vm.sol";
-import { TestBaseAssertions } from "../../TestBaseAssertions.sol";
+import { DoveBase } from "../../DoveBase.sol";
 import { Pair } from "../../../src/L2/Pair.sol";
 import { Dove } from "../../../src/L1/Dove.sol";
 import { L1Router } from "../../../src/L1/L1router.sol";
 import { ERC20Mock } from "../../mocks/ERC20Mock.sol";
 
-contract L1ToL2SyncActor is TestBaseAssertions {
-
-    Pair public pair;
-    Dove public dove;
-    L1Router public router;
-
-    constructor (address _pair, address _dove, address _router) {
-        pair = Pair(_pair);
-        dove = Dove(_dove);
-        router = L1Router(_router);
-    }
+contract L1ToL2SyncActor is DoveBase {
 
     function syncReserves() external {
         dove.syncL2(L2_DOMAIN, address(pair));
@@ -34,9 +24,9 @@ contract L1ToL2SyncActor is TestBaseAssertions {
         uint256 boundedDesiredB = bound(_amountBDesired, 1001, _maxB);
 
         (uint256 _amountMinA, uint256 _amountMinB, uint256 liquidity) = 
-            router.quoteAddLiquidity(dove.token0(), dove.token1(), boundedDesiredA, boundedDesiredB);
+            routerL1.quoteAddLiquidity(dove.token0(), dove.token1(), boundedDesiredA, boundedDesiredB);
 
-        router.addLiquidity(
+        routerL1.addLiquidity(
             dove.token0(),
             dove.token1(),
             boundedDesiredA,
@@ -54,10 +44,10 @@ contract L1ToL2SyncActor is TestBaseAssertions {
         uint256 boundedLiquidity = bound(liquidity, 0, ERC20Mock(address(dove)).balanceOf(address(this)));
 
         (uint256 _amount0Min, uint256 _amount1Min) = 
-            router.quoteRemoveLiquidity(dove.token0(), dove.token1(), boundedLiquidity);
+            routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), boundedLiquidity);
 
-        dove.approve(address(router), type(uint256).max);
-        router.removeLiquidity(
+        dove.approve(address(routerL1), type(uint256).max);
+        routerL1.removeLiquidity(
             dove.token0(),
             dove.token1(),
             boundedLiquidity,

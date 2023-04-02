@@ -2,31 +2,14 @@
 pragma solidity ^0.8.15;
 
 import { Vm } from "forge-std/Vm.sol";
-import { TestBaseAssertions } from "../../TestBaseAssertions.sol";
+import { DoveBase } from "../../DoveBase.sol";
 import { Dove } from "../../../src/L1/Dove.sol";
 import { L1Router } from "../../../src/L1/L1Router.sol";
 import { Pair } from "../../../src/L2/Pair.sol";
 import { L2Router } from "../../../src/L2/L2Router.sol";
 import { ERC20Mock } from "../../mocks/ERC20Mock.sol";
 
-contract CrossChainActor is TestBaseAssertions {
-
-    Dove public dove;
-    L1Router public routerLiq;
-    Pair public pair;
-    L2Router public routerTrade;
-
-    constructor (
-        address _dove,
-        address _routerL1,
-        address _pair,
-        address _routerL2
-    ) {
-        dove = Dove(_dove);
-        routerLiq = L1Router(_routerL1);
-        pair = Pair(_pair);
-        routerTrade = L2Router(_routerL2);
-    }
+contract CrossChainActor is DoveBase {
 
     function deposit(
         uint256 _amountADesired,
@@ -35,13 +18,13 @@ contract CrossChainActor is TestBaseAssertions {
         vm.selectFork(L1_FORK_ID);
         uint256 _maxA = ERC20Mock(dove.token0()).balanceOf(address(this));
         uint256 _maxB = ERC20Mock(dove.token0()).balanceOf(address(this));
-        uint256 boundedDesiredA = constrictToRange(_amountADesired, 1001, _maxA);
-        uint256 boundedDesiredB = constrictToRange(_amountBDesired, 1001, _maxB);
+        uint256 boundedDesiredA = bound(_amountADesired, 1001, _maxA);
+        uint256 boundedDesiredB = bound(_amountBDesired, 1001, _maxB);
 
         (uint256 _amountMinA, uint256 _amountMinB, uint256 liquidity) = 
-            routerLiq.quoteAddLiquidity(dove.token0(), dove.token1(), boundedDesiredA, boundedDesiredB);
+            routerL1.quoteAddLiquidity(dove.token0(), dove.token1(), boundedDesiredA, boundedDesiredB);
 
-        routerLiq.addLiquidity(
+        routerL1.addLiquidity(
             dove.token0(),
             dove.token1(),
             boundedDesiredA,
@@ -57,13 +40,13 @@ contract CrossChainActor is TestBaseAssertions {
         uint256 liquidity
     ) external {
         vm.selectFork(L1_FORK_ID);
-        uint256 boundedLiquidity = constrictToRange(liquidity, 0, ERC20Mock(address(dove)).balanceOf(address(this)));
+        uint256 boundedLiquidity = bound(liquidity, 0, ERC20Mock(address(dove)).balanceOf(address(this)));
 
         (uint256 _amount0Min, uint256 _amount1Min) = 
-            routerLiq.quoteRemoveLiquidity(dove.token0(), dove.token1(), boundedLiquidity);
+            routerL1.quoteRemoveLiquidity(dove.token0(), dove.token1(), boundedLiquidity);
 
-        dove.approve(address(routerLiq), type(uint256).max);
-        routerLiq.removeLiquidity(
+        dove.approve(address(routerL1), type(uint256).max);
+        routerL1.removeLiquidity(
             dove.token0(),
             dove.token1(),
             boundedLiquidity,
@@ -76,11 +59,11 @@ contract CrossChainActor is TestBaseAssertions {
 
     function swapFrom0(uint256 _amountIn) external {
         vm.selectFork(L2_FORK_ID);
-        uint256 boundedAmountIn = constrictToRange(_amountIn, 1, ERC20Mock(pair.token0()).balanceOf(address(this)));
+        uint256 boundedAmountIn = bound(_amountIn, 1, ERC20Mock(pair.token0()).balanceOf(address(this)));
 
-        uint256 amountOut = routerTrade.getAmountOut(boundedAmountIn, pair.token0(), pair.token1());
+        uint256 amountOut = routerL2.getAmountOut(boundedAmountIn, pair.token0(), pair.token1());
 
-        routerTrade.swapExactTokensForTokensSimple(
+        routerL2.swapExactTokensForTokensSimple(
             boundedAmountIn,
             amountOut,
             pair.token0(),
@@ -92,11 +75,11 @@ contract CrossChainActor is TestBaseAssertions {
 
     function swapFrom1(uint256 _amountIn) external {
         vm.selectFork(L2_FORK_ID);
-        uint256 boundedAmountIn = constrictToRange(_amountIn, 1, ERC20Mock(pair.token1()).balanceOf(address(this)));
+        uint256 boundedAmountIn = bound(_amountIn, 1, ERC20Mock(pair.token1()).balanceOf(address(this)));
 
-        uint256 amountOut = routerTrade.getAmountOut(boundedAmountIn, pair.token1(), pair.token0());
+        uint256 amountOut = routerL2.getAmountOut(boundedAmountIn, pair.token1(), pair.token0());
 
-        routerTrade.swapExactTokensForTokensSimple(
+        routerL2.swapExactTokensForTokensSimple(
             boundedAmountIn,
             amountOut,
             pair.token1(),

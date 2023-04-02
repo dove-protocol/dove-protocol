@@ -22,22 +22,24 @@ contract L2ToL1SyncInvariant is BaseInvariant {
 
     L2ToL1SyncActor public actor;
 
-    function setUp() public override {
-        super.setUp();
+    function setUp() external {
+        _setUp();
 
-        DoveBalanceOf0Before = ERC20(dove01.token0()).balanceOf(address(dove01));
-        DoveBalanceOf1Before = ERC20(dove01.token1()).balanceOf(address(dove01));
-        DoveClaimable0Before = dove01.claimable0(BASE);
-        DoveClaimable1Before = dove01.claimable1(BASE);
+        DoveBalanceOf0Before = ERC20(dove.token0()).balanceOf(address(dove));
+        DoveBalanceOf1Before = ERC20(dove.token1()).balanceOf(address(dove));
+        DoveClaimable0Before = dove.claimable0(BASE);
+        DoveClaimable1Before = dove.claimable1(BASE);
 
-        PairBalanceOf0Before = ERC20(pair01Poly.token0()).balanceOf(address(pair01Poly));
-        PairBalanceOf1Before = ERC20(pair01Poly.token1()).balanceOf(address(pair01Poly));
-        PairBalance0Before = pair01Poly.balance0();
-        PairBalance1Before = pair01Poly.balance1();
+        vm.selectFork(L2_FORK_ID);
+
+        PairBalanceOf0Before = ERC20(pair.token0()).balanceOf(address(pair));
+        PairBalanceOf1Before = ERC20(pair.token1()).balanceOf(address(pair));
+        PairBalance0Before = pair.balance0();
+        PairBalance1Before = pair.balance1();
 
 
         // deploy actor
-        actor = new L2ToL1SyncActor(address(pair01Poly), address(dove01), address(routerL2));
+        actor = new L2ToL1SyncActor();
 
         // selectors for actor
         bytes4[] memory selectors = new bytes4[](3);
@@ -50,52 +52,56 @@ contract L2ToL1SyncInvariant is BaseInvariant {
         });
 
         // give actor pool tokens
-        Minter.mintDAIL1(pair01Poly.token0(), address(actor), 2 ** 25);
-        Minter.mintUSDCL1(pair01Poly.token1(), address(actor), 2 ** 13);
+        Minter.mintDAIL2(pair.token0(), address(actor), 2 ** 25);
+        Minter.mintUSDCL2(pair.token1(), address(actor), 2 ** 13);
 
         targetSelector(fuzzSelector);
     }
 
     function invariant_dove_balanceOf() external {
+        vm.selectFork(L1_FORK_ID);
         assertGe(
-            ERC20(dove01.token0()).balanceOf(address(dove01)),
+            ERC20(dove.token0()).balanceOf(address(dove)),
             DoveBalanceOf0Before
         );
         assertGe(
-            ERC20(dove01.token1()).balanceOf(address(dove01)),
+            ERC20(dove.token1()).balanceOf(address(dove)),
             DoveBalanceOf1Before
         );
     }
 
     function invariant_dove_claimable() external {
+        vm.selectFork(L1_FORK_ID);
         assertGe(
-            dove01.claimable0(BASE),
+            dove.claimable0(BASE),
             DoveClaimable0Before
         );
         assertGe(
-            dove01.claimable1(BASE),
+            dove.claimable1(BASE),
             DoveClaimable1Before
         );
     }
 
     function invariant_pair_balanceOf() external {
+        vm.selectFork(L2_FORK_ID);
         assertLe(
-            ERC20(pair01Poly.token0()).balanceOf(address(pair01Poly)),
+            ERC20(pair.token0()).balanceOf(address(pair)),
             PairBalanceOf0Before
         );
         assertLe(
-            ERC20(pair01Poly.token1()).balanceOf(address(pair01Poly)),
+            ERC20(pair.token1()).balanceOf(address(pair)),
             PairBalanceOf1Before
         );
     }
 
     function invariant_pair_balance() external {
+        vm.selectFork(L2_FORK_ID);
         assertLe(
-            ERC20(pair01Poly.token0()).balanceOf(address(pair01Poly)),
+            ERC20(pair.token0()).balanceOf(address(pair)),
             PairBalanceOf0Before
         );
         assertLe(
-            ERC20(pair01Poly.token1()).balanceOf(address(pair01Poly)),
+            ERC20(pair.token1()).balanceOf(address(pair)),
             PairBalanceOf1Before
         );
     }

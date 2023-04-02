@@ -10,11 +10,11 @@ contract L1BasicInvariant is BaseInvariant {
 
     L1Actor public actor;
 
-    function setUp() public override {
-        super.setUp();
+    function setUp() external {
+        _setUp();
 
         // deploy actor
-        actor = new L1Actor(address(dove01), address(routerL1));
+        actor = new L1Actor();
 
         // selectors for actor
         bytes4[] memory selectors = new bytes4[](2);
@@ -26,14 +26,14 @@ contract L1BasicInvariant is BaseInvariant {
         });
 
         // give actor pool tokens
-        Minter.mintDAIL1(dove01.token0(), address(actor), 2 ** 25);
-        Minter.mintUSDCL1(dove01.token1(), address(actor), 2 ** 13);
+        Minter.mintDAIL1(dove.token0(), address(actor), 2 ** 25);
+        Minter.mintUSDCL1(dove.token1(), address(actor), 2 ** 13);
 
         targetSelector(fuzzSelector);
     }
 
     function invariant_dove() external {
-        invariantDove01Solvency();
+        invariantDoveSolvency();
     }
 
 }

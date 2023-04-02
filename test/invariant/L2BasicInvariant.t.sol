@@ -10,11 +10,12 @@ contract L2BasicInvariant is BaseInvariant {
 
     L2Actor public actor;
 
-    function setUp() public override {
-        super.setUp();
+    function setUp() external {
+        _setUp();
+        vm.selectFork(L2_FORK_ID);
 
         // deploy actor
-        actor = new L2Actor(address(pair01Poly), address(routerL2));
+        actor = new L2Actor();
 
         // selectors for actor
         bytes4[] memory selectors = new bytes4[](2);
@@ -26,15 +27,15 @@ contract L2BasicInvariant is BaseInvariant {
         });
 
         // give actor pool tokens
-        Minter.mintDAIL1(pair01Poly.token0(), address(actor), 2 ** 25);
-        Minter.mintUSDCL1(pair01Poly.token1(), address(actor), 2 ** 13);
+        Minter.mintDAIL2(pair.token0(), address(actor), 2 ** 25);
+        Minter.mintUSDCL2(pair.token1(), address(actor), 2 ** 13);
 
         targetSelector(fuzzSelector);
     }
 
     function invariant_pair() external {
-        invariantPair01PolySolvency();
-        invariantPair01PolyBalances();
+        invariantPairSolvency();
+        invariantPairBalances();
     }
 
 }

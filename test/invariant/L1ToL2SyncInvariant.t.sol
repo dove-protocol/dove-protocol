@@ -10,11 +10,11 @@ contract L1ToL2SyncInvariant is BaseInvariant {
 
     L1ToL2SyncActor public actor;
 
-    function setUp() public override {
-        super.setUp();
+    function setUp() external {
+        _setUp();
 
         // deploy actor
-        actor = new L1ToL2SyncActor(address(pair01Poly), address(dove01), address(routerL1));
+        actor = new L1ToL2SyncActor();
 
         // selectors for actor
         bytes4[] memory selectors = new bytes4[](3);
@@ -27,14 +27,26 @@ contract L1ToL2SyncInvariant is BaseInvariant {
         });
 
         // give actor pool tokens
-        Minter.mintDAIL1(dove01.token0(), address(actor), 2 ** 25);
-        Minter.mintUSDCL1(dove01.token1(), address(actor), 2 ** 13);
+        Minter.mintDAIL1(dove.token0(), address(actor), 2 ** 25);
+        Minter.mintUSDCL1(dove.token1(), address(actor), 2 ** 13);
 
         targetSelector(fuzzSelector);
     }
 
-    function invariant_syncL2() external {
-        invariantL1ToL2ReserveSync();
-        
+    function invariantL1ToL2ReserveSync() external {
+        vm.selectFork(L1_FORK_ID);
+        uint128 doveReserve0 = dove.reserve0();
+        uint128 doveReserve1 = dove.reserve1();
+        vm.selectFork(L2_FORK_ID);
+        uint128 pairReserve0 = pair.reserve0();
+        uint128 pairReserve1 = pair.reserve1();
+        assertEq(
+            pairReserve0, 
+            doveReserve0
+        );
+        assertEq(
+            pairReserve1, 
+            doveReserve1
+        );
     }
 }
