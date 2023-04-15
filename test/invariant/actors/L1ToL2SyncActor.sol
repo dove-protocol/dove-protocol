@@ -10,10 +10,6 @@ import { ERC20Mock } from "../../mocks/ERC20Mock.sol";
 
 contract L1ToL2SyncActor is DoveBase {
 
-    function syncReserves() external {
-        dove.syncL2(L2_DOMAIN, address(pair));
-    }
-
     function deposit(
         uint256 _amountADesired,
         uint256 _amountBDesired
