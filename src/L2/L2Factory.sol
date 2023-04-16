@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
+import "solmate/auth/Owned.sol";
 import "./interfaces/IL2Factory.sol";
 
 import "./Pair.sol";
 
-contract L2Factory is IL2Factory {
+contract L2Factory is IL2Factory, Owned {
     /*###############################################################
                             STORAGE
     ###############################################################*/
@@ -17,13 +18,15 @@ contract L2Factory is IL2Factory {
     address public mailbox;
     address public stargateRouter;
     uint16 public destChainId;
+    uint16 public voucherLimiter = 1000;
     uint32 public destDomain;
 
     /*###############################################################
                             CONSTRUCTOR
     ###############################################################*/
     constructor(address _gasMaster, address _mailbox, address _stargateRouter, uint16 _destChainId, uint32 _destDomain)
-        public
+    Owned(msg.sender)
+    public
     {
         gasMaster = _gasMaster;
         mailbox = _mailbox;
@@ -82,5 +85,10 @@ contract L2Factory is IL2Factory {
         allPairs.push(pair);
         isPair[pair] = true;
         emit PairCreated(token0, token1, pair, allPairs.length);
+    }
+
+    function setVoucherLimiter(uint16 _voucherLimiter) external onlyOwner {
+        if (_voucherLimiter > 10000) revert NewVoucherLimiterOutOfRange();
+        voucherLimiter = _voucherLimiter;
     }
 }
