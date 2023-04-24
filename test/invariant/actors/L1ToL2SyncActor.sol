@@ -5,7 +5,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { DoveBase } from "../../DoveBase.sol";
 import { Pair } from "../../../src/L2/Pair.sol";
 import { Dove } from "../../../src/L1/Dove.sol";
-import { L1Router } from "../../../src/L1/L1router.sol";
+import { L1Router } from "../../../src/L1/L1Router.sol";
 import { ERC20Mock } from "../../mocks/ERC20Mock.sol";
 
 contract L1ToL2SyncActor is DoveBase {
