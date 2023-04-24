@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import { L2ToL1SyncActor } from "./actors/L2toL1SyncActor.sol";
+import { L2ToL1SyncActor } from "./actors/L2ToL1SyncActor.sol";
 
 import { BaseInvariant } from "./BaseInvariant.t.sol";
 import { Minter } from "../utils/Minter.sol";
