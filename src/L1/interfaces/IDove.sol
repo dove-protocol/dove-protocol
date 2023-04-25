@@ -42,6 +42,10 @@ interface IDove {
         uint128 amount1;
     }
 
+    function token0() external view returns (address _token0);
+    function token1() external view returns (address _token1);
+    function addTrustedRemote(uint32 origin, bytes32 sender) external;
+    function addStargateTrustedBridge(uint16 chainId, address remote, address local) external;
     function claimFeesFor(address recipient) external returns (uint256 claimed0, uint256 claimed1);
     function isLiquidityLocked() external view returns (bool);
     function mint(address to) external returns (uint256 liquidity);

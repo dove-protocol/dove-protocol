@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import "./DoveBase.sol";
-import "./mocks/SGAttacker.sol";
+import "../DoveBase.sol";
+import "../mocks/SGAttacker.sol";
 
 contract DoveSyncTest is DoveBase {
     function setUp() external {

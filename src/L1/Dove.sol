@@ -288,7 +288,6 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         if (trustedRemoteLookup[origin] != sender) revert NotTrusted();
 
         uint256 messageType = abi.decode(payload, (uint256));
-
         if (Codec.getType(payload) == Codec.SYNC_TO_L1) {
             (
                 uint16 syncID,

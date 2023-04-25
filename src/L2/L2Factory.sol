@@ -2,9 +2,7 @@
 pragma solidity ^0.8.15;
 
 import "solmate/auth/Owned.sol";
-
 import "./interfaces/IL2Factory.sol";
-
 import "./Pair.sol";
 
 contract L2Factory is IL2Factory, Owned {

@@ -15,7 +15,7 @@ import {TypeCasts} from "src/hyperlane/TypeCasts.sol";
 
 import {ILayerZeroEndpoint} from "./utils/ILayerZeroEndpoint.sol";
 import {LayerZeroPacket} from "./utils/LZPacket.sol";
-import {Helper} from "./utils/Helper.sol";
+import {Minter} from "./utils/Minter.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {InterchainGasPaymasterMock} from "./mocks/InterchainGasPaymasterMock.sol";
@@ -33,7 +33,9 @@ import {MailboxMock} from "./mocks/MailboxMock.sol";
     token1      token0+voucher0
     marked0     voucher1
     marked1     voucher0*/
-contract DoveBase is Test, Helper {
+contract DoveBase is Test, Minter {
+    address internal BASE;
+
     mapping(uint256 => uint32) forkToDomain;
     mapping(uint256 => uint16) forkToChainId;
     mapping(uint256 => address) forkToPair;
@@ -81,6 +83,7 @@ contract DoveBase is Test, Helper {
     uint256 constant initialLiquidity1 = 10 ** 13;
 
     function _setUp() internal {
+        BASE = address(this);
         vm.makePersistent(address(this));
         L1_FORK_ID = vm.createSelectFork(RPC_ETH_MAINNET, 16299272);
 
@@ -103,8 +106,8 @@ contract DoveBase is Test, Helper {
         dove = Dove(factoryL1.createPair(address(L1Token0), address(L1Token1)));
 
         // mint tokens
-        Helper.mintDAIL1(address(L1Token0), address(this), 10 ** 60);
-        Helper.mintUSDCL1(address(L1Token1), address(this), 10 ** 36);
+        Minter.mintDAIL1(address(L1Token0), address(this), 10 ** 60);
+        Minter.mintUSDCL1(address(L1Token1), address(this), 10 ** 36);
         // provide liquidity
         L1Token0.approve(address(dove), type(uint256).max);
         L1Token1.approve(address(dove), type(uint256).max);
@@ -164,8 +167,8 @@ contract DoveBase is Test, Helper {
 
         vm.label(pairAddress, "PairL2");
 
-        Helper.mintUSDCL2(address(L2Token0), address(this), 10 ** 36);
-        Helper.mintDAIL2(address(L2Token1), address(this), 10 ** 60);
+        Minter.mintUSDCL2(address(L2Token0), address(this), 10 ** 36);
+        Minter.mintDAIL2(address(L2Token1), address(this), 10 ** 60);
 
         L2Token0.approve(address(pair), type(uint256).max);
         L2Token1.approve(address(pair), type(uint256).max);

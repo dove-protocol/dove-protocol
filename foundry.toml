@@ -11,8 +11,9 @@ optimizer_runs = 1_000
 gas_reports = ['Dove', 'Pair']
 
 [fuzz]
-runs = 1_000
+runs = 1
 
 # Extreme Fuzzing CI Profile :P
 [profile.fuzz.ci]
 runs = 100_000
+

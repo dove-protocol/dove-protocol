@@ -23,7 +23,7 @@ interface USDL2 {
     // just like USDC
 }
 
-contract Helper is Test {
+contract Minter is Test {
     function mintUSDCL1(address _token, address _to, uint256 _amount) public {
         USDL1 USDC = USDL1(_token);
         vm.startBroadcast(USDC.masterMinter());
