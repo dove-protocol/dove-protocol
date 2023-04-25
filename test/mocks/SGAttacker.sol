@@ -21,7 +21,6 @@ contract SGAttacker {
         uint256 amount,
         address target
     ) public {
-        IStargateRouter stargateRouter = IStargateRouter(sgRouter);
         ERC20(token).approve(sgRouter, amount);
         IStargateRouter(sgRouter).swap{value: 500 ether}(
             destChainId,

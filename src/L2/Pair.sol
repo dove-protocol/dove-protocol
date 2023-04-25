@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.15;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
@@ -406,7 +406,6 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         voucher0Delta = 0;
         voucher1Delta = 0;
         syncID++;
-
         lastSyncTimestamp = uint64(block.timestamp);
 
         emit SyncToL1Initiated(_balance0, _balance1, fees0, fees1);

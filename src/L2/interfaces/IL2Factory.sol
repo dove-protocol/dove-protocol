@@ -25,6 +25,7 @@ interface IL2Factory {
     function allPairsLength() external view returns (uint256);
     function pairCodeHash() external pure returns (bytes32);
     function voucherLimiter() external view returns (uint16);
+    
     function createPair(
         address tokenA,
         address tokenB,

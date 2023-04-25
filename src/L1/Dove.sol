@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.15;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
@@ -39,7 +39,6 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         uint128 marked0;
         uint128 marked1;
     }
-
     /// @notice domain id [hyperlane] => earmarked tokens
     mapping(uint32 => Marked) public marked;
     mapping(uint32 => mapping(uint16 => Sync)) public syncs;
@@ -47,7 +46,6 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
 
     mapping(uint32 => bytes32) public trustedRemoteLookup;
     mapping(uint16 => bytes) public sgTrustedBridge;
-
     // lastBridged[domain][syncID]
     mapping(uint32 => mapping(uint16 => uint256)) internal lastBridged0;
     mapping(uint32 => mapping(uint16 => uint256)) internal lastBridged1;
@@ -314,7 +312,6 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         if (!(lastBridged0[originDomain][syncID] > 0 && lastBridged1[originDomain][syncID] > 0)) {
             revert NoStargateSwaps();
         }
-
         Sync memory sync = syncs[originDomain][syncID];
         // PVP enabled : whoever finalizes the sync gets the reward
         // doesn't matter if another user initiated it on L2
@@ -329,7 +326,6 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         uint128 amount1 = burnClaim.amount1;
 
         delete burnClaims[srcDomain][user];
-
         marked[srcDomain].marked0 -= amount0;
         marked[srcDomain].marked1 -= amount1;
         fountain.squirt(user, amount0, amount1);
