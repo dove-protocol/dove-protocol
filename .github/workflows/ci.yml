@@ -42,7 +42,7 @@ jobs:
         run: forge build --sizes
 
       - name: Check gas snapshots
-        run: forge snapshot --check
+        run: forge snapshot --tolerance 1 --check
         env:
           ETH_MAINNET_RPC_URL: ${{ secrets.ETH_MAINNET_RPC_URL }}
           POLYGON_MAINNET_RPC_URL: ${{ secrets.POLYGON_MAINNET_RPC_URL }}

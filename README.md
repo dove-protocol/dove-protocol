@@ -1,47 +1,23 @@
 <img align="right" width="150" height="150" top="100" src="./assets/dove-logo.png">
 
-# Dove Protocol • ![solidity](https://img.shields.io/badge/solidity-^0.8.15-lightgrey)
+# Dove Protocol • ![solidity](https://img.shields.io/badge/solidity-^0.8.15-lightgrey) ![license](https://img.shields.io/github/license/whitenois3/dove-protocol?label=license)
 
-Provide liquidity on L1, trade on L2.
-
-Minimized risks, maximized security.
+Unified liquidity, accessible anywhere.
 
 ## What is Dove?
 
-Dove is our take on the decentralized AMM dAMM idea that was formulated by Brecht Devos and Louis Guthmann. You can find their original post [here](https://ethresear.ch/t/damm-an-l2-powered-amm/10352).
+Dove is our take on the decentralized AMM, dAMM, idea that was formulated by Brecht Devos and Louis Guthmann. You can find their original post [here](https://ethresear.ch/t/damm-an-l2-powered-amm/10352).
 
-The liquidity and pricing logics are separated. Liquidity is on L1, trading happens on L2s.
-
-It also means that for any given pair, multiple AMMs on different layers will share the same liquidity, it’s **amplified**. It exposes the LPs to potentially much more trades, thus more fees. It’s a more efficient use of liquidity and helps to solve the liquidity fragmentation problem.
+In short ; liquidity stays on L1, trading happens on L2.
 
 Read more [here](https://www.notion.so/0xst/Dove-Protocol-5a174626e63f4c26a30e753fc7460714).
 
 The interface is deployed [here](https://dove.whitenoise.rs/).
 
-## Deployments
+## Licensing
 
-|      | Goerli                                             | Arbitrum Goerli                                    | Mumbai                                             |
-| ---- | -------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------- |
-| dAMM | [0x18e02D08CCEb8509730949954e904534768f1536][key1] |                                                    |                                                    |
-| AMM  |                                                    | [0xE7b3CcEb43b247664784836572af31dac522E148][key2] | [0xC51eFC8C3E3b8708c6f496FDa57ac33931CDB0c8][key3] |
-
-[key1]: https://goerli.etherscan.io/address/0x18e02D08CCEb8509730949954e904534768f1536
-[key2]: https://goerli.arbiscan.io/address/0xe7b3cceb43b247664784836572af31dac522e148
-[key3]: https://mumbai.polygonscan.com/address/0xC51eFC8C3E3b8708c6f496FDa57ac33931CDB0c8
-
-## Diagram
-
-<img src="./assets/diagram.png">
-
-For full quality diagram, please check [here](./assets/diagram.png).
-
-## Warning
-
-This is a very very rough MVP. It is **not** gas-optimized, it is **not** 100% safe, it is **incomplete**.
-
-The tests are **incomplete**.
-
-For the moment, consider this protocol as purely for experimental and pedagogical goals.
+The only files subject to the Business Source License 1.1 (`BUSL-1.1`) are [`Dove.sol`](src/L1/Dove.sol) and [`Pair.sol`](src/L2/Pair.sol). See [`LICENSE`](./LICENSE).
+All the other files fall under the `AGPL-3.0-only` license.
 
 ## Acknowledgements
 
