@@ -1,6 +1,6 @@
 <img align="right" width="150" height="150" top="100" src="./assets/dove-logo.png">
 
-# Dove Protocol • ![solidity](https://img.shields.io/badge/solidity-^0.8.15-lightgrey) ![license](https://img.shields.io/github/license/whitenois3/dove-protocol?label=license)
+# Dove Protocol • ![solidity](https://img.shields.io/badge/solidity-^0.8.15-lightgrey)
 
 Unified liquidity, accessible anywhere.
 
