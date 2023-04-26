@@ -364,7 +364,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             );
             // send HL message
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-            hyperlaneGasMaster.payGasFor{value: hyperlaneFee}(id, destDomain);
+            hyperlaneGasMaster.payForGas{value: hyperlaneFee}(id, destDomain, 500000, address(msg.sender));
         }
 
         (uint256 fees0, uint256 fees1) = feesAccumulator.take();
@@ -424,7 +424,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         (amount0, amount1) = _getL1Ordering(amount0, amount1);
         bytes memory payload = Codec.encodeVouchersBurn(msg.sender, uint128(amount0), uint128(amount1));
         bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
-        hyperlaneGasMaster.payGasFor{value: msg.value}(id, destDomain);
+        hyperlaneGasMaster.payForGas{value: msg.value}(id, destDomain, 500000, address(msg.sender));
 
         emit VouchersBurnInitiated(msg.sender, amount0, amount1);
     }
