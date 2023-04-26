@@ -16,7 +16,6 @@ library Codec {
         }
     }
 
-
     /*##############################################################################################################################*/
 
     struct PartialSync {
@@ -49,7 +48,6 @@ library Codec {
             mstore(payload, 0xC0) // store length
             /*
                 fpacket is split into the following, left to right
-
                 3 bits  | 16 bits | 14 bits | 160 bits |
                 --------|---------|---------|----------| = 193 bits occupied
                 msgType | syncID  | syncer% | syncer   |

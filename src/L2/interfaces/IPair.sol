@@ -25,7 +25,11 @@ interface IPair {
     error MsgValueTooLow();
     error WrongOrigin();
     error NotDove();
+    error Voucher0LimitReached();
+    error Voucher1LimitReached();
 
+    function token0() external view returns (address _token0);
+    function token1() external view returns (address _token1);
     function getReserves() external view returns (uint128 reserve0, uint128 reserve1, uint256 blockTimestampLast);
     function balance0() external view returns (uint256);
     function balance1() external view returns (uint256);

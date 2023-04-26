@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import "./DoveBase.sol";
+import "../DoveBase.sol";
 
 contract DoveVouchersTest is DoveBase {
     function setUp() external {
@@ -227,5 +227,26 @@ contract DoveVouchersTest is DoveBase {
 
         vm.selectFork(L1_FORK_ID);
         assertTrue(_k(dove.reserve0(), dove.reserve1()) >= k0);
+    }
+
+    function testVouchersLimiter() external {
+        _syncToL2(L2_FORK_ID);
+        vm.selectFork(L2_FORK_ID);
+        uint256 amount0In = 2000000 * 10 ** 6;
+        uint256 amount1Out = pair.getAmountOut(amount0In, pair.token0());
+
+        address token0 = pair.token0();
+        address token1 = pair.token1();
+        vm.expectRevert();
+        routerL2.swapExactTokensForTokensSimple(
+            amount0In, amount1Out, token0, token1, address(0xbeef), block.timestamp + 1000
+        );
+
+        amount0In = 500000 * 10 ** 6;
+        amount1Out = pair.getAmountOut(amount0In, pair.token0());
+        routerL2.swapExactTokensForTokensSimple(
+            amount0In, amount1Out, token0, token1, address(0xbeef), block.timestamp + 1000
+        );
+        assertEq(pair.voucher1().totalSupply(), amount1Out);
     }
 }

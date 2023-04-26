@@ -51,8 +51,6 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     mapping(uint32 => mapping(uint16 => uint256)) internal lastBridged0;
     mapping(uint32 => mapping(uint16 => uint256)) internal lastBridged1;
 
-    mapping(uint32 => uint16) internal localSyncID;
-
     // index0 and index1 are used to accumulate fees, this is split out from normal trades to keep the swap "clean"
     // this further allows LP holders to easily claim fees for tokens they have/staked
     uint256 public index0;
@@ -269,7 +267,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         uint256, /*_nonce*/
         address _token,
         uint256 _bridgedAmount,
-        bytes calldata
+        bytes calldata _payload
     ) external override {
         address stargateRouter = factory.stargateRouter();
         if (msg.sender != stargateRouter) revert NotStargate();
@@ -277,7 +275,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         if (keccak256(_srcAddress) != keccak256(sgTrustedBridge[_srcChainId])) revert NotTrusted();
 
         uint32 domain = SGHyperlaneConverter.sgToHyperlane(_srcChainId);
-        uint16 syncID = localSyncID[domain];
+        uint16 syncID = abi.decode(_payload, (uint16));
         if (_token == token0) {
             lastBridged0[domain][syncID] += _bridgedAmount;
         } else if (_token == token1) {
@@ -291,7 +289,6 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         if (trustedRemoteLookup[origin] != sender) revert NotTrusted();
 
         uint256 messageType = abi.decode(payload, (uint256));
-
         if (Codec.getType(payload) == Codec.SYNC_TO_L1) {
             (
                 uint16 syncID,
@@ -433,7 +430,6 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
             sync.pSyncA.earmarkedAmount,
             sync.pSyncB.earmarkedAmount
         );
-        localSyncID[srcDomain]++;
         uint256 balance0 = ERC20(sync.pSyncA.token).balanceOf(address(this));
         uint256 balance1 = ERC20(sync.pSyncB.token).balanceOf(address(this));
         _update(balance0, balance1);
