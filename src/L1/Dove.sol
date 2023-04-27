@@ -305,7 +305,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     function syncL2(uint32 destinationDomain, address pair) external payable override {
         bytes memory payload = Codec.encodeSyncToL2(token0, reserve0, reserve1);
         bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(pair), payload);
-        hyperlaneGasMaster.payGasFor{value: msg.value}(id, destinationDomain);
+        hyperlaneGasMaster.payForGas{value: msg.value}(id, destinationDomain, 100000, address(msg.sender));
     }
 
     function finalizeSyncFromL2(uint32 originDomain, uint16 syncID) external override {

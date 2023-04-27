@@ -2,8 +2,20 @@
 pragma solidity ^0.8.15;
 
 library SGHyperlaneConverter {
+    error InvalidChain(uint16 chainId);
+
     function sgToHyperlane(uint16 sgIdentifier) internal pure returns (uint32 domain) {
-        if (sgIdentifier == 110) {
+        // TODO: add mainnet chains
+        if (sgIdentifier == 10143) {
+            // arbitrum goerli
+            return 421613;
+        } else if (sgIdentifier == 10109) {
+            // polygon mumbai
+            return 80001;
+        } else if (sgIdentifier == 10106) {
+            // avalanche fuji
+            return 43113;
+        } else if (sgIdentifier == 110) {
             // arbi
             return 42161;
         } else if (sgIdentifier == 111) {
@@ -12,6 +24,8 @@ library SGHyperlaneConverter {
         } else if (sgIdentifier == 109) {
             /// polygon
             return 137;
+        } else {
+            revert InvalidChain(sgIdentifier);
         }
     }
 }

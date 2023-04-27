@@ -2,17 +2,13 @@
 pragma solidity ^0.8.15;
 
 import {Dove} from "./Dove.sol";
-
+import {Ownable} from "solady/auth/Ownable.sol";
 import "./interfaces/IL1Factory.sol";
 
-contract L1Factory is IL1Factory {
+contract L1Factory is IL1Factory, Ownable {
     address public hyperlaneGasMaster;
     address public mailbox;
     address public stargateRouter;
-
-    bool public isPaused;
-    address public pauser;
-    address public pendingPauser;
 
     mapping(address => mapping(address => address)) public getPair;
     address[] public allPairs;
@@ -22,8 +18,7 @@ contract L1Factory is IL1Factory {
                             CONSTRUCTOR
     ###############################################################*/
     constructor(address _hyperlaneGasMaster, address _mailbox, address _stargateRouter) {
-        pauser = msg.sender;
-        isPaused = false;
+        _initializeOwner(msg.sender);
 
         hyperlaneGasMaster = _hyperlaneGasMaster;
         mailbox = _mailbox;
@@ -37,22 +32,12 @@ contract L1Factory is IL1Factory {
         return allPairs.length;
     }
 
-    function setPauser(address _pauser) external override {
-        if (msg.sender != pauser) revert OnlyPauser();
-
-        pendingPauser = _pauser;
+    function addStargateTrustedBridge(address dove, uint16 chainId, address remote, address local) onlyOwner external {
+        Dove(dove).addStargateTrustedBridge(chainId, remote, local);
     }
 
-    function acceptPauser() external override {
-        if (msg.sender != pauser) revert OnlyPendingPauser();
-
-        pauser = pendingPauser;
-    }
-
-    function setPause(bool _state) external override {
-        if (msg.sender != pauser) revert OnlyPauser();
-
-        isPaused = _state;
+    function addTrustedRemote(address dove, uint32 origin, bytes32 sender) onlyOwner external {
+        Dove(dove).addTrustedRemote(origin, sender);
     }
 
     function pairCodeHash() external pure override returns (bytes32) {
