@@ -21,8 +21,8 @@ import "../Codec.sol";
 
 contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, ReentrancyGuard {
     uint256 internal constant MINIMUM_LIQUIDITY = 10 ** 3;
-    uint256 internal constant LIQUIDITY_LOCK_PERIOD = 1 minutes;
-    uint256 internal constant LIQUIDITY_UNLOCK_PERIOD = 7 minutes;
+    uint256 internal constant LIQUIDITY_LOCK_PERIOD = 7 days;
+    uint256 internal constant LIQUIDITY_UNLOCK_PERIOD = 1 days;
 
     IL1Factory public factory;
 
@@ -40,7 +40,6 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         uint128 marked1;
     }
     /// @notice domain id [hyperlane] => earmarked tokens
-
     mapping(uint32 => Marked) public marked;
     mapping(uint32 => mapping(uint16 => Sync)) public syncs;
     mapping(uint32 => mapping(address => BurnClaim)) public burnClaims;
@@ -306,8 +305,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     function syncL2(uint32 destinationDomain, address pair) external payable override {
         bytes memory payload = Codec.encodeSyncToL2(token0, reserve0, reserve1);
         bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(pair), payload);
-        /// TODO: set a reasonable gas limit based on handle()
-        hyperlaneGasMaster.payForGas{value: msg.value}(id, destinationDomain, 500000, address(msg.sender));
+        hyperlaneGasMaster.payGasFor{value: msg.value}(id, destinationDomain);
     }
 
     function finalizeSyncFromL2(uint32 originDomain, uint16 syncID) external override {
@@ -379,7 +377,10 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     /// @notice These tokens are simply added back to the reserves.
     /// @dev    This should be an authenticated call, only callable by the operator.
     /// @dev    The sync should be followed by a sync on the L2.
-    function _finalizeSyncFromL2(uint32 srcDomain, uint16 syncID, Sync memory sync) internal returns (bool hasFailed) {
+    function _finalizeSyncFromL2(uint32 srcDomain, uint16 syncID, Sync memory sync)
+        internal
+        returns (bool hasFailed)
+    {
         (address _token0, address _token1) = (token0, token1);
         (uint128 _reserve0, uint128 _reserve1) = (reserve0, reserve1);
         // re-arrange in correct order the sync's partial syncs

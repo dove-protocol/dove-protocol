@@ -16,8 +16,8 @@ echo Running Script: $script...
 
 # Run the script with interactive inputs
 forge script $script \
-    --fork-url $ETH_GOERLI_RPC_URL \
+    --rpc-url $RPC_URL \
     --broadcast \
     -vvvv \
-    --private-key $PRIVATE_KEY \
+    --private-key $DEPLOYER_KEY \
     $args
