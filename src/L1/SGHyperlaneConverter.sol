@@ -4,6 +4,7 @@ pragma solidity ^0.8.15;
 library SGHyperlaneConverter {
     error InvalidChain(uint16 chainId);
 
+    /// @notice convert stargate identifier (chain id) to hyperlane domain
     function sgToHyperlane(uint16 sgIdentifier) internal pure returns (uint32 domain) {
         // TODO: add mainnet chains
         if (sgIdentifier == 10143) {
