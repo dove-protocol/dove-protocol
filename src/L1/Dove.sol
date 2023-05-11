@@ -54,12 +54,12 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         uint128 marked0;
         uint128 marked1;
     }
-    
+
     /// @notice Dove mappings (used for storing contextual cross-chain metadata from syncs and constants for cross-chain infra)
     // domain id [hyperlane] => earmarked token balances stored within Marked
     mapping(uint32 => Marked) public marked;
-    // struct Sync { 
-    //    struct PartialSync0, 
+    // struct Sync {
+    //    struct PartialSync0,
     //    struct PartialSync1,
     //    struct SyncerMetadata
     // }
@@ -398,7 +398,9 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         bytes memory payload = Codec.encodeSyncToL2(token0, reserve0, reserve1);
         // dispatch sync transaction to mailbox
         bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(pair), payload);
-        hyperlaneGasMaster.hyperlaneGasMaster.payForGas{value: msg.value}(id, destinationDomain, 100000, address(msg.sender));;
+        hyperlaneGasMaster.hyperlaneGasMaster.payForGas{value: msg.value}(
+            id, destinationDomain, 100000, address(msg.sender)
+        );
     }
 
     /// @notice finalize a sync from L2 that did not finalize automatically due to ordering of cross-chain transactions
@@ -475,7 +477,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
                 // sync finalization has failed atomically, means there were tokens sent from same L2
                 // but NOT from the Pair!
                 syncs[origin][syncID] = sync; // record sync for pending finailztion
-                emit SyncPending(origin, syncID); 
+                emit SyncPending(origin, syncID);
             }
         } else {
             // otherwise there is at least one SG swap that hasn't completed yet
@@ -491,13 +493,10 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     /// @param syncID sync id
     /// @param sync Sync data
     /// @dev Used by internal function _syncFromL2() executed by hyperlane mailbox on its first attempt
-    /// @dev if the atomic cross-chain call to this function made within _syncFromL2() fails, then 
+    /// @dev if the atomic cross-chain call to this function made within _syncFromL2() fails, then
     ///      external func finalizeSyncFromL2() can be called by anyone seeking to collect the reward
     ///      for finalizing the sync.
-    function _finalizeSyncFromL2(uint32 srcDomain, uint16 syncID, Sync memory sync)
-        internal
-        returns (bool hasFailed)
-    {
+    function _finalizeSyncFromL2(uint32 srcDomain, uint16 syncID, Sync memory sync) internal returns (bool hasFailed) {
         // load tokens and reserves
         (address _token0, address _token1) = (token0, token1);
         (uint128 _reserve0, uint128 _reserve1) = (reserve0, reserve1);
@@ -574,7 +573,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
     }
 
     /// @notice transfer "amount" LP tokens from "from" address to "to" address
-    /// @param from address to transfer LP tokens from 
+    /// @param from address to transfer LP tokens from
     /// @param to address to transfer LP tokens to
     /// @param amount amount of LP tokens to transfer
     function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
