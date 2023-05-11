@@ -398,7 +398,7 @@ contract Dove is IDove, IStargateReceiver, Owned, HyperlaneClient, ERC20, Reentr
         bytes memory payload = Codec.encodeSyncToL2(token0, reserve0, reserve1);
         // dispatch sync transaction to mailbox
         bytes32 id = mailbox.dispatch(destinationDomain, TypeCasts.addressToBytes32(pair), payload);
-        hyperlaneGasMaster.payForGas{value: msg.value}(id, destinationDomain);
+        hyperlaneGasMaster.hyperlaneGasMaster.payForGas{value: msg.value}(id, destinationDomain, 100000, address(msg.sender));;
     }
 
     /// @notice finalize a sync from L2 that did not finalize automatically due to ordering of cross-chain transactions
