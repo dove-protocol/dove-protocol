@@ -23,49 +23,70 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
     /*###############################################################
                             STORAGE
     ###############################################################*/
+    /// @notice L2 factory
     IL2Factory public factory;
-
-    address public L1Target;
-
-    ///@notice The bridged token0.
-    address public token0;
-    ///@dev This is NOT the token0 on L1 but the L1 address
-    ///@dev of the token0 on L2.
-    address public L1Token0;
+    /// @notice The trading fees accumulator
+    FeesAccumulator public feesAccumulator;
+    /// @notice The voucher contract for token0
     Voucher public voucher0;
-
-    ///@notice The bridged token1.
-    address public token1;
-    address public L1Token1;
+    /// @notice The voucher contract for token1
     Voucher public voucher1;
 
+    /// @notice The L1 pair with equivalent reserve assets
+    address public L1Target;
+
+    /// @notice The bridged token0
+    address public token0;
+    /// @notice This is NOT the token0 on L1 but the L1 address
+    ///         of the token0 on L2
+    address public L1Token0;
+    ///@notice The bridged token1
+    address public token1;
+    /// @notice This is NOT the token1 on L1 but the L1 address
+    ///         of the token1 on L2
+    address public L1Token1;
+    /// @notice L2 pair reserves
     uint128 public reserve0;
     uint128 public reserve1;
+    /// @notice L2 pair last updated timestamp
     uint256 public blockTimestampLast;
+    /// @notice cumulative reserves since last sync to L1
     uint256 public reserve0CumulativeLast;
     uint256 public reserve1CumulativeLast;
 
-    FeesAccumulator public feesAccumulator;
-
+    /// @notice decimals of the reserve tokens
     uint64 internal immutable decimals0;
     uint64 internal immutable decimals1;
+    /// @notice last sync timestamp
     uint64 internal lastSyncTimestamp;
+    /// @notice sync id
     uint16 internal syncID;
 
+    /// @notice This pair's config for the respective stargate pool
     IL2Factory.SGConfig internal sgConfig;
 
-    ///@notice "reference" reserves on L1
+    /// @notice "reference" reserves on L1
     uint128 internal ref0;
     uint128 internal ref1;
-    // amount of vouchers minted since last L1->L2 sync
+    /// @notice amount of vouchers minted since last L1->L2 sync
     uint128 internal voucher0Delta;
     uint128 internal voucher1Delta;
-
+    /// @notice trading fee
     uint256 constant FEE = 300;
 
     /*###############################################################
                             CONSTRUCTOR
     ###############################################################*/
+
+    /// @notice constructor
+    /// @param _token0 token0 address
+    /// @param _L1Token0 token0 address on L1
+    /// @param _token1 token1 address
+    /// @param _L1Token1 token1 address on L1
+    /// @param _sgConfig stargate config
+    /// @param _gasMaster hyperlane gas master address
+    /// @param _mailbox hyperlane mailbox address
+    /// @param _L1Target L1 pair address
     constructor(
         address _token0,
         address _L1Token0,
@@ -76,24 +97,22 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         address _mailbox,
         address _L1Target
     ) HyperlaneClient(_gasMaster, _mailbox, address(0)) {
+        // deployer is the L2 factory for this pair
         factory = IL2Factory(msg.sender);
-
+        // set storage
         L1Target = _L1Target;
-
         token0 = _token0;
         L1Token0 = _L1Token0;
         token1 = _token1;
         L1Token1 = _L1Token1;
-
         sgConfig = _sgConfig;
-
         ERC20 token0_ = ERC20(_token0);
         ERC20 token1_ = ERC20(_token1);
-
         decimals0 = uint64(10 ** token0_.decimals());
         decimals1 = uint64(10 ** token1_.decimals());
 
         /// @dev Assume one AMM per L2.
+        // deploy voucher contracts & fee accumulator
         voucher0 = new Voucher(
             string.concat("v", token0_.name()),
             string.concat("v", token0_.symbol()),
@@ -105,7 +124,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             token1_.decimals()
         );
         feesAccumulator = new FeesAccumulator(_token0, _token1);
-
+        // set initial sync timestamp
         lastSyncTimestamp = uint64(block.timestamp);
     }
 
@@ -113,6 +132,7 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
                             AMM LOGIC
     ###############################################################*/
 
+    /// @notice return pair reserves
     function getReserves()
         public
         view
@@ -124,72 +144,88 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         _blockTimestampLast = blockTimestampLast;
     }
 
+    /// @notice return pair balance
     function balance0() public view returns (uint256) {
         return ref0 + STL.balanceOf(token0, address(this)) - voucher0Delta;
     }
 
+    /// @notice return pair balance
     function balance1() public view returns (uint256) {
         return ref1 + STL.balanceOf(token1, address(this)) - voucher1Delta;
     }
 
-    // Accrue fees on token0
+    /// @notice accrue fees on token0
+    /// @dev used by external swap()
     function _update0(uint256 amount) internal {
         STL.safeTransfer(token0, address(feesAccumulator), amount);
     }
 
-    // Accrue fees on token1
+    /// @notice accrue fees on token1
+    /// @dev used by external swap()
     function _update1(uint256 amount) internal {
         STL.safeTransfer(token1, address(feesAccumulator), amount);
     }
 
-    // update reserves and, on the first call per block, price accumulators
+    /// @notice update reserves and, on the first call per block, price accumulators
+    /// @param _balance0 token0 balance
+    /// @param _balance1 token1 balance
+    /// @param _reserve0 token0 reserve
+    /// @param _reserve1 token1 reserve
+    /// @dev used by external swap() & external sync()
     function _update(uint256 _balance0, uint256 _balance1, uint256 _reserve0, uint256 _reserve1) internal {
         uint256 blockTimestamp = block.timestamp;
         uint256 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
         if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
+            // update price accumulators
             reserve0CumulativeLast += _reserve0 * timeElapsed;
             reserve1CumulativeLast += _reserve1 * timeElapsed;
         }
-
+        // set set reserves and balances equal to each other
         reserve0 = uint128(_balance0);
         reserve1 = uint128(_balance1);
         blockTimestampLast = blockTimestamp;
         emit Sync(reserve0, reserve1);
     }
 
-    // produces the cumulative price using counterfactuals to save gas and avoid a call to sync.
+    /// @notice calculates the cumulative price using counterfactuals to save gas and avoid a call to sync.
     function currentCumulativePrices()
         public
         view
         override
         returns (uint256 reserve0Cumulative, uint256 reserve1Cumulative, uint256 blockTimestamp)
     {
+        // load current state
         blockTimestamp = block.timestamp;
         reserve0Cumulative = reserve0CumulativeLast;
         reserve1Cumulative = reserve1CumulativeLast;
-
         // if time has elapsed since the last update on the pair, mock the accumulated price values
         (uint256 _reserve0, uint256 _reserve1, uint256 _blockTimestampLast) = getReserves();
         if (_blockTimestampLast != blockTimestamp) {
-            // subtraction overflow is desired
+            // update state, subtraction overflow is desired
             uint256 timeElapsed = blockTimestamp - _blockTimestampLast;
             reserve0Cumulative += _reserve0 * timeElapsed;
             reserve1Cumulative += _reserve1 * timeElapsed;
         }
     }
 
-    // this low-level function should be called from a contract which performs important safety checks
+    /// @notice perform swap, NOTE: this low-level function should be called from a contract which 
+    ///         performs important safety checks, typically this would be the associated Router contract
+    /// @param amount0Out token0 amount to send
+    /// @param amount1Out token1 amount to send
+    /// @param to recipient address
+    /// @param data bytes data
     function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data)
         external
         override
         nonReentrant
     {
         //require(!BaseV1Factory(factory).isPaused());
+        // if amount out for tokens is not > 0, revert
         if (!(amount0Out > 0 || amount1Out > 0)) revert InsufficientOutputAmount();
-
+        // load pair reserves
         (uint128 _reserve0, uint128 _reserve1) = (reserve0, reserve1);
+        // if amount out is greater than available reserves, revert
         if (!(amount0Out < _reserve0 && amount1Out < _reserve1)) revert InsufficientLiquidity();
-
         uint256 _balance0;
         uint256 _balance1;
         {
@@ -251,14 +287,17 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         _update(balance0(), balance1(), reserve0, reserve1);
     }
 
+    /// @notice used within internal _get_y()
     function _f(uint256 x0, uint256 y) internal pure returns (uint256) {
         return (x0 * ((((y * y) / 1e18) * y) / 1e18)) / 1e18 + (((((x0 * x0) / 1e18) * x0) / 1e18) * y) / 1e18;
     }
 
+    /// @notice used within internal _get_y()
     function _d(uint256 x0, uint256 y) internal pure returns (uint256) {
         return (3 * x0 * ((y * y) / 1e18)) / 1e18 + ((((x0 * x0) / 1e18) * x0) / 1e18);
     }
 
+    /// @notice used for calculating amount out for a given swap, within internal getAmountOut()
     function _get_y(uint256 x0, uint256 xy, uint256 y) internal pure returns (uint256) {
         for (uint256 i = 0; i < 255; i++) {
             uint256 y_prev = y;
@@ -283,48 +322,68 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         return y;
     }
 
+    /// @notice get amount out for a given swap
+    /// @param amountIn the amount of tokenIn
+    /// @param tokenIn the address of tokenIn
     function getAmountOut(uint256 amountIn, address tokenIn) external view override returns (uint256) {
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         amountIn -= amountIn / FEE; // remove fee from amount received
         return _getAmountOut(amountIn, tokenIn, _reserve0, _reserve1);
     }
 
+    /// @notice get amount out for a given swap
+    /// @param amountIn the amount of tokenIn
+    /// @param tokenIn the address of tokenIn
+    /// @param _reserve0 the reserve of token0
+    /// @param _reserve1 the reserve of token1
+    /// @dev used by external getAmountOut()
     function _getAmountOut(uint256 amountIn, address tokenIn, uint256 _reserve0, uint256 _reserve1)
         internal
         view
         returns (uint256)
     {
+        // calculate constant product
         uint256 xy = _k(_reserve0, _reserve1);
         _reserve0 = (_reserve0 * 1e18) / decimals0;
         _reserve1 = (_reserve1 * 1e18) / decimals1;
+        // load reserves
         (uint256 reserveA, uint256 reserveB) = tokenIn == token0 ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
+        // scale amount in by its respective token decimals
         amountIn = tokenIn == token0 ? (amountIn * 1e18) / decimals0 : (amountIn * 1e18) / decimals1;
+        // calculate and return tokenOut amount
         uint256 y = reserveB - _get_y(amountIn + reserveA, xy, reserveB);
         return (y * (tokenIn == token0 ? decimals1 : decimals0)) / 1e18;
     }
 
+    /// @notice calculate constant product
+    /// @param x the amount of tokenA
+    /// @param y the amount of tokenB
     function _k(uint256 x, uint256 y) internal view returns (uint256) {
         uint256 _x = (x * 1e18) / decimals0;
         uint256 _y = (y * 1e18) / decimals1;
         uint256 _a = (_x * _y) / 1e18;
         uint256 _b = ((_x * _x) / 1e18 + (_y * _y) / 1e18);
-        return (_a * _b) / 1e18; // x3y+y3x >= k
+        return (_a * _b) / 1e18; // x3y+y3x >= k, this is the CFMM bonding curve
     }
 
     /*###############################################################
                             CROSS-CHAIN LOGIC
     ###############################################################*/
 
+    /// @notice YEET, give up your vouchers and get your tokens back from Pair
+    /// @param amount0 the amount of voucher0 to transfer back
+    /// @param amount1 the amount of voucher1 to transfer back
     function yeetVouchers(uint256 amount0, uint256 amount1) external override nonReentrant {
+        // transfer vouchers from msg.sender to Pair
         voucher0.transferFrom(msg.sender, address(this), amount0);
         voucher1.transferFrom(msg.sender, address(this), amount1);
-
+        // transfer tokens from Pair to msg.sender
         STL.safeTransfer(token0, msg.sender, amount0);
         STL.safeTransfer(token1, msg.sender, amount1);
-
         emit VouchersYeeted(msg.sender, amount0, amount1);
     }
 
+    /// @notice return syncer reward percentage given current timestamp
     function getSyncerPercentage() external view returns (uint64) {
         // reaches 50% over 24h => 0.06 bps per second
         uint256 bps = ((block.timestamp - lastSyncTimestamp) * 6) / 100;
@@ -332,21 +391,31 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         return uint64(bps);
     }
 
-    /// @notice Syncs to the L1.
-    /// @dev Dependent on SG.
+    /// @notice Syncs Pair state to the L1 Dove contract + bridges fees for LP tokens on L1 to claim
+    /// @param sgFee the fee to send to stargate router
+    /// @param hyperlaneFee the fee to send to hyperlane message relayer
+    /// @dev This function depends on hyperlane and stargate.
+    ///      The msg.sender of this function will receive the syncer reward
+    ///      if the sync is atomically finalized by the hyperlane mailbox which makes
+    ///      the cross chain call to finalize the sync on the L1 Dove contract
+    ///      NOTE: if the sync does not finalize atomically the reward is then given
+    ///      to the first caller to successfully call dove.finalizeSyncFromL2() on 
+    ///      the L1 Dove contract associated to this pair. This could be the same
+    ///      person that made this initial pair.syncToL1() here but be quick!
     function syncToL1(uint256 sgFee, uint256 hyperlaneFee) external payable override {
+        // revert is crosschain fee paid to use stargate and hyperlane is too low
         if (msg.value < (sgFee * 2) + hyperlaneFee) revert MsgValueTooLow();
-
         address _token0 = token0;
         address _token1 = token1;
         // balance before getting accumulated fees
         uint256 _balance0 = STL.balanceOf(_token0, address(this));
         uint256 _balance1 = STL.balanceOf(_token1, address(this));
-
+        // load voucher balances
         uint128 pairVoucher0Balance = uint128(voucher0.balanceOf(address(this)));
         uint128 pairVoucher1Balance = uint128(voucher1.balanceOf(address(this)));
 
-        // Sends the HL message first to avoid stack too deep!
+        // Sends the HL message first containing metadata about the entire pair
+        // reference Codec for detail on how the encoding is done
         {
             uint32 destDomain = factory.destDomain();
             bytes memory payload = Codec.encodeSyncToL1(
@@ -362,16 +431,17 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
                 msg.sender,
                 this.getSyncerPercentage()
             );
-            // send HL message
+            // send Hyperlane message
             bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
             hyperlaneGasMaster.payForGas{value: hyperlaneFee}(id, destDomain, 500000, address(msg.sender));
         }
 
+        // take in fees to this Pair from its fee accumulator, these funds will be bridged to L1
         (uint256 fees0, uint256 fees1) = feesAccumulator.take();
         uint16 destChainId = factory.destChainId();
         IStargateRouter stargateRouter = IStargateRouter(factory.stargateRouter());
 
-        // swap token0
+        // stargate swap token0
         STL.safeApprove(_token0, address(stargateRouter), _balance0 + fees0);
         stargateRouter.swap{value: sgFee}(
             destChainId,
@@ -384,9 +454,10 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             abi.encodePacked(L1Target),
             abi.encode(syncID)
         );
+        // update reserve0
         reserve0 = ref0 + uint128(_balance0) - voucher0Delta - pairVoucher0Balance;
 
-        // swap token1
+        // stargate swap token1
         STL.safeApprove(_token1, address(stargateRouter), _balance1 + fees1);
         stargateRouter.swap{value: sgFee}(
             destChainId,
@@ -399,42 +470,52 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
             abi.encodePacked(L1Target),
             abi.encode(syncID)
         );
+        // update reserve1
         reserve1 = ref1 + uint128(_balance1) - voucher1Delta - pairVoucher1Balance;
-
+        // update reserve reference values
         ref0 = reserve0;
         ref1 = reserve1;
+        // reset voucher deltas
         voucher0Delta = 0;
         voucher1Delta = 0;
+        // increment syncID
         syncID++;
+        // update lastSyncTimestamp
         lastSyncTimestamp = uint64(block.timestamp);
-
         emit SyncToL1Initiated(_balance0, _balance1, fees0, fees1);
     }
 
-    /// @notice Allows user to burn his L2 vouchers to get the L1 tokens.
+    /// @notice Allows user to burn their L2 vouchers to get the L1 tokens.
     /// @param amount0 The amount of voucher0 to burn.
     /// @param amount1 The amount of voucher1 to burn.
     function burnVouchers(uint256 amount0, uint256 amount1) external payable override nonReentrant {
         uint32 destDomain = factory.destDomain();
         // tell L1 that vouchers been burned
+        // if voucher amount is not > 0, revert
         if (!(amount0 > 0 || amount1 > 0)) revert NoVouchers();
-
-        if (amount0 > 0) voucher0.burn(msg.sender, amount0);
+        if (amount0 > 0) voucher0.burn(msg.sender, amount0); // burn vouchers
         if (amount1 > 0) voucher1.burn(msg.sender, amount1);
-        (amount0, amount1) = _getL1Ordering(amount0, amount1);
+        (amount0, amount1) = _getL1Ordering(amount0, amount1); // get L1 ordering of tokens
+        // encode burn voucher message to L1
         bytes memory payload = Codec.encodeVouchersBurn(msg.sender, uint128(amount0), uint128(amount1));
+        // send Hyperlane message to burn vouchers on L1
         bytes32 id = mailbox.dispatch(destDomain, TypeCasts.addressToBytes32(L1Target), payload);
         hyperlaneGasMaster.payForGas{value: msg.value}(id, destDomain, 100000, address(msg.sender));
-
         emit VouchersBurnInitiated(msg.sender, amount0, amount1);
     }
 
+    /// @notice This is the hyperlane receiver function that will be called by hyperlane mailbox
+    ///         originating from the associated L1 Dove of this L2 pair to finalize a sync from L1 to L2.
+    /// @param origin The hyperlane domain of the L1 Dove that initiated the sync.
+    /// @param sender The address of the L1 Dove that initiated the sync.
+    /// @param payload The payload of the dove.syncL2() message
     function handle(uint32 origin, bytes32 sender, bytes calldata payload) external onlyMailbox {
         uint32 destDomain = factory.destDomain();
+        // if expected origin is not present, revert
         if (origin != destDomain) revert WrongOrigin();
-
+        // if "sender is not a Dove contract, revert
         if (TypeCasts.addressToBytes32(L1Target) != sender) revert NotDove();
-
+        // decode payload from L1
         uint256 messageType = abi.decode(payload, (uint256));
         if (messageType == Codec.SYNC_TO_L2) {
             Codec.SyncToL2Payload memory sp = Codec.decodeSyncToL2(payload);
@@ -442,14 +523,18 @@ contract Pair is IPair, ReentrancyGuard, HyperlaneClient {
         }
     }
 
+    /// @notice take in metadata from L1 dove.syncL2() sent to this pair
+    /// @param sp The SyncToL2Payload struct
+    /// @dev used by pair.handle()
     function _syncFromL1(Codec.SyncToL2Payload memory sp) internal {
         (reserve0, reserve1) = sp.token0 == L1Token0 ? (sp.reserve0, sp.reserve1) : (sp.reserve1, sp.reserve0);
+        // update reference reserves from L1 based on new updated metadata of dove.syncL2() call sent to this pair
         ref0 = reserve0;
         ref1 = reserve1;
-
         emit SyncedFromL1(reserve0, reserve1);
     }
 
+    /// @notice get the L1 ordering of tokens within the associated L1 pair/dove
     function _getL1Ordering(uint256 amount0, uint256 amount1) internal view returns (uint256, uint256) {
         if (L1Token0 < L1Token1) {
             return (amount0, amount1);

@@ -3,10 +3,13 @@
 pragma solidity ^0.8.15;
 
 library Codec {
+    /// @notice message types
     uint256 public constant BURN_VOUCHERS = 1;
     uint256 public constant SYNC_TO_L1 = 2;
     uint256 public constant SYNC_TO_L2 = 3;
 
+    /// @notice return message type given payload
+    /// @param payload message payload
     function getType(bytes calldata payload) internal pure returns (uint256 msgType) {
         assembly {
             let ptr := mload(0x40)
@@ -30,6 +33,7 @@ library Codec {
         address syncer;
     }
 
+    /// @notice encode L2 metadata from Pair so it can be sent cross chain to L1
     function encodeSyncToL1(
         uint16 syncID,
         address L1Token0,
@@ -91,6 +95,7 @@ library Codec {
         }
     }
 
+    /// @notice decode L2 metadata sent to L1 Dove from L2 Pair so it can be used to update L1 state and calculate protocol rewards
     function decodeSyncToL1(bytes memory _payload)
         internal
         pure
@@ -131,10 +136,12 @@ library Codec {
         uint128 reserve1;
     }
 
+    /// @notice encode L1 metadata sent to L2 Pair from L1 Dove so it can be used to update L2 state
     function encodeSyncToL2(address token0, uint128 reserve0, uint128 reserve1) internal pure returns (bytes memory) {
         return abi.encode(SYNC_TO_L2, SyncToL2Payload(token0, reserve0, reserve1));
     }
 
+    /// @notice decode L1 metadata sent to L2 Pair from L1 Dove so it can be used to update L2 state
     function decodeSyncToL2(bytes calldata _payload) internal pure returns (SyncToL2Payload memory) {
         (, SyncToL2Payload memory payload) = abi.decode(_payload, (uint256, SyncToL2Payload));
         return payload;
@@ -148,10 +155,12 @@ library Codec {
         uint128 amount1;
     }
 
+    /// @notice encode L2 metadata sent to L1 Dove from L2 Pair so it can be used to update L1 state with regard to vouchers
     function encodeVouchersBurn(address user, uint128 amount0, uint128 amount1) internal pure returns (bytes memory) {
         return abi.encode(BURN_VOUCHERS, VouchersBurnPayload(user, amount0, amount1));
     }
 
+    /// @notice decode L2 metadata sent to L1 Dove from L2 Pair so it can be used to update L1 state with regard to vouchers
     function decodeVouchersBurn(bytes calldata _payload) internal pure returns (VouchersBurnPayload memory) {
         (, VouchersBurnPayload memory vouchersBurnPayload) = abi.decode(_payload, (uint256, VouchersBurnPayload));
         return vouchersBurnPayload;
